@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>iConnect — Medical Education Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+:root {
+  --blue:#2563EB;--blue-d:#1D4ED8;--blue-l:#EFF6FF;--blue-ll:#DBEAFE;
+  --teal:#2563EB;--teal-d:#1D4ED8;--teal-l:#EFF6FF;--teal-ll:#DBEAFE;
+  --navy:#111827;--navy-m:#1F2937;--navy-l:#374151;
+  --amber:#F59E0B;--amber-l:#FFFBEB;--amber-d:#92400E;
+  --rose:#EF4444;--rose-l:#FEF2F2;--rose-d:#991B1B;
+  --violet:#7C3AED;--violet-l:#F5F3FF;--violet-d:#5B21B6;
+  --sky:#0EA5E9;--sky-l:#F0F9FF;
+  --surf:#F9FAFB;--surf2:#F3F4F6;
+  --white:#FFFFFF;--text:#111827;--muted:#6B7280;--light:#9CA3AF;--border:#E5E7EB;
+  --shadow:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+  --shadow-md:0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -1px rgba(0,0,0,.06);
+  --shadow-lg:0 10px 15px -3px rgba(0,0,0,.1),0 4px 6px -2px rgba(0,0,0,.05);
+  --r:8px;--r-sm:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--white);color:var(--text);min-height:100vh;}
+h1,h2,h3,h4,h5{font-family:'Inter',system-ui,sans-serif;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes scaleIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+@keyframes slideR{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes bounceIn{0%{transform:scale(.5);opacity:0}70%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
+.fu{animation:fadeUp .3s ease both;}
+.fi{animation:fadeIn .25s ease both;}
+.si{animation:scaleIn .25s ease both;}
+
+/* LOGIN - matching screenshot style */
+.login-bg{min-height:100vh;background:var(--white);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;}
+.login-logo-wrap{display:flex;flex-direction:column;align-items:center;margin-bottom:32px;}
+.logo-icon{width:56px;height:56px;border-radius:12px;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;color:white;margin-bottom:12px;}
+.logo-text{font-size:22px;font-weight:700;color:var(--text);}
+.logo-sub{font-size:13px;color:var(--muted);margin-top:2px;}
+.login-card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:32px;width:420px;box-shadow:var(--shadow-md);}
+.login-card h2{font-size:18px;font-weight:600;margin-bottom:4px;}
+.login-card p{font-size:14px;color:var(--muted);margin-bottom:20px;}
+.login-field{margin-bottom:14px;}
+.login-field label{display:block;font-size:13px;font-weight:500;margin-bottom:5px;color:var(--text);}
+.login-input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit;outline:none;transition:border-color .15s;}
+.login-input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+.login-btn{width:100%;padding:10px;background:var(--blue);color:white;border:none;border-radius:6px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s;}
+.login-btn:hover{background:var(--blue-d);}
+.login-divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--muted);font-size:13px;}
+.login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.admin-btn{width:100%;padding:9px;background:var(--white);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .15s;margin-bottom:8px;text-align:center;}
+.admin-btn:hover{background:var(--surf);border-color:var(--blue);}
+.login-note{background:var(--blue-l);border:1px solid var(--blue-ll);border-radius:6px;padding:10px 14px;font-size:13px;color:#1E40AF;margin-top:14px;display:flex;align-items:flex-start;gap:8px;}
+
+/* SHELL */
+.shell{display:flex;min-height:100vh;}
+.sidebar{width:240px;min-height:100vh;background:var(--white);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;z-index:100;}
+.sb-header{padding:16px;border-bottom:1px solid var(--border);}
+.sb-logo{display:flex;align-items:center;gap:8px;}
+.sb-logo-icon{width:32px;height:32px;border-radius:8px;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:white;}
+.sb-logo-text{font-size:17px;font-weight:700;color:var(--text);}
+.sb-panel-label{font-size:11px;color:var(--muted);margin-top:1px;}
+.sb-nav{flex:1;padding:8px;overflow-y:auto;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:400;color:var(--muted);transition:all .15s;margin-bottom:1px;}
+.nav-item:hover{background:var(--surf);color:var(--text);}
+.nav-item.act{background:var(--blue-l);color:var(--blue);font-weight:500;}
+.nav-ic{font-size:16px;width:20px;text-align:center;opacity:.7;}
+.nav-item.act .nav-ic{opacity:1;}
+.nav-bdg{margin-left:auto;background:var(--rose);color:white;font-size:10px;font-weight:700;border-radius:99px;padding:1px 6px;}
+.sb-footer{padding:12px;border-top:1px solid var(--border);}
+.logout-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:4px 8px;transition:color .15s;display:flex;align-items:center;gap:5px;}
+.logout-btn:hover{color:var(--rose);}
+
+/* MAIN */
+.main{margin-left:240px;flex:1;display:flex;flex-direction:column;min-height:100vh;background:var(--surf);}
+.topbar{height:56px;background:var(--white);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:50;}
+.topbar-left{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);}
+.topbar-left span{color:var(--muted);}
+.topbar-right{display:flex;align-items:center;gap:8px;}
+.role-badge{background:transparent;border:1px solid var(--blue);color:var(--blue);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:500;}
+.icon-btn{width:36px;height:36px;border-radius:6px;border:1px solid var(--border);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;font-size:16px;position:relative;}
+.icon-btn:hover{background:var(--surf);}
+.notif-count{position:absolute;top:-4px;right:-4px;background:var(--rose);color:white;font-size:9px;font-weight:700;border-radius:99px;padding:1px 5px;min-width:16px;text-align:center;border:2px solid white;}
+
+/* PAGE */
+.page{flex:1;padding:24px;animation:fadeUp .3s ease both;}
+.ph{margin-bottom:20px;}
+.pt{font-size:22px;font-weight:600;}
+.ps{font-size:13px;color:var(--muted);margin-top:2px;}
+.ph-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;}
+
+/* CARDS */
+.card{background:var(--white);border-radius:var(--r);border:1px solid var(--border);padding:20px;}
+.card-sm{padding:14px;}
+.ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.ct{font-size:14px;font-weight:600;color:var(--text);}
+.cs{font-size:12px;color:var(--muted);margin-top:2px;}
+
+/* STATS */
+.sg4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
+.sg3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;}
+.stat{background:var(--white);border-radius:var(--r);border:1px solid var(--border);padding:18px;position:relative;overflow:hidden;animation:fadeUp .3s ease both;}
+.stat::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;border-radius:0 0 var(--r) var(--r);}
+.stat.teal::after{background:#22C55E;}
+.stat.amber::after{background:var(--amber);}
+.stat.rose::after{background:var(--rose);}
+.stat.violet::after{background:var(--violet);}
+.stat.sky::after{background:var(--blue);}
+.stat-ic{font-size:22px;margin-bottom:8px;}
+.stat-v{font-size:26px;font-weight:700;line-height:1;color:var(--text);}
+.stat-l{font-size:12px;color:var(--muted);margin-top:4px;font-weight:400;}
+.stat-ch{font-size:11px;font-weight:600;margin-top:8px;display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:99px;}
+.up{background:#DCFCE7;color:#166534;}
+.dn{background:var(--rose-l);color:var(--rose-d);}
+.ntr{background:var(--surf2);color:var(--muted);}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;border:1px solid transparent;font-family:inherit;white-space:nowrap;}
+.btn-p{background:var(--blue);color:white;border-color:var(--blue);}
+.btn-p:hover{background:var(--blue-d);}
+.btn-s{background:var(--white);color:var(--text);border-color:var(--border);}
+.btn-s:hover{background:var(--surf);}
+.btn-d{background:var(--rose-l);color:var(--rose-d);border-color:#FECACA;}
+.btn-d:hover{background:#FEE2E2;}
+.btn-v{background:var(--violet-l);color:var(--violet-d);border-color:#DDD6FE;}
+.btn-v:hover{background:#EDE9FE;}
+.btn-sm{padding:5px 12px;font-size:12px;border-radius:5px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+
+/* TABLE */
+.tw{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;}
+thead th{text-align:left;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:10px 14px;background:var(--surf);border-bottom:1px solid var(--border);}
+tbody td{padding:12px 14px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tbody tr:hover{background:var(--surf);}
+tbody tr:last-child td{border-bottom:none;}
+
+/* BADGE */
+.bdg{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:500;}
+.bg-g{background:#DCFCE7;color:#166534;}
+.bg-a{background:#FEF3C7;color:#92400E;}
+.bg-r{background:var(--rose-l);color:var(--rose-d);}
+.bg-v{background:var(--violet-l);color:var(--violet-d);}
+.bg-s{background:var(--surf2);color:var(--muted);}
+.bg-sky{background:var(--blue-l);color:#1D4ED8;}
+
+/* FORM */
+.fg{margin-bottom:14px;}
+.fl{font-size:13px;font-weight:500;color:var(--text);margin-bottom:5px;display:block;}
+.fl span.req{color:var(--rose);}
+.fi-in,.fi-sel,.fi-ta{width:100%;padding:9px 12px;border-radius:6px;border:1px solid var(--border);background:var(--white);font-size:14px;color:var(--text);font-family:inherit;transition:border-color .15s;outline:none;}
+.fi-in:focus,.fi-sel:focus,.fi-ta:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+.fi-in.auto{background:var(--blue-l);border-color:var(--blue-ll);color:var(--blue-d);font-weight:500;}
+.fi-ta{resize:vertical;min-height:80px;}
+.fg2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.form-note{font-size:11px;color:var(--muted);margin-top:4px;display:flex;align-items:center;gap:4px;}
+
+/* UPLOAD */
+.upz{border:2px dashed var(--border);border-radius:var(--r);padding:36px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surf);}
+.upz:hover,.upz.drag{border-color:var(--blue);background:var(--blue-l);}
+.pb{height:6px;background:var(--border);border-radius:99px;overflow:hidden;margin-top:10px;}
+.pf{height:100%;background:var(--blue);border-radius:99px;transition:width .25s ease;}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;animation:fadeIn .2s ease;}
+.modal{background:var(--white);border-radius:10px;box-shadow:var(--shadow-lg);width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;animation:scaleIn .2s ease both;}
+.modal-lg{width:700px;}
+.mh{padding:20px 24px 0;display:flex;align-items:center;justify-content:space-between;}
+.mt{font-size:16px;font-weight:600;}
+.mc{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--muted);transition:all .15s;}
+.mc:hover{background:var(--surf);}
+.mb{padding:16px 24px;}
+.mf{padding:0 24px 20px;display:flex;gap:8px;justify-content:flex-end;}
+
+/* LB */
+.lb-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:6px;margin-bottom:4px;transition:background .15s;}
+.lb-row:hover{background:var(--surf);}
+.lb-row.me{background:var(--blue-l);border:1px solid var(--blue-ll);}
+.lb-pos{font-size:13px;font-weight:700;width:22px;color:var(--muted);}
+
+/* NOTIF */
+.ni{display:flex;gap:12px;padding:12px 14px;border-radius:6px;margin-bottom:4px;transition:background .15s;cursor:pointer;position:relative;}
+.ni:hover{background:var(--surf);}
+.ni.unr{background:var(--blue-l);}
+.ni-ic{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.ni-t{font-size:13px;font-weight:500;}
+.ni-b{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.4;}
+.ni-time{font-size:11px;color:var(--light);margin-top:3px;}
+
+/* CAL */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+.cd{height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;transition:all .15s;}
+.cd.empty{background:var(--surf2);color:var(--light);}
+.cd.act{background:#22C55E;color:white;font-weight:600;}
+.cd.event{background:var(--violet-l);color:var(--violet-d);}
+.cd.target{background:#FEF3C7;color:#92400E;}
+.cd.today{background:var(--blue);color:white;font-weight:700;}
+.cd:hover{opacity:.8;}
+
+/* PDF VIEWER */
+.pdf-v{background:#525659;border-radius:var(--r);overflow:hidden;min-height:480px;display:flex;flex-direction:column;}
+.pdf-tb{background:#3C3F41;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+.pdf-btn{background:rgba(255,255,255,.1);border:none;border-radius:6px;color:rgba(255,255,255,.8);padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600;transition:background .15s;}
+.pdf-btn:hover{background:rgba(255,255,255,.2);}
+.pdf-btn:disabled{opacity:.35;cursor:default;}
+.pdf-page-area{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;}
+.pdf-page{background:white;border-radius:4px;box-shadow:0 4px 20px rgba(0,0,0,.4);padding:40px;max-width:500px;width:100%;line-height:1.7;color:#222;}
+.pdf-page h2{font-size:17px;font-weight:700;margin-bottom:14px;color:var(--navy);border-bottom:2px solid var(--blue);padding-bottom:8px;}
+
+/* EBOOK GRID */
+.eg{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;}
+.ec{background:var(--white);border-radius:var(--r);border:1px solid var(--border);overflow:hidden;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;}
+.ec:hover{box-shadow:var(--shadow-md);border-color:var(--blue);}
+.ec-cover{height:110px;display:flex;align-items:center;justify-content:center;font-size:44px;position:relative;background:var(--surf);}
+.ec-body{padding:10px;flex:1;}
+.ec-title{font-size:12px;font-weight:600;line-height:1.3;margin-bottom:4px;}
+.ec-meta{font-size:11px;color:var(--muted);}
+.ec-foot{padding:8px 10px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+
+/* PROFILE HERO */
+.prof-hero{background:linear-gradient(135deg,var(--navy),var(--navy-m));border-radius:var(--r);padding:24px;color:white;display:flex;align-items:center;gap:18px;margin-bottom:20px;}
+.prof-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:500;color:rgba(255,255,255,.8);margin-top:6px;}
+.verify-pend{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.3);color:#FCD34D;}
+
+/* TOAST */
+.toast-wrap{position:fixed;bottom:20px;right:20px;z-index:999;display:flex;flex-direction:column;gap:6px;}
+.toast{background:var(--navy);color:white;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:400;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:8px;animation:fadeIn .25s ease both;max-width:300px;}
+.toast.s{border-left:3px solid #22C55E;}
+.toast.e{border-left:3px solid var(--rose);}
+.toast.i{border-left:3px solid var(--blue);}
+.toast.w{border-left:3px solid var(--amber);}
+
+/* TABS - underline style like screenshots */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px;}
+.tab{padding:8px 16px;font-size:14px;font-weight:400;cursor:pointer;transition:all .15s;color:var(--muted);border:none;background:transparent;font-family:inherit;border-bottom:2px solid transparent;margin-bottom:-1px;}
+.tab.act{color:var(--blue);border-bottom-color:var(--blue);font-weight:500;}
+.tab:hover:not(.act){color:var(--text);}
+
+/* MISC */
+.divider{height:1px;background:var(--border);margin:16px 0;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+.mt2{margin-top:8px;} .mt3{margin-top:12px;} .mt4{margin-top:16px;} .mt6{margin-top:20px;}
+.mb3{margin-bottom:12px;}
+.search-bar{display:flex;align-items:center;gap:8px;background:var(--white);border:1px solid var(--border);border-radius:6px;padding:7px 12px;transition:border-color .15s;}
+.search-bar:focus-within{border-color:var(--blue);}
+.search-bar input{border:none;background:transparent;outline:none;font-size:13px;color:var(--text);width:180px;font-family:inherit;}
+.empty{text-align:center;padding:48px 20px;}
+.empty-ic{font-size:44px;margin-bottom:12px;opacity:.5;}
+.empty-t{font-size:16px;font-weight:600;margin-bottom:4px;}
+.empty-s{font-size:13px;color:var(--muted);}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:99px;font-size:11.5px;font-weight:500;background:var(--surf2);color:var(--muted);margin:3px;}
+.tag-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
+.coming-soon-banner{background:var(--navy);border-radius:var(--r);padding:20px;color:white;text-align:center;margin-bottom:16px;}
+
+/* KAHOOT */
+.kahoot-card{background:linear-gradient(135deg,#46178F,#8B5CF6);border-radius:var(--r);padding:24px;color:white;position:relative;overflow:hidden;}
+
+/* CHANNEL TOGGLES */
+.ch-toggle{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);}
+.toggle{width:38px;height:20px;border-radius:99px;cursor:pointer;transition:background .2s;display:flex;align-items:center;padding:0 3px;flex-shrink:0;}
+.toggle.on{background:var(--blue);}
+.toggle.off{background:var(--border);}
+.toggle-thumb{width:14px;height:14px;border-radius:50%;background:white;transition:margin .2s;}
+.toggle.on .toggle-thumb{margin-left:auto;}
+
+/* SCORE BREAKDOWN */
+.score-seg{height:8px;border-radius:99px;overflow:hidden;display:flex;gap:2px;margin:8px 0;}
+.seg-part{height:100%;transition:width .5s ease;}
+
+/* VERIFICATION STEPS */
+.vstep{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);}
+.vstep-ic{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.vstep.done .vstep-ic{background:#DCFCE7;color:#166534;}
+.vstep.pend .vstep-ic{background:#FEF3C7;color:#92400E;}
+.vstep.miss .vstep-ic{background:var(--rose-l);color:var(--rose-d);}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script></head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback,useMemo} = React;
+
+// ── DATA ──
+const ROLES={superadmin:{label:'Super Admin',icon:'🛡️',name:'Dr. Rajesh Kumar',email:'admin@iconnect.in'},contentadmin:{label:'Content Admin',icon:'📚',name:'Priya Sharma',email:'content@iconnect.in'},doctor:{label:'PG Aspirant',icon:'🩺',name:'Dr. Sneha Verma',email:'sneha@iconnect.in'}};
+
+const STATES=['Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat','Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh','Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan','Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal','Delhi','Jammu & Kashmir'];
+const ZONES={North:['Delhi','Haryana','Punjab','Uttar Pradesh','Uttarakhand','Himachal Pradesh','Jammu & Kashmir'],South:['Andhra Pradesh','Karnataka','Kerala','Tamil Nadu','Telangana'],East:['Bihar','Jharkhand','Odisha','West Bengal','Assam','Arunachal Pradesh','Manipur','Meghalaya','Mizoram','Nagaland','Sikkim','Tripura'],West:['Goa','Gujarat','Maharashtra','Rajasthan'],Central:['Chhattisgarh','Madhya Pradesh']};
+const getZone=state=>{for(const[z,states]of Object.entries(ZONES))if(states.includes(state))return z;return 'Central';};
+const SPECIALITIES={MD:['Internal Medicine','Paediatrics','Psychiatry','Radiology','Dermatology','Pathology','Microbiology','Biochemistry','Physiology','Anatomy','Pharmacology','Community Medicine','Anaesthesiology','Emergency Medicine'],MS:['General Surgery','Orthopaedics','Ophthalmology','ENT','Obstetrics & Gynaecology','Urology'],DM:['Cardiology','Neurology','Nephrology','Gastroenterology','Endocrinology','Pulmonology','Rheumatology','Medical Oncology'],MCh:['Cardiothoracic Surgery','Neurosurgery','Plastic Surgery','Paediatric Surgery','Vascular Surgery'],DNB:['General Medicine','Family Medicine','Hospital Administration']};
+const PROG_YEARS={MD:3,MS:3,DM:3,MCh:3,DNB:3};
+
+const ARTIFACTS_INIT=[
+  {id:1,title:"Harrison's Principles of Internal Medicine",subject:'Internal Medicine',type:'PDF',size:'24.5 MB',uploadedBy:'Priya Sharma',date:'2024-01-15',status:'approved',downloads:342,pages:890,emoji:'📗',access:'all'},
+  {id:2,title:"Gray's Anatomy for Students",subject:'Anatomy',type:'PDF',size:'38.2 MB',uploadedBy:'Priya Sharma',date:'2024-01-20',status:'approved',downloads:289,pages:742,emoji:'📘',access:'all'},
+  {id:3,title:'Pharmacology by Rang & Dale',subject:'Pharmacology',type:'PDF',size:'19.1 MB',uploadedBy:'Priya Sharma',date:'2024-02-01',status:'pending',downloads:0,pages:620,emoji:'📙',access:'all'},
+  {id:4,title:'Robbins Pathology — Core Concepts',subject:'Pathology',type:'PDF',size:'31.0 MB',uploadedBy:'Priya Sharma',date:'2024-02-05',status:'pending',downloads:0,pages:512,emoji:'📕',access:'md_ms'},
+  {id:5,title:"Netter's Clinical Anatomy",subject:'Anatomy',type:'PDF',size:'45.8 MB',uploadedBy:'Priya Sharma',date:'2024-02-08',status:'approved',downloads:156,pages:640,emoji:'📗',access:'all'},
+];
+const LB_DATA=[
+  {id:1,name:'Dr. Arjun Mehta',college:'AIIMS Delhi',score:9840,speciality:'Cardiology',quizPts:3800,readPts:3200,notesPts:1540,resPts:1300},
+  {id:2,name:'Dr. Kavya Nair',college:'CMC Vellore',score:9420,speciality:'Neurology',quizPts:3600,readPts:3100,notesPts:1420,resPts:1300},
+  {id:3,name:'Dr. Rohan Patel',college:'KEM Mumbai',score:9100,speciality:'Surgery',quizPts:3400,readPts:3000,notesPts:1400,resPts:1300},
+  {id:4,name:'Dr. Sneha Verma',college:'PGIMER',score:8750,speciality:'Internal Medicine',quizPts:3200,readPts:2950,notesPts:1300,resPts:1300,isMe:true},
+  {id:5,name:'Dr. Aditya Singh',college:'JIPMER',score:8420,speciality:'Orthopaedics',quizPts:3000,readPts:2800,notesPts:1300,resPts:1320},
+  {id:6,name:'Dr. Pooja Iyer',college:'Madras Medical College',score:8100,speciality:'Paediatrics',quizPts:2900,readPts:2800,notesPts:1200,resPts:1200},
+  {id:7,name:'Dr. Vikram Joshi',college:'BHU Varanasi',score:7890,speciality:'Radiology',quizPts:2800,readPts:2700,notesPts:1200,resPts:1190},
+  {id:8,name:'Dr. Ananya Rao',college:'Manipal',score:7650,speciality:'Gynaecology',quizPts:2700,readPts:2600,notesPts:1200,resPts:1150},
+];
+const NOTIFS_INIT=[
+  {id:1,type:'success',icon:'🎉',title:'Welcome to iConnect!',body:'Your account has been created. Complete your profile to get verified. — Yokesh (Admin)',time:'Just now',unread:true,channel:'in_app'},
+  {id:2,type:'info',icon:'📗',title:'New E-Book Available',body:'"Harrison\'s Principles" has been approved and is now available in the library.',time:'1 hr ago',unread:true,channel:'in_app'},
+  {id:3,type:'info',icon:'🏆',title:'Leaderboard Update',body:'You moved up 3 positions! You are now ranked #4 in your batch.',time:'3 hrs ago',unread:true,channel:'in_app'},
+  {id:4,type:'warn',icon:'⏰',title:'Upcoming CME Webinar',body:'Live Cardiology Advances session — Tomorrow at 6:00 PM IST. Tap to add to calendar.',time:'Yesterday',unread:false,channel:'whatsapp'},
+  {id:5,type:'info',icon:'📝',title:'Quiz Available: NEET-PG Mock #4',body:'New quiz has been published. 90 minutes, 100 questions. Attempt now!',time:'2 days ago',unread:false,channel:'email'},
+];
+const USERS_DATA=[
+  {id:1,name:'Dr. Sneha Verma',email:'sneha@iconnect.in',role:'PG Aspirant',prog:'MD',speciality:'Internal Medicine',college:'PGIMER',year:'2nd Year',joining:2023,state:'Punjab',hometown:'Chandigarh',zone:'North',status:'active',verified:true,score:8750},
+  {id:2,name:'Dr. Arjun Mehta',email:'arjun@iconnect.in',role:'PG Aspirant',prog:'DM',speciality:'Cardiology',college:'AIIMS Delhi',year:'1st Year',joining:2024,state:'Delhi',hometown:'New Delhi',zone:'North',status:'active',verified:true,score:9840},
+  {id:3,name:'Dr. Kavya Nair',email:'kavya@iconnect.in',role:'PG Aspirant',prog:'MD',speciality:'Neurology',college:'CMC Vellore',year:'3rd Year',joining:2022,state:'Tamil Nadu',hometown:'Thiruvananthapuram',zone:'South',status:'active',verified:true,score:9420},
+  {id:4,name:'Dr. Rohan Patel',email:'rohan@iconnect.in',role:'PG Aspirant',prog:'MS',speciality:'Surgery',college:'KEM Mumbai',year:'2nd Year',joining:2023,state:'Maharashtra',hometown:'Pune',zone:'West',status:'inactive',verified:false,score:9100},
+  {id:5,name:'Priya Sharma',email:'content@iconnect.in',role:'Content Admin',prog:'—',speciality:'—',college:'—',year:'—',joining:2023,state:'Madhya Pradesh',hometown:'Bhopal',zone:'Central',status:'active',verified:true,score:0},
+];
+
+// ── UTILS ──
+const ab=n=>{const c=['#2563EB','#7C6FF7','#FFB347','#FF6B8A','#38BDF8'];return c[n.charCodeAt(0)%c.length];};
+function Avatar({name,size=36,style={}}){
+  const bg=ab(name),ini=name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  return <div style={{width:size,height:size,borderRadius:'50%',background:bg,color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:size*.37,fontFamily:'Inter,sans-serif',flexShrink:0,...style}}>{ini}</div>;
+}
+function Toggle({on,onChange}){return <div className={`toggle ${on?'on':'off'}`} onClick={onChange}><div className="toggle-thumb"/></div>;}
+
+// ── TOAST ──
+function Toasts({toasts}){return <div className="toast-wrap">{toasts.map(t=><div key={t.id} className={`toast ${t.type[0]}`}><span>{t.type==='success'?'✅':t.type==='error'?'❌':t.type==='warn'?'⚠️':'ℹ️'}</span>{t.msg}</div>)}</div>;}
+
+// ── LOGIN ──
+function Login({onLogin}){
+  const [mci,setMci]=useState('');
+  const [pw,setPw]=useState('');
+  const [showPw,setShowPw]=useState(false);
+  return <div className="login-bg">
+    <div className="login-logo-wrap">
+      <div className="logo-icon">🛡️</div>
+      <div className="logo-text">iConnect</div>
+      <div className="logo-sub">Icon Lifescience Medical Education Platform</div>
+    </div>
+    <div className="login-card">
+      <h2>Doctor Login</h2>
+      <p>Enter your MCI/NMC credentials</p>
+      <div className="login-field">
+        <label>MCI / NMC Registration Number</label>
+        <input className="login-input" placeholder="e.g. MCI-2024-78432" value={mci} onChange={e=>setMci(e.target.value)}/>
+      </div>
+      <div className="login-field">
+        <label>Password</label>
+        <div style={{position:'relative'}}>
+          <input className="login-input" type={showPw?'text':'password'} placeholder="Enter password" value={pw} onChange={e=>setPw(e.target.value)} style={{paddingRight:38}}/>
+          <span style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',cursor:'pointer',color:'#6B7280',fontSize:14}} onClick={()=>setShowPw(!showPw)}>{showPw?'🙈':'👁️'}</span>
+        </div>
+      </div>
+      <button className="login-btn" onClick={()=>onLogin('doctor')}>Login</button>
+      <p style={{textAlign:'center',fontSize:13,color:'#6B7280',marginTop:12}}>New User? <span style={{color:'#2563EB',cursor:'pointer',fontWeight:500}}>Register here</span></p>
+      <div className="login-divider">Admin Access</div>
+      <button className="admin-btn" onClick={()=>onLogin('superadmin')}>Login as Super Admin</button>
+      <button className="admin-btn" onClick={()=>onLogin('contentadmin')}>Login as Content Admin</button>
+      <div className="login-note">
+        <span>🛡️</span>
+        <span>This is a prototype demo. Click <strong>Login</strong> to enter as a verified doctor, or use the admin button to explore the admin flow.</span>
+      </div>
+    </div>
+  </div>;
+}
+
+// ── SIDEBAR ──
+function Sidebar({role,page,setPage,onLogout,pendingCount,unreadCount}){
+  const adminNav=[
+    {k:'dashboard',i:'📊',l:'Dashboard'},{k:'users',i:'👥',l:'User Management'},{k:'ebooks',i:'📁',l:'Content Management'}
+  ];
+  const contentNav=[
+    {k:'dashboard',i:'📊',l:'Dashboard'},{k:'ebooks',i:'📁',l:'Content Management'}
+  ];
+  const doctorNav=[
+    {k:'dashboard',i:'🏠',l:'Dashboard'},{k:'ebooks',i:'📚',l:'E-Book Library'},
+    {k:'leaderboard',i:'🏆',l:'My Leaderboard'},{k:'activity',i:'📅',l:'My Activity'},
+    {k:'notifications',i:'🔔',l:'Notifications',b:unreadCount||null},{k:'profile',i:'👤',l:'My Profile'},
+    {k:'social',i:'👥',l:'Social Features'},{k:'groups',i:'🎯',l:'Interest Groups'},{k:'kahoot',i:'🎮',l:'Kahoot Quiz'}
+  ];
+  const nav=role==='superadmin'?adminNav:role==='contentadmin'?contentNav:doctorNav;
+  const r=ROLES[role];
+  return <div className="sidebar">
+    <div className="sb-header">
+      <div className="sb-logo">
+        <div className="sb-logo-icon">i</div>
+        <div>
+          <div className="sb-logo-text">iConnect</div>
+          <div className="sb-panel-label">Admin Panel</div>
+        </div>
+      </div>
+    </div>
+    <nav className="sb-nav">
+      {nav.map(it=><div key={it.k} className={`nav-item ${page===it.k?'act':''}`} onClick={()=>setPage(it.k)}>
+        <span className="nav-ic">{it.i}</span><span>{it.l}</span>
+        {it.b?<span className="nav-bdg">{it.b}</span>:null}
+      </div>)}
+    </nav>
+    <div className="sb-footer">
+      <button className="logout-btn" onClick={onLogout}>⏏ Logout</button>
+    </div>
+  </div>;
+}
+
+// ── TOPBAR ──
+function TopBar({title,role,unreadCount,setPage,notifPanelOpen,setNotifPanel,notifications}){
+  const recent=notifications.filter(n=>n.unread).slice(0,3);
+  const r=ROLES[role];
+  return <div className="topbar">
+    <div className="topbar-left">
+      <span>☰</span>
+      <span>○</span>
+      <span>Admin Panel</span>
+    </div>
+    <div className="topbar-right">
+      <div className="icon-btn" title="Toggle dark mode">🌙</div>
+      <div style={{position:'relative'}}>
+        <div className="icon-btn" onClick={()=>setNotifPanel(!notifPanelOpen)}>
+          🔔
+          {unreadCount>0&&<span className="notif-count">{unreadCount}</span>}
+        </div>
+        {notifPanelOpen&&<div style={{position:'absolute',right:0,top:42,width:320,background:'white',borderRadius:8,border:'1px solid #E5E7EB',boxShadow:'0 10px 15px -3px rgba(0,0,0,.1)',zIndex:300,animation:'scaleIn .15s ease'}}>
+          <div style={{padding:'12px 14px 8px',display:'flex',justifyContent:'space-between',alignItems:'center',borderBottom:'1px solid #E5E7EB'}}>
+            <span style={{fontWeight:600,fontSize:13}}>Notifications</span>
+            <span style={{fontSize:11,color:'#2563EB',cursor:'pointer'}} onClick={()=>setPage('notifications')}>See all</span>
+          </div>
+          <div style={{padding:'6px',maxHeight:280,overflowY:'auto'}}>
+            {recent.length===0?<div style={{padding:16,textAlign:'center',fontSize:13,color:'#6B7280'}}>All caught up! ✅</div>:
+            recent.map(n=><div key={n.id} className="ni unr" onClick={()=>{setPage('notifications');setNotifPanel(false);}}>
+              <div className="ni-ic" style={{background:'#EFF6FF'}}>{n.icon}</div>
+              <div><div className="ni-t">{n.title}</div><div className="ni-b">{n.body.substring(0,55)}…</div><div className="ni-time">{n.time}</div></div>
+            </div>)}
+          </div>
+        </div>}
+      </div>
+      <div className="role-badge">{r.label}</div>
+      <div className="icon-btn" onClick={()=>setPage('dashboard')}>⏏</div>
+    </div>
+  </div>;
+}
+
+// ── SUPER ADMIN DASHBOARD ──
+function SADashboard({artifacts,setPage,addToast,onApprove,onReject}){
+  const pending=artifacts.filter(a=>a.status==='pending');
+  const approved=artifacts.filter(a=>a.status==='approved');
+  const [tab,setTab]=useState('verifications');
+  const pendingUsers=[
+    {id:1,name:'Dr. Ankit Verma',mci:'MCI-2024-91234',spec:'Cardiology',college:'JIPMER Puducherry',date:'Feb 5, 2026'},
+    {id:2,name:'Dr. Sneha Patel',mci:'MCI-2024-88210',spec:'Neurology',college:'AIIMS New Delhi',date:'Feb 7, 2026'},
+    {id:3,name:'Dr. Rahul Joshi',mci:'MCI-2023-45123',spec:'Surgery',college:'Grant Medical College',date:'Feb 8, 2026'},
+  ];
+  return <div className="page">
+    <div className="ph">
+      <div className="pt">Admin Dashboard</div>
+      <div className="ps">Icon Lifescience — iConnect Management</div>
+    </div>
+    <div className="sg4">
+      {[{l:'Pending',v:3,i:'⏰',c:'amber'},{l:'Approved',v:2,i:'👤',c:'teal'},{l:'Content Items',v:0,i:'📄',c:'sky'},{l:'Alerts',v:3,i:'🔔',c:'rose'}].map((s,i)=>
+        <div key={i} className={`stat ${s.c} fu`} style={{animationDelay:`${i*.06}s`}}>
+          <div className="stat-ic">{s.i}</div><div className="stat-v">{s.v}</div><div className="stat-l">{s.l}</div>
+        </div>
+      )}
+    </div>
+    <div style={{display:'flex',gap:8,marginBottom:16}}>
+      <button className="btn btn-s" onClick={()=>setPage('users')}>👤 User Management</button>
+      <button className="btn btn-s" onClick={()=>setPage('ebooks')}>📁 Content Management</button>
+    </div>
+    <div className="tabs">
+      {[['verifications','Pending Verifications'],['artifacts','Pending Artifacts'],['approved','Approved Doctors'],['alerts','Alerts']].map(([k,l])=>
+        <button key={k} className={`tab ${tab===k?'act':''}`} onClick={()=>setTab(k)}>{l}</button>
+      )}
+    </div>
+    {tab==='verifications'&&<div>
+      {pendingUsers.map(u=><div key={u.id} className="card" style={{marginBottom:10,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px'}}>
+        <div>
+          <div style={{fontWeight:600,fontSize:14}}>{u.name}</div>
+          <div style={{fontSize:13,color:'#6B7280',marginTop:2}}>{u.mci} · {u.spec} · {u.college}</div>
+          <div style={{fontSize:12,color:'#9CA3AF',marginTop:2}}>Applied: {u.date}</div>
+        </div>
+        <button className="btn btn-p btn-sm" onClick={()=>addToast('success',`${u.name} approved!`)}>Review</button>
+      </div>)}
+    </div>}
+    {tab==='artifacts'&&<div>
+      {pending.length===0?<div className="empty"><div className="empty-ic">✅</div><div className="empty-t">All caught up!</div></div>:
+      pending.map(a=><div key={a.id} className="card" style={{marginBottom:10,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px'}}>
+        <div><div style={{fontWeight:600,fontSize:14}}>{a.title}</div><div style={{fontSize:12,color:'#6B7280'}}>{a.subject} · {a.size}</div></div>
+        <div style={{display:'flex',gap:6}}>
+          <button className="btn btn-p btn-sm" onClick={()=>{onApprove(a.id);addToast('success','Approved!');}}>✅ Approve</button>
+          <button className="btn btn-d btn-sm" onClick={()=>{onReject(a.id);addToast('error','Rejected');}}>✗ Reject</button>
+        </div>
+      </div>)}
+    </div>}
+    {tab==='approved'&&<div>
+      {USERS_DATA.filter(u=>u.status==='active').map(u=><div key={u.id} className="card" style={{marginBottom:10,display:'flex',alignItems:'center',gap:12,padding:'14px 20px'}}>
+        <Avatar name={u.name} size={36}/>
+        <div style={{flex:1}}><div style={{fontWeight:600,fontSize:14}}>{u.name}</div><div style={{fontSize:12,color:'#6B7280'}}>{u.speciality} · {u.college}</div></div>
+        <span className="bdg bg-g">Active</span>
+      </div>)}
+    </div>}
+    {tab==='alerts'&&<div className="empty"><div className="empty-ic">🔔</div><div className="empty-t">3 system alerts pending</div><div className="empty-s">Check notifications for details</div></div>}
+  </div>;
+}
+
+// ── CONTENT ADMIN DASHBOARD ──
+function CADashboard({artifacts,setPage,addToast}){
+  const mine=artifacts.filter(a=>a.uploadedBy==='Priya Sharma');
+  const approved=mine.filter(a=>a.status==='approved'),pending=mine.filter(a=>a.status==='pending');
+  const [tab,setTab]=useState('verifications');
+  const pendingUsers=[
+    {id:1,name:'Dr. Ankit Verma',mci:'MCI-2024-91234',spec:'Cardiology',college:'JIPMER Puducherry',date:'Feb 5, 2026'},
+    {id:2,name:'Dr. Sneha Patel',mci:'MCI-2024-88210',spec:'Neurology',college:'AIIMS New Delhi',date:'Feb 7, 2026'},
+    {id:3,name:'Dr. Rahul Joshi',mci:'MCI-2023-45123',spec:'Surgery',college:'Grant Medical College',date:'Feb 8, 2026'},
+  ];
+  return <div className="page">
+    <div className="ph">
+      <div className="pt">Admin Dashboard</div>
+      <div className="ps">Icon Lifescience — iConnect Management</div>
+    </div>
+    <div className="sg4">
+      {[{l:'Pending',v:3,i:'⏰',c:'amber'},{l:'Approved',v:2,i:'👤',c:'teal'},{l:'Content Items',v:mine.length,i:'📄',c:'sky'},{l:'Alerts',v:3,i:'🔔',c:'rose'}].map((s,i)=>
+        <div key={i} className={`stat ${s.c} fu`} style={{animationDelay:`${i*.06}s`}}>
+          <div className="stat-ic">{s.i}</div><div className="stat-v">{s.v}</div><div className="stat-l">{s.l}</div>
+        </div>
+      )}
+    </div>
+    <div style={{display:'flex',gap:8,marginBottom:16}}>
+      <button className="btn btn-s" onClick={()=>setPage('ebooks')}>📁 Content Management</button>
+    </div>
+    <div className="tabs">
+      {[['verifications','Pending Verifications'],['artifacts','Pending Artifacts'],['approved','Approved Doctors'],['alerts','Alerts']].map(([k,l])=>
+        <button key={k} className={`tab ${tab===k?'act':''}`} onClick={()=>setTab(k)}>{l}</button>
+      )}
+    </div>
+    {tab==='verifications'&&<div>
+      {pendingUsers.map(u=><div key={u.id} className="card" style={{marginBottom:10,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px'}}>
+        <div>
+          <div style={{fontWeight:600,fontSize:14}}>{u.name}</div>
+          <div style={{fontSize:13,color:'#6B7280',marginTop:2}}>{u.mci} · {u.spec} · {u.college}</div>
+          <div style={{fontSize:12,color:'#9CA3AF',marginTop:2}}>Applied: {u.date}</div>
+        </div>
+        <button className="btn btn-p btn-sm" onClick={()=>addToast('info','Only Super Admin can approve users.')}>Review</button>
+      </div>)}
+    </div>}
+    {tab==='artifacts'&&<div>
+      {pending.length===0?<div className="empty"><div className="empty-ic">✅</div><div className="empty-t">No pending artifacts</div></div>:
+      pending.map(a=><div key={a.id} className="card" style={{marginBottom:10,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px'}}>
+        <div><div style={{fontWeight:600,fontSize:14}}>{a.title}</div><div style={{fontSize:12,color:'#6B7280'}}>{a.subject} · Awaiting Super Admin approval</div></div>
+        <span className="bdg bg-a">Pending</span>
+      </div>)}
+    </div>}
+    {tab==='approved'&&<div>
+      {USERS_DATA.filter(u=>u.status==='active').slice(0,3).map(u=><div key={u.id} className="card" style={{marginBottom:10,display:'flex',alignItems:'center',gap:12,padding:'14px 20px'}}>
+        <Avatar name={u.name} size={36}/>
+        <div style={{flex:1}}><div style={{fontWeight:600,fontSize:14}}>{u.name}</div><div style={{fontSize:12,color:'#6B7280'}}>{u.speciality} · {u.college}</div></div>
+        <span className="bdg bg-g">Active</span>
+      </div>)}
+    </div>}
+    {tab==='alerts'&&<div className="empty"><div className="empty-ic">🔔</div><div className="empty-t">3 alerts pending</div></div>}
+  </div>;
+}
+
+// ── DOCTOR DASHBOARD ──
+function DoctorDashboard({artifacts,notifications,setPage}){
+  const approved=artifacts.filter(a=>a.status==='approved');
+  const pending=artifacts.filter(a=>a.status==='pending');
+  const unread=notifications.filter(n=>n.unread).length;
+  const me=LB_DATA.find(l=>l.isMe);
+  return <div className="page">
+    <div className="ph"><div className="pt">Welcome back, Dr. Sneha! 👋</div><div className="ps">Keep up the great work — you're ranked <strong style={{color:'#2563EB'}}>#4</strong> this month</div></div>
+    <div className="sg4">
+      {[{l:'Books Read',v:'14',i:'📖',c:'teal'},{l:'My Rank',v:`#${me?.id||4}`,i:'🏆',c:'amber'},{l:'Total Score',v:(me?.score||8750).toLocaleString(),i:'⭐',c:'violet'},{l:'Unread Alerts',v:unread,i:'🔔',c:'rose'}].map((s,i)=>
+        <div key={i} className={`stat ${s.c} fu`} style={{animationDelay:`${i*.07}s`}}><div className="stat-ic">{s.i}</div><div className="stat-v">{s.v}</div><div className="stat-l">{s.l}</div></div>
+      )}
+    </div>
+    {/* Score breakdown bar */}
+    <div className="card mt4" style={{marginBottom:20,background:'linear-gradient(135deg,#111827,#1F2937)',color:'white'}}>
+      <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:14}}>
+        <div style={{flex:1}}><div style={{fontFamily:'Inter,sans-serif',fontWeight:800,fontSize:15}}>📊 Academic Progress Score</div><div style={{fontSize:12,color:'rgba(255,255,255,.5)',marginTop:2}}>Based on reading, quizzes, notes & research</div></div>
+        <div style={{textAlign:'right'}}><div style={{fontFamily:'Inter,sans-serif',fontSize:26,fontWeight:800,color:'#2563EB'}}>8,750</div><div style={{fontSize:11,color:'rgba(255,255,255,.4)'}}>total points</div></div>
+      </div>
+      <div className="score-seg">
+        {[{w:37,c:'#2563EB'},{w:34,c:'#7C6FF7'},{w:15,c:'#FFB347'},{w:14,c:'#38BDF8'}].map((s,i)=><div key={i} className="seg-part" style={{width:`${s.w}%`,background:s.c}}/>)}
+      </div>
+      <div style={{display:'flex',gap:16,marginTop:8,flexWrap:'wrap'}}>
+        {[['🟢','Quiz','3,200 pts'],['🟣','Reading','2,950 pts'],['🟡','Notes','1,300 pts'],['🔵','Research','1,300 pts']].map(([c,l,v])=><div key={l} style={{display:'flex',alignItems:'center',gap:5,fontSize:11,color:'rgba(255,255,255,.6)'}}><span>{c}</span>{l}: <strong style={{color:'white'}}>{v}</strong></div>)}
+      </div>
+    </div>
+    <div className="grid2">
+      <div className="card">
+        <div className="ch"><div className="ct">📚 E-Book Library</div><button className="btn btn-s btn-sm" onClick={()=>setPage('ebooks')}>View All</button></div>
+        {approved.slice(0,3).map(a=><div key={a.id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:'1px solid #F9FAFB'}}>
+          <span style={{fontSize:22}}>{a.emoji}</span>
+          <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{a.title}</div><div style={{fontSize:11,color:'#6B7280'}}>{a.subject} · {a.pages}pg</div></div>
+          <span className="bdg bg-g">Available</span>
+        </div>)}
+        {pending.length>0&&<div style={{marginTop:10,padding:'8px 10px',background:'#FFFBEB',borderRadius:10,fontSize:12,color:'#92400E',fontWeight:600}}>⏳ {pending.length} new book{pending.length>1?'s':''} pending verification — visible below</div>}
+      </div>
+      <div className="card">
+        <div className="ch"><div className="ct">🏆 Leaderboard</div><button className="btn btn-s btn-sm" onClick={()=>setPage('leaderboard')}>Full Board</button></div>
+        {LB_DATA.slice(0,4).map((l,i)=><div key={l.id} className={`lb-row ${l.isMe?'me':''}`}>
+          <div className="lb-pos" style={{color:i<3?['#FFD700','#C0C0C0','#CD7F32'][i]:'#6B7280'}}>{i+1}</div>
+          <Avatar name={l.name} size={28}/>
+          <div style={{flex:1}}><div style={{fontSize:13,fontWeight:l.isMe?700:500}}>{l.name}{l.isMe?' 👈':''}</div><div style={{fontSize:11,color:'#6B7280'}}>{l.speciality}</div></div>
+          <div style={{fontFamily:'Inter,sans-serif',fontSize:13,fontWeight:800,color:'#2563EB'}}>{l.score.toLocaleString()}</div>
+        </div>)}
+      </div>
+    </div>
+    <div className="card mt4">
+      <div className="ch"><div className="ct">🔔 Recent Notifications</div><button className="btn btn-s btn-sm" onClick={()=>setPage('notifications')}>View All</button></div>
+      {notifications.slice(0,3).map(n=><div key={n.id} className={`ni ${n.unread?'unr':''}`}>
+        <div className="ni-ic" style={{background:'#F9FAFB'}}>{n.icon}</div>
+        <div><div className="ni-t">{n.title}</div><div className="ni-b">{n.body}</div><div className="ni-time">{n.time} · via {n.channel}</div></div>
+      </div>)}
+    </div>
+  </div>;
+}
+
+// ── UPLOAD PAGE (Feature #5, #6) ──
+function UploadPage({onUpload,addToast}){
+  const [drag,setDrag]=useState(false);
+  const [file,setFile]=useState(null);
+  const [prog,setProg]=useState(0);
+  const [uploading,setUploading]=useState(false);
+  const [done,setDone]=useState(false);
+  const [form,setForm]=useState({title:'',subject:'',program:'',access:'all',description:''});
+  const ref=useRef();
+  const subjects=Object.values(SPECIALITIES).flat();
+  const set=(k,v)=>setForm(p=>({...p,[k]:v}));
+  const handleFile=f=>{if(!f)return;if(f.type!=='application/pdf'){addToast('error','Only PDF files allowed.');return;}setFile(f);if(!form.title)set('title',f.name.replace('.pdf',''));};
+  const submit=()=>{
+    if(!file){addToast('error','Please select a PDF.');return;}
+    if(!form.title.trim()||!form.subject){addToast('error','Title and subject are required.');return;}
+    setUploading(true);let p=0;
+    const iv=setInterval(()=>{p+=Math.random()*15+6;if(p>=100){p=100;clearInterval(iv);setUploading(false);setDone(true);
+      onUpload({id:Date.now(),title:form.title,subject:form.subject,type:'PDF',size:(file.size/(1024*1024)).toFixed(1)+' MB',uploadedBy:'Priya Sharma',date:new Date().toISOString().split('T')[0],status:'pending',downloads:0,pages:Math.floor(Math.random()*500+100),emoji:['📗','📘','📙','📕'][Math.floor(Math.random()*4)],access:form.access,description:form.description,file});
+      addToast('success',`"${form.title}" submitted for approval!`);
+    }else setProg(Math.round(p));},120);
+  };
+  const reset=()=>{setFile(null);setProg(0);setDone(false);setForm({title:'',subject:'',program:'',access:'all',description:''}); };
+  return <div className="page">
+    <div className="ph"><div className="pt">Upload E-Book</div><div className="ps">PDF will be reviewed by Super Admin before publishing. Users can see the card as "Pending Verification" in the meantime.</div></div>
+    <div style={{maxWidth:680}}>
+      {!done?<div className="card">
+// ✅ CORRECT: Merged into one
+<div 
+  style={{ marginBottom: 16 }} 
+  className={`upz ${drag ? 'drag' : ''}`} 
+  onDragOver={e => { e.preventDefault(); setDrag(true); }} 
+  onDragLeave={() => setDrag(false)} 
+  onDrop={e => { e.preventDefault(); setDrag(false); handleFile(e.dataTransfer.files[0]); }} 
+  onClick={() => !file && ref.current.click()}
+>          <input ref={ref} type="file" accept=".pdf" style={{display:'none'}} onChange={e=>handleFile(e.target.files[0])}/>
+          {file?<div><div style={{fontSize:36}}>📄</div><div style={{fontWeight:600,marginTop:8}}>{file.name}</div><div style={{fontSize:12,color:'#6B7280'}}>{(file.size/(1024*1024)).toFixed(2)} MB</div>
+            {!uploading&&<button className="btn btn-s btn-sm" style={{marginTop:8}} onClick={e=>{e.stopPropagation();setFile(null);}}>Change</button>}
+            {uploading&&<div className="pb" style={{marginTop:12}}><div className="pf" style={{width:`${prog}%`}}/></div>}
+            {uploading&&<div style={{fontSize:12,color:'#6B7280',marginTop:4}}>Uploading… {prog}%</div>}
+          </div>:<div><div style={{fontSize:36}}>☁️</div><div style={{fontWeight:600,marginTop:8}}>Drop PDF here or click to browse</div><div style={{fontSize:12,color:'#6B7280',marginTop:4}}>Max 100MB · PDF only</div></div>}
+        </div>
+        <div className="fg"><label className="fl">Document Title <span className="req">*</span></label><input className="fi-in" placeholder="e.g. Harrison's Principles of Internal Medicine" value={form.title} onChange={e=>set('title',e.target.value)}/></div>
+        <div className="fg2">
+          <div className="fg"><label className="fl">Subject / Speciality <span className="req">*</span></label>
+            <select className="fi-sel" value={form.subject} onChange={e=>set('subject',e.target.value)}>
+              <option value="">Select subject…</option>
+              {Object.entries(SPECIALITIES).map(([prog,subs])=><optgroup key={prog} label={prog}>{subs.map(s=><option key={s} value={s}>{s}</option>)}</optgroup>)}
+            </select>
+          </div>
+          <div className="fg"><label className="fl">Access Level</label>
+            <select className="fi-sel" value={form.access} onChange={e=>set('access',e.target.value)}>
+              <option value="all">All PG Aspirants</option>
+              <option value="md_ms">MD / MS Only</option>
+              <option value="dm_mch">DM / MCh Only</option>
+            </select>
+          </div>
+        </div>
+        <div className="fg"><label className="fl">Description (optional)</label><textarea className="fi-ta" placeholder="Brief description…" value={form.description} onChange={e=>set('description',e.target.value)}/></div>
+        <div style={{background:'#FFFBEB',borderRadius:10,padding:'10px 14px',fontSize:12,color:'#92400E',marginBottom:14}}>📋 <strong>Note:</strong> After submission, the document card will appear to users as "Pending Verification". Full access is granted only after Super Admin approval.</div>
+        <div style={{display:'flex',gap:10,justifyContent:'flex-end'}}>
+          <button className="btn btn-s" onClick={reset}>Reset</button>
+          <button className="btn btn-p" onClick={submit} disabled={uploading}>{uploading?`Uploading ${prog}%…`:'⬆️ Submit for Approval'}</button>
+        </div>
+      </div>:<div className="card" style={{textAlign:'center',padding:48}}>
+        <div style={{fontSize:60,marginBottom:14}}>🎉</div>
+        <div className="pt" style={{marginBottom:8}}>Upload Successful!</div>
+        <div className="ps" style={{marginBottom:24}}>"{form.title}" submitted. Super Admin will review shortly. It's already visible to users as "Pending Verification".</div>
+        <div style={{display:'flex',gap:10,justifyContent:'center'}}>
+          <button className="btn btn-s" onClick={reset}>Upload Another</button>
+        </div>
+      </div>}
+    </div>
+  </div>;
+}
+
+// ── EBOOKS PAGE ──
+function EBooksPage({artifacts,role,onApprove,onReject,addToast}){
+  const [viewMode,setVM]=useState('grid');
+  const [tab,setTab]=useState('all');
+  const [search,setSearch]=useState('');
+  const [viewer,setViewer]=useState(null);
+  const [zoom,setZoom]=useState(100);
+  const [pg,setPg]=useState(1);
+  const [fullscreen,setFS]=useState(false);
+  const visible=artifacts.filter(a=>{
+    if(role==='doctor'&&tab==='approved'&&a.status!=='approved')return false;
+    if(tab==='pending'&&a.status!=='pending')return false;
+    if(tab==='approved'&&a.status!=='approved')return false;
+    if(search&&!a.title.toLowerCase().includes(search.toLowerCase())&&!a.subject.toLowerCase().includes(search.toLowerCase()))return false;
+    return true;
+  });
+  const demoPages=[
+    {h:'Chapter 1: Introduction',b:'This comprehensive medical textbook covers core principles required for postgraduate medical examinations. Content is organized for rapid review and deep understanding across all major specialities.'},
+    {h:'Chapter 2: Pathophysiology',b:'Understanding pathophysiology is essential for clinical reasoning. Each condition is described with underlying mechanism, clinical presentation, diagnostic criteria, and evidence-based management.'},
+    {h:'Chapter 3: Clinical Application',b:'Case-based learning enhances retention. Common clinical scenarios with detailed explanations of diagnostic and therapeutic approaches aligned with current NEET-PG guidelines.'},
+    {h:'Chapter 4: High-Yield MCQs',b:'Previous years\' questions from AIIMS, PGI, NEET-PG, and other major national PG entrance exams with detailed answer explanations for each option.'},
+  ];
+  if(viewer)return <div className={`page ${fullscreen?'':''}` } style={fullscreen?{position:'fixed',inset:0,zIndex:150,background:'#525659',margin:0,padding:0}:{}}>
+    {!fullscreen&&<div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
+      <button className="btn btn-s btn-sm" onClick={()=>setViewer(null)}>← Back</button>
+      <div><div style={{fontFamily:'Inter,sans-serif',fontWeight:700,fontSize:16}}>{viewer.emoji} {viewer.title}</div><div style={{fontSize:12,color:'#6B7280'}}>{viewer.subject} · {viewer.pages} pages</div></div>
+    </div>}
+    <div className="pdf-v" style={fullscreen?{borderRadius:0,height:'100vh'}:{}}>
+      <div className="pdf-tb">
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <button className="pdf-btn" disabled={pg<=1} onClick={()=>setPg(p=>p-1)}>◀ Prev</button>
+          <span style={{color:'rgba(255,255,255,.6)',fontSize:12}}>Page {pg} of {demoPages.length}</span>
+          <button className="pdf-btn" disabled={pg>=demoPages.length} onClick={()=>setPg(p=>p+1)}>Next ▶</button>
+        </div>
+        <span style={{color:'rgba(255,255,255,.55)',fontSize:12,fontFamily:'Inter,sans-serif'}}>{viewer.title}</span>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <button className="pdf-btn" onClick={()=>setZoom(z=>Math.max(50,z-25))}>−</button>
+          <span style={{color:'rgba(255,255,255,.6)',fontSize:12,minWidth:38,textAlign:'center'}}>{zoom}%</span>
+          <button className="pdf-btn" onClick={()=>setZoom(z=>Math.min(250,z+25))}>+</button>
+          <button className="pdf-btn" onClick={()=>setZoom(100)}>Reset</button>
+          <button className="pdf-btn" onClick={()=>setFS(f=>!f)}>{fullscreen?'⤡':'⤢'}</button>
+          {fullscreen&&<button className="pdf-btn" onClick={()=>{setFS(false);setViewer(null);}}>✕ Close</button>}
+        </div>
+      </div>
+      <div className="pdf-page-area">
+        <div className="pdf-page" style={{transform:`scale(${zoom/100})`,transformOrigin:'top center'}}>
+          <h2>{demoPages[pg-1].h}</h2>
+          <p>{demoPages[pg-1].b}</p>
+          <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Proin nibh nisl condimentum id venenatis a condimentum vitae sapien pellentesque habitant morbi.</p>
+          <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim.</p>
+          <p style={{fontSize:12,color:'#999',marginTop:20,borderTop:'1px solid #eee',paddingTop:10}}>Page {pg} · {viewer.title} · iConnect Medical Library</p>
+        </div>
+      </div>
+    </div>
+  </div>;
+  return <div className="page">
+    <div className="ph-row ph">
+      <div><div className="pt">📚 E-Book Library</div><div className="ps">{visible.length} document{visible.length!==1?'s':''}</div></div>
+      <div style={{display:'flex',gap:8}}>
+        <div className="search-bar"><span>🔍</span><input placeholder="Search books…" value={search} onChange={e=>setSearch(e.target.value)}/></div>
+        <button className={`btn btn-sm ${viewMode==='grid'?'btn-p':'btn-s'}`} onClick={()=>setVM('grid')}>⊞</button>
+        <button className={`btn btn-sm ${viewMode==='list'?'btn-p':'btn-s'}`} onClick={()=>setVM('list')}>☰</button>
+      </div>
+    </div>
+    <div className="tabs">
+      {[['all','All'],['approved','Approved'],['pending','Pending']].map(([k,l])=><button key={k} className={`tab ${tab===k?'act':''}`} onClick={()=>setTab(k)}>{l}</button>)}
+    </div>
+    {/* Feature #5: Pending cards visible with label */}
+    {role==='doctor'&&artifacts.filter(a=>a.status==='pending').length>0&&tab!=='approved'&&<div style={{background:'#FFFBEB',border:'1px solid rgba(255,179,71,.3)',borderRadius:12,padding:'10px 16px',fontSize:13,color:'#92400E',marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
+      ⏳ <strong>{artifacts.filter(a=>a.status==='pending').length} new book{artifacts.filter(a=>a.status==='pending').length>1?'s':''}</strong> are being verified by Admin. You can see them below — interaction unlocks after approval.
+    </div>}
+    {viewMode==='grid'?<div className="eg">{visible.map(a=><div key={a.id} className="ec" onClick={()=>{if(a.status==='approved'){setViewer(a);setPg(1);setZoom(100);}}}>
+      <div className="ec-cover" style={{background:a.status==='pending'?'#F3F4F6':'linear-gradient(135deg,#EFF6FF,#F3F4F6)'}}>
+        <span>{a.emoji}</span>
+        {a.status==='pending'&&<span className="bdg bg-a" style={{position:'absolute',top:8,right:8}}>⏳ Pending Verification</span>}
+        {a.access!=='all'&&<span className="bdg bg-v" style={{position:'absolute',top:8,left:8,fontSize:9}}>{a.access==='md_ms'?'MD/MS':'DM/MCh'}</span>}
+      </div>
+      <div className="ec-body">
+        <div className="ec-title">{a.title}</div>
+        <div className="ec-meta">{a.subject} · {a.pages} pages</div>
+        <div style={{marginTop:6}}><span className={`bdg ${a.status==='approved'?'bg-g':'bg-a'}`}>{a.status==='approved'?'Available':'Pending Verification'}</span></div>
+      </div>
+      <div className="ec-foot">
+        <span style={{fontSize:11,color:'#6B7280'}}>⬇️ {a.downloads.toLocaleString()}</span>
+        {role==='superadmin'&&a.status==='pending'?<div style={{display:'flex',gap:4}} onClick={e=>e.stopPropagation()}>
+          <button className="btn btn-p btn-sm" onClick={()=>{onApprove(a.id);addToast('success','Approved!');}}>✅</button>
+          <button className="btn btn-d btn-sm" onClick={()=>{onReject(a.id);addToast('error','Rejected');}}>✗</button>
+        </div>:a.status==='approved'?<button className="btn btn-p btn-sm">Read →</button>:<span style={{fontSize:11,color:'#6B7280'}}>Locked</span>}
+      </div>
+    </div>)}</div>:
+    <div className="card"><div className="tw"><table><thead><tr><th>Title</th><th>Subject</th><th>Access</th><th>Status</th><th>Downloads</th><th>Action</th></tr></thead>
+    <tbody>{visible.map(a=><tr key={a.id}>
+      <td><div style={{display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:18}}>{a.emoji}</span><span style={{fontWeight:600,fontSize:13}}>{a.title}</span></div></td>
+      <td><span className="bdg bg-v">{a.subject}</span></td>
+      <td><span className="bdg bg-s">{a.access==='md_ms'?'MD/MS Only':a.access==='dm_mch'?'DM/MCh':' All'}</span></td>
+      <td><span className={`bdg ${a.status==='approved'?'bg-g':'bg-a'}`}>{a.status==='approved'?'✅ Approved':'⏳ Pending Verification'}</span></td>
+      <td>{a.downloads.toLocaleString()}</td>
+      <td>{a.status==='approved'?<button className="btn btn-p btn-sm" onClick={()=>{setViewer(a);setPg(1);setZoom(100);}}>Read</button>:role==='superadmin'?<div style={{display:'flex',gap:4}}><button className="btn btn-p btn-sm" onClick={()=>{onApprove(a.id);addToast('success','Approved!');}}>✅</button><button className="btn btn-d btn-sm" onClick={()=>{onReject(a.id);addToast('error','Rejected');}}>✗</button></div>:<span style={{fontSize:11,color:'#6B7280'}}>Pending Verification</span>}</td>
+    </tr>)}</tbody></table></div></div>}
+    {visible.length===0&&<div className="empty"><div className="empty-ic">📭</div><div className="empty-t">No books found</div><div className="empty-s">{search?'Try a different term.':'No e-books here yet.'}</div></div>}
+  </div>;
+}
+
+// ── LEADERBOARD (Feature #1) ──
+function LeaderboardPage(){
+  const [period,setPeriod]=useState('monthly');
+  const [tab,setTab]=useState('global');
+  const top3=LB_DATA.slice(0,3);
+  const rest=LB_DATA.slice(3);
+  const podOrd=[top3[1],top3[0],top3[2]];
+  const podH=[100,132,82],podC=['#C0C0C0','#FFD700','#CD7F32'],podR=[2,1,3];
+  const me=LB_DATA.find(l=>l.isMe);
+  return <div className="page">
+    <div className="ph-row ph">
+      <div><div className="pt">🏆 My Leaderboard</div><div className="ps">Academic progress ranking — not just gamification</div></div>
+      <div className="tabs" style={{margin:0}}>
+        {['weekly','monthly','alltime'].map(p=><button key={p} className={`tab ${period===p?'act':''}`} onClick={()=>setPeriod(p)}>{p==='alltime'?'All Time':p.charAt(0).toUpperCase()+p.slice(1)}</button>)}
+      </div>
+    </div>
+    {/* My score card */}
+    <div className="card" style={{background:'linear-gradient(135deg,#111827,#1F2937)',color:'white',marginBottom:20}}>
+      <div style={{display:'flex',alignItems:'center',gap:16}}>
+        <div style={{width:64,height:64,borderRadius:'50%',background:'rgba(37,99,235,.2)',border:'3px solid #2563EB',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Inter,sans-serif',fontSize:22,fontWeight:800,color:'#2563EB'}}>#4</div>
+        <div style={{flex:1}}>
+          <div style={{fontFamily:'Inter,sans-serif',fontWeight:800,fontSize:17}}>Dr. Sneha Verma — Your Rank</div>
+          <div style={{fontSize:13,color:'rgba(255,255,255,.5)',marginTop:2}}>PGIMER · Internal Medicine · MD 2nd Year</div>
+          <div style={{display:'flex',gap:12,marginTop:10,flexWrap:'wrap'}}>
+            {[['🟢','Quiz',me.quizPts],['🟣','Reading',me.readPts],['🟡','Notes',me.notesPts],['🔵','Research',me.resPts]].map(([ic,l,v])=>
+              <div key={l} style={{display:'flex',alignItems:'center',gap:4,fontSize:12}}>
+                <span>{ic}</span><span style={{color:'rgba(255,255,255,.5)'}}>{l}:</span><span style={{fontWeight:700,color:'white'}}>{v.toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div style={{fontFamily:'Inter,sans-serif',fontSize:32,fontWeight:800,color:'#2563EB'}}>{me.score.toLocaleString()}</div>
+          <div style={{fontSize:12,color:'rgba(255,255,255,.4)'}}>total pts</div>
+          <div style={{fontSize:11,color:'#2563EB',marginTop:4}}>↑ +3 positions this month</div>
+        </div>
+      </div>
+      {/* Monthly snapshot */}
+      <div style={{marginTop:16,display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
+        {[['📚','Books Read','6'],['📝','Quizzes','23'],['📋','Notes','14'],['🔬','Research','8']].map(([i,l,v])=>
+          <div key={l} style={{background:'rgba(255,255,255,.07)',borderRadius:10,padding:'10px',textAlign:'center'}}>
+            <div style={{fontSize:20}}>{i}</div>
+            <div style={{fontFamily:'Inter,sans-serif',fontSize:16,fontWeight:800,color:'#2563EB',margin:'4px 0 2px'}}>{v}</div>
+            <div style={{fontSize:10,color:'rgba(255,255,255,.4)',fontFamily:'Inter,sans-serif',fontWeight:600}}>{l}</div>
+          </div>
+        )}
+      </div>
+    </div>
+    {/* Tabs: Global / Speciality / College */}
+    <div className="tabs">
+      {[['global','🌐 Global'],['speciality','🩺 My Speciality'],['college','🏥 My College']].map(([k,l])=><button key={k} className={`tab ${tab===k?'act':''}`} onClick={()=>setTab(k)}>{l}</button>)}
+    </div>
+    {/* Podium */}
+    <div className="card" style={{background:'linear-gradient(135deg,#111827,#1F2937)',marginBottom:20}}>
+      <div style={{textAlign:'center',marginBottom:8,fontSize:11,color:'rgba(255,255,255,.35)',fontFamily:'Inter,sans-serif',letterSpacing:'1px',textTransform:'uppercase'}}>Top 3 Performers</div>
+      <div style={{display:'flex',alignItems:'flex-end',justifyContent:'center',gap:16}}>
+        {podOrd.map((l,i)=><div key={l.id} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+          {podR[i]===1&&<span style={{fontSize:20}}>👑</span>}
+          <div style={{position:'relative'}}>
+            <Avatar name={l.name} size={podR[i]===1?52:42} style={{border:`3px solid ${podC[i]}`}}/>
+            <div style={{position:'absolute',bottom:-4,right:-4,width:18,height:18,borderRadius:'50%',background:podC[i],color:'#222',fontSize:9,fontWeight:800,display:'flex',alignItems:'center',justifyContent:'center',border:'2px solid white',fontFamily:'Inter,sans-serif'}}>{podR[i]}</div>
+          </div>
+          <div style={{fontFamily:'Inter,sans-serif',fontSize:13,fontWeight:800,color:'white'}}>{l.score.toLocaleString()}</div>
+          <div style={{fontSize:11,color:'rgba(255,255,255,.5)',textAlign:'center',maxWidth:72}}>{l.name.split(' ').slice(-1)}</div>
+          <div style={{height:podH[i],width:66,borderRadius:'8px 8px 0 0',background:`${podC[i]}22`,border:`1px solid ${podC[i]}44`,display:'flex',alignItems:'flex-end',justifyContent:'center',paddingBottom:6,color:podC[i],fontSize:11,fontFamily:'Inter,sans-serif',fontWeight:700}}>#{podR[i]}</div>
+        </div>)}
+      </div>
+    </div>
+    <div className="card">
+      <div className="ct" style={{marginBottom:14}}>Full Rankings</div>
+      {LB_DATA.map((l,i)=><div key={l.id} className={`lb-row ${l.isMe?'me':''}`}>
+        <div className="lb-pos" style={{color:i<3?['#FFD700','#C0C0C0','#CD7F32'][i]:'#6B7280'}}>{i+1}</div>
+        <Avatar name={l.name} size={34}/>
+        <div style={{flex:1}}>
+          <div style={{fontSize:13,fontWeight:600}}>{l.name}{l.isMe?' (You)':''}</div>
+          <div style={{fontSize:11,color:'#6B7280'}}>{l.college} · {l.speciality}</div>
+          <div style={{display:'flex',gap:8,marginTop:4}}>
+            {[['🟢',l.quizPts],['🟣',l.readPts]].map(([c,v])=><span key={c} style={{fontSize:10,color:'#6B7280'}}>{c} {v.toLocaleString()}</span>)}
+          </div>
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div style={{fontFamily:'Inter,sans-serif',fontSize:15,fontWeight:800,color:'#2563EB'}}>{l.score.toLocaleString()}</div>
+          <div style={{fontSize:10,color:'#6B7280'}}>pts</div>
+        </div>
+      </div>)}
+    </div>
+  </div>;
+}
+
+// ── ACTIVITY (Feature #4) ──
+function ActivityPage(){
+  const today=new Date();
+  const dim=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
+  const actDays=[2,5,6,8,10,12,14,15,16,18,20,22,24,25];
+  const eventDays=[7,14,21,28];
+  const targetDays=[3,10,17,24];
+  const [selDay,setSelDay]=useState(null);
+  const getDayType=d=>{if(d===today.getDate())return 'today';if(eventDays.includes(d))return 'event';if(targetDays.includes(d))return 'target';if(actDays.includes(d))return 'act';return 'empty';};
+  return <div className="page">
+    <div className="ph"><div className="pt">📅 My Activity</div><div className="ps">Learning goals, schedules & calendar</div></div>
+    <div className="sg4">
+      {[{l:'Active Days',v:'14',i:'🔥',c:'rose'},{l:'Books Read',v:'6',i:'📖',c:'teal'},{l:'Quizzes Done',v:'23',i:'📝',c:'violet'},{l:'Hours Logged',v:'42h',i:'⏱',c:'amber'}].map((s,i)=>
+        <div key={i} className={`stat ${s.c} fu`} style={{animationDelay:`${i*.07}s`}}><div className="stat-ic">{s.i}</div><div className="stat-v">{s.v}</div><div className="stat-l">{s.l}</div></div>
+      )}
+    </div>
+    <div className="grid2">
+      <div className="card">
+        <div className="ct" style={{marginBottom:6}}>Activity Calendar</div>
+        <div className="cs" style={{marginBottom:12}}>{today.toLocaleString('default',{month:'long',year:'numeric'})}</div>
+        <div style={{display:'flex',gap:4,marginBottom:6}}>
+          {['S','M','T','W','T','F','S'].map((d,i)=><div key={i} style={{flex:1,textAlign:'center',fontSize:9,fontWeight:700,color:'#6B7280',fontFamily:'Inter,sans-serif'}}>{d}</div>)}
+        </div>
+        <div className="cal">
+          {Array.from({length:dim},(_,i)=>i+1).map(d=><div key={d} className={`cd ${getDayType(d)}`} onClick={()=>setSelDay(d)}>{d}</div>)}
+        </div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:10,marginTop:12,fontSize:10,color:'#6B7280'}}>
+          {[['#2563EB','Active'],['#F5F3FF','Webinar'],['#FFFBEB','Target'],['#F3F4F6','No Activity']].map(([bg,l])=>
+            <span key={l} style={{display:'flex',alignItems:'center',gap:4}}><span style={{width:10,height:10,borderRadius:3,background:bg,display:'inline-block'}}/>{l}</span>
+          )}
+        </div>
+        {selDay&&<div style={{marginTop:12,background:'#EFF6FF',borderRadius:10,padding:'10px 12px',fontSize:12,color:'#1D4ED8'}}>
+          <strong>Day {selDay}:</strong> {actDays.includes(selDay)?'✅ You were active this day.':eventDays.includes(selDay)?'📅 CME Webinar scheduled.':targetDays.includes(selDay)?'🎯 Learning target set.':'No activity recorded.'}
+        </div>}
+      </div>
+      <div className="card">
+        <div className="ct" style={{marginBottom:14}}>📊 Weekly Progress</div>
+        {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d,i)=>{
+          const hrs=[3,5,2,4,6,1,2][i];
+          return <div key={d} style={{display:'flex',alignItems:'center',gap:10,marginBottom:9}}>
+            <div style={{width:28,fontSize:11,fontWeight:600,color:'#6B7280'}}>{d}</div>
+            <div className="pb" style={{flex:1}}><div className="pf" style={{width:`${hrs*14}%`}}/></div>
+            <div style={{fontSize:11,color:'#6B7280',width:28,textAlign:'right'}}>{hrs}h</div>
+          </div>;
+        })}
+        <div className="divider"/>
+        <div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:12,color:'#6B7280'}}>Total this week</span><span style={{fontFamily:'Inter,sans-serif',fontWeight:700,color:'#2563EB'}}>23 hours</span></div>
+        <div className="divider"/>
+        <div className="ct" style={{marginBottom:10,marginTop:4}}>🎯 Learning Targets</div>
+        {[['Read 3 chapters/week','2/3',67],['Complete 1 quiz/day','5/7',71],['30-min research session','3/5',60]].map(([g,p,pct])=><div key={g} style={{marginBottom:10}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{fontSize:12}}>{g}</span><span style={{fontSize:11,color:'#6B7280'}}>{p}</span></div>
+          <div className="pb"><div className="pf" style={{width:`${pct}%`}}/></div>
+        </div>)}
+      </div>
+    </div>
+    <div className="card mt4">
+      <div className="ch"><div className="ct">📚 Recent Activity Log</div></div>
+      {[{i:'📗',a:'Read',it:"Harrison's — Chapter 12: Cardiology",t:'2 hours ago',pts:'+50'},{i:'📝',a:'Quiz',it:'Cardiology MCQ Set B — 18/20 correct',t:'Yesterday',pts:'+90'},{i:'🎯',a:'Target',it:'Weekly Reading Target completed — 3/3 chapters',t:'2 days ago',pts:'+200'},{i:'🏆',a:'Achievement',it:'7-day learning streak unlocked! 🔥',t:'3 days ago',pts:'+500'},{i:'📅',a:'Webinar',it:'Attended: AIIMS CME — Advances in Neurology',t:'Last week',pts:'+150'}].map((a,i)=>
+        <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid #F9FAFB'}}>
+          <span style={{fontSize:22}}>{a.i}</span>
+          <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{a.a}: <span style={{fontWeight:400}}>{a.it}</span></div><div style={{fontSize:11,color:'#6B7280',marginTop:2}}>{a.t}</div></div>
+          <span className="bdg bg-g">{a.pts} pts</span>
+        </div>
+      )}
+    </div>
+    {/* Upcoming events */}
+    <div className="card mt4">
+      <div className="ct" style={{marginBottom:14}}>📅 Upcoming Scheduled Events</div>
+      {[{d:'Tomorrow, 6PM',t:'CME Webinar: Cardiology Advances',l:'Live · Zoom',c:'violet'},{d:'Fri, 10AM',t:'NEET-PG Mock Test #5',l:'Online · 3 hrs',c:'rose'},{d:'Next Mon, 7PM',t:'Study Group: Pharmacology',l:'In-App',c:'teal'}].map((e,i)=>
+        <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid #F9FAFB'}}>
+          <div style={{width:46,height:46,borderRadius:10,background:({info:'#EFF6FF',warn:'#FFFBEB',succ:'#D1FAE5',err:'#FEF2F2'}[e.c]||'#EFF6FF'),display:'flex',alignItems:'center',justifyContent:'center',fontSize:20}}>📅</div>
+          <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600}}>{e.t}</div><div style={{fontSize:11,color:'#6B7280'}}>{e.d} · {e.l}</div></div>
+          <button className="btn btn-s btn-sm">Add to Calendar</button>
+        </div>
+      )}
+    </div>
+  </div>;
+}
+
+// ── NOTIFICATIONS (Feature #2) ──
+function NotificationsPage({notifications,setNotifications,addToast}){
+  const [channels,setChannels]=useState({in_app:true,email:true,whatsapp:false,sms:false});
+  const [tab,setTab]=useState('all');
+  const markAll=()=>setNotifications(n=>n.map(x=>({...x,unread:false})));
+  const markOne=id=>setNotifications(n=>n.map(x=>x.id===id?{...x,unread:false}:x));
+  const send=()=>{setNotifications(n=>[{id:Date.now(),type:'success',icon:'💬',title:'Test Notification Sent',body:'This is a test alert from Admin Yokesh. All channels are working correctly.',time:'Just now',unread:true,channel:'in_app'},...n]);addToast('success','Test notification sent!');};
+  const filtered=tab==='all'?notifications:notifications.filter(n=>n.unread);
+  const bg={info:'#EFF6FF',success:'#EFF6FF',warn:'#FFFBEB',error:'#FEF2F2'};
+  return <div className="page">
+    <div className="ph-row ph">
+      <div><div className="pt">🔔 Notifications</div><div className="ps">{notifications.filter(n=>n.unread).length} unread</div></div>
+      <div style={{display:'flex',gap:8}}>
+        <button className="btn btn-s btn-sm" onClick={send}>📤 Send Test</button>
+        <button className="btn btn-s btn-sm" onClick={markAll}>✓ Mark all read</button>
+      </div>
+    </div>
+    <div className="grid2" style={{alignItems:'start'}}>
+      <div>
+        <div className="tabs"><button className={`tab ${tab==='all'?'act':''}`} onClick={()=>setTab('all')}>All</button><button className={`tab ${tab==='unread'?'act':''}`} onClick={()=>setTab('unread')}>Unread ({notifications.filter(n=>n.unread).length})</button></div>
+        {filtered.length===0?<div className="empty"><div className="empty-ic">🔕</div><div className="empty-t">All clear!</div></div>:
+        filtered.map(n=><div key={n.id} className={`ni ${n.unread?'unr':''}`} onClick={()=>markOne(n.id)}>
+          <div className="ni-ic" style={{background:bg[n.type]||'#F9FAFB'}}>{n.icon}</div>
+          <div style={{flex:1}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+              <div className="ni-t">{n.title}</div>
+              {n.unread&&<span className="bdg bg-g" style={{fontSize:9}}>NEW</span>}
+            </div>
+            <div className="ni-b">{n.body}</div>
+            <div className="ni-time">{n.time} · via {n.channel}</div>
+          </div>
+        </div>)}
+      </div>
+      <div>
+        <div className="card">
+          <div className="ct" style={{marginBottom:14}}>🔔 Notification Channels</div>
+          {[['📱','In-App Notifications','Real-time alerts inside iConnect','in_app'],['📧','Email Digest','Daily summary to your registered email','email'],['💬','WhatsApp Alerts','Important updates via WhatsApp','whatsapp'],['📲','SMS Alerts','Critical alerts via SMS','sms']].map(([ic,l,d,k])=>
+            <div key={k} className="ch-toggle">
+              <div style={{display:'flex',gap:10,alignItems:'center'}}>
+                <span style={{fontSize:20}}>{ic}</span>
+                <div><div style={{fontSize:13,fontWeight:600}}>{l}</div><div style={{fontSize:11,color:'#6B7280'}}>{d}</div></div>
+              </div>
+              <Toggle on={channels[k]} onChange={()=>setChannels(c=>({...c,[k]:!c[k]}))}/>
+            </div>
+          )}
+        </div>
+        <div className="card mt4">
+          <div className="ct" style={{marginBottom:12}}>⚡ Alert Triggers</div>
+          {[['New e-book approved',true],['Webinar reminders',true],['Quiz available',true],['Admin messages',true],['Leaderboard changes',false],['Study group invites',false]].map(([l,on],i)=>
+            <div key={i} className="ch-toggle">
+              <span style={{fontSize:13}}>{l}</span>
+              <Toggle on={on} onChange={()=>{}}/>
+            </div>
+          )}
+        </div>
+        <div className="card mt4" style={{background:'#EFF6FF',border:'1.5px solid rgba(37,99,235,.2)'}}>
+          <div style={{display:'flex',gap:10,alignItems:'flex-start'}}>
+            <span style={{fontSize:30}}>🤝</span>
+            <div><div style={{fontFamily:'Inter,sans-serif',fontWeight:700,fontSize:14,color:'#1D4ED8'}}>Welcome from Admin Yokesh</div><div style={{fontSize:12,color:'#1D4ED8',opacity:.8,marginTop:4,lineHeight:1.5}}>"Welcome to iConnect! This platform is built for PG aspirants like you. Explore e-books, track your progress, and connect with peers. We're here to support your journey."</div><div style={{fontSize:11,color:'#1D4ED8',opacity:.6,marginTop:6}}>— Yokesh, Platform Admin · Acknowledged ✅</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
+// ── PROFILE (Feature #3, #7) ──
+function ProfilePage({addToast}){
+  const now=new Date().getFullYear();
+  const [editing,setEditing]=useState(false);
+  const [form,setForm]=useState({name:'Dr. Sneha Verma',email:'sneha@iconnect.in',phone:'+91 98765 43210',program:'MD',speciality:'Internal Medicine',college:'PGIMER Chandigarh',joining:2023,currentYear:'2nd Year',hometown:'Jaipur',homeState:'Rajasthan',zone:'North',bio:'Passionate about internal medicine. NEET-PG AIR 142. Aspiring to make a difference in patient care.',neetRank:142,address:''});
+  const set=(k,v)=>setForm(p=>({...p,[k]:v}));
+  // Feature #3: auto-populate
+  const duration=PROG_YEARS[form.program]||3;
+  const completion=form.joining+duration;
+  const curYr=now-form.joining+1;
+  const curYrLabel=curYr<=0?'Not started yet':curYr===1?'1st Year':curYr===2?'2nd Year':curYr===3?'3rd Year':'Completed';
+  // Feature #7: verification only after profile complete
+  const complete=form.name&&form.phone&&form.hometown&&form.homeState&&form.speciality&&form.college&&form.joining&&form.program;
+  const save=()=>{if(!form.hometown||!form.homeState){addToast('error','Hometown and Home State are mandatory!');return;}setEditing(false);addToast('success','Profile saved!');};
+  return <div className="page">
+    <div className="prof-hero">
+      <Avatar name={form.name} size={78} style={{border:'3px solid rgba(37,99,235,.4)',flexShrink:0}}/>
+      <div style={{flex:1}}>
+        <div style={{fontFamily:'Inter,sans-serif',fontSize:21,fontWeight:800}}>{form.name}</div>
+        <div style={{fontSize:13,color:'rgba(255,255,255,.5)',marginTop:2}}>{form.speciality} · {form.program} · {curYrLabel}</div>
+        <div style={{fontSize:13,color:'rgba(255,255,255,.5)'}}>{form.college}</div>
+        <div style={{display:'flex',gap:8,marginTop:8,flexWrap:'wrap'}}>
+          {complete?<div className="prof-badge">✅ Verified Doctor</div>:<div className="prof-badge verify-pend">⚠️ Complete profile to get verified</div>}
+          {form.neetRank&&<div className="prof-badge">🏆 NEET-PG AIR {form.neetRank}</div>}
+        </div>
+      </div>
+      <button className="btn btn-s btn-sm" style={{alignSelf:'flex-start'}} onClick={()=>editing?save():setEditing(true)}>{editing?'💾 Save':'✏️ Edit Profile'}</button>
+    </div>
+    {!complete&&<div style={{background:'#FFFBEB',border:'1px solid rgba(255,179,71,.3)',borderRadius:12,padding:'12px 16px',fontSize:13,color:'#92400E',marginBottom:16}}>
+      ⚠️ <strong>Profile incomplete.</strong> Fill all required fields to unlock verification. Mandatory: Hometown, Home State, Phone, Speciality, College.
+    </div>}
+    <div className="grid2">
+      <div className="card">
+        <div className="ct" style={{marginBottom:14}}>👤 Personal Information</div>
+        {editing?<>
+          <div className="fg"><label className="fl">Full Name <span className="req">*</span></label><input className="fi-in" value={form.name} onChange={e=>set('name',e.target.value)}/></div>
+          <div className="fg"><label className="fl">Email Address <span className="req">*</span></label><input className="fi-in" value={form.email} onChange={e=>set('email',e.target.value)}/></div>
+          <div className="fg"><label className="fl">Phone <span className="req">*</span></label><input className="fi-in" value={form.phone} onChange={e=>set('phone',e.target.value)}/></div>
+          <div className="fg2">
+            <div className="fg"><label className="fl">Hometown <span className="req">*</span></label><input className="fi-in" placeholder="Mandatory" value={form.hometown} onChange={e=>set('hometown',e.target.value)}/></div>
+            <div className="fg"><label className="fl">Home State <span className="req">*</span></label>
+              <select className="fi-sel" value={form.homeState} onChange={e=>{set('homeState',e.target.value);set('zone',getZone(e.target.value));}}>
+                <option value="">Select state…</option>
+                {STATES.map(s=><option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="fg"><label className="fl">Zone (auto)</label><input className="fi-in auto" value={form.zone} readOnly/></div>
+          <div className="fg"><label className="fl">Current Address (optional)</label><textarea className="fi-ta" placeholder="Optional" value={form.address} onChange={e=>set('address',e.target.value)}/></div>
+        </>:<>
+          {[['📧 Email',form.email],['📞 Phone',form.phone],['🏡 Hometown',form.hometown||'Not set ⚠️'],['📍 Home State',form.homeState||'Not set ⚠️'],['🗺 Zone',form.zone]].map(([l,v])=>
+            <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #F9FAFB'}}>
+              <span style={{fontSize:13,color:'#6B7280'}}>{l}</span>
+              <span style={{fontSize:13,fontWeight:500,color:v.includes('⚠️')?'#92400E':'#111827'}}>{v}</span>
+            </div>
+          )}
+        </>}
+      </div>
+      <div className="card">
+        <div className="ct" style={{marginBottom:14}}>🎓 Academic Information</div>
+        {editing?<>
+          <div className="fg"><label className="fl">College / Institution <span className="req">*</span></label><input className="fi-in" value={form.college} onChange={e=>set('college',e.target.value)}/></div>
+          <div className="fg2">
+            <div className="fg"><label className="fl">Program <span className="req">*</span></label>
+              <select className="fi-sel" value={form.program} onChange={e=>{set('program',e.target.value);set('speciality','');}}>
+                {Object.keys(SPECIALITIES).map(p=><option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div className="fg"><label className="fl">Speciality <span className="req">*</span></label>
+              <select className="fi-sel" value={form.speciality} onChange={e=>set('speciality',e.target.value)}>
+                <option value="">Select…</option>
+                {(SPECIALITIES[form.program]||[]).map(s=><option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="fg">
+            <label className="fl">Year of Joining <span className="req">*</span></label>
+            <select className="fi-sel" value={form.joining} onChange={e=>set('joining',parseInt(e.target.value))}>
+              {[2020,2021,2022,2023,2024,2025].map(y=><option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          {/* Feature #3: auto-populated fields */}
+          <div className="fg2">
+            <div className="fg"><label className="fl">Current Year (auto)</label><input className="fi-in auto" value={curYrLabel} readOnly/><div className="form-note">✨ Auto-calculated</div></div>
+            <div className="fg"><label className="fl">Expected Completion (auto)</label><input className="fi-in auto" value={completion} readOnly/><div className="form-note">✨ {form.program} = {duration} years</div></div>
+          </div>
+          <div className="fg"><label className="fl">NEET-PG Rank</label><input className="fi-in" type="number" value={form.neetRank||''} onChange={e=>set('neetRank',e.target.value)}/></div>
+        </>:<>
+          {[['🏥 College',form.college],['📚 Program',form.program],['🩺 Speciality',form.speciality],['📅 Year of Joining',form.joining],['📌 Current Year',curYrLabel+' ✨'],['🎓 Expected Completion',completion+' ✨'],['🏆 NEET-PG Rank','AIR '+form.neetRank]].map(([l,v])=>
+            <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #F9FAFB'}}>
+              <span style={{fontSize:13,color:'#6B7280'}}>{l}</span>
+              <span style={{fontSize:13,fontWeight:500,color:String(v).includes('✨')?'#1D4ED8':'#111827'}}>{v}</span>
+            </div>
+          )}
+        </>}
+      </div>
+    </div>
+    {/* Verification Steps */}
+    <div className="card mt4">
+      <div className="ct" style={{marginBottom:14}}>🔐 Profile Verification Steps</div>
+      {[{label:'Personal details filled',done:!!(form.name&&form.phone&&form.email)},{label:'Hometown & Home State provided',done:!!(form.hometown&&form.homeState)},{label:'Academic information complete',done:!!(form.college&&form.program&&form.speciality&&form.joining)},{label:'All mandatory fields verified',done:complete},{label:'Admin approval',done:false}].map((s,i)=><div key={i} className={`vstep ${s.done?'done':complete&&i===4?'pend':'miss'}`}>
+        <div className="vstep-ic">{s.done?'✅':complete&&i===4?'⏳':'○'}</div>
+        <div style={{fontSize:13,fontWeight:500,color:s.done?'#1D4ED8':complete&&i===4?'#92400E':'#6B7280'}}>{s.label}</div>
+      </div>)}
+      <div style={{marginTop:12,padding:'10px 12px',background:'#F9FAFB',borderRadius:10,fontSize:12,color:'#6B7280'}}>⏰ Platform access: 2 years from passing out year ({completion}). Access expires: <strong>{completion+2}</strong>.</div>
+    </div>
+    {/* Stats */}
+    <div className="card mt4">
+      <div className="ct" style={{marginBottom:14}}>📊 My Stats</div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14}}>
+        {[['🏆','Rank','#4'],['⭐','Score','8,750'],['📚','Books','14'],['🔥','Streak','7 days']].map(([i,l,v])=>
+          <div key={l} style={{textAlign:'center',background:'#F9FAFB',borderRadius:12,padding:14}}>
+            <div style={{fontSize:26}}>{i}</div>
+            <div style={{fontFamily:'Inter,sans-serif',fontSize:18,fontWeight:800,color:'#2563EB',margin:'5px 0 2px'}}>{v}</div>
+            <div style={{fontSize:11,color:'#6B7280',fontWeight:600}}>{l}</div>
+          </div>
+        )}
+      </div>
+      {!editing&&<p style={{marginTop:14,fontSize:13,color:'#6B7280',lineHeight:1.6}}>{form.bio}</p>}
+      {editing&&<div className="fg" style={{marginTop:14}}><label className="fl">Bio</label><textarea className="fi-ta" value={form.bio} onChange={e=>set('bio',e.target.value)}/></div>}
+    </div>
+  </div>;
+}
+
+// ── REGISTRATION (Feature #3, #6, #7) ──
+function RegistrationPage({addToast,setPage}){
+  const now=new Date().getFullYear();
+  const [step,setStep]=useState(1);
+  const [form,setForm]=useState({name:'',email:'',phone:'',program:'MD',speciality:'',college:'',joining:2024,hometown:'',homeState:'',neetRank:'',address:''});
+  const set=(k,v)=>setForm(p=>({...p,[k]:v}));
+  const duration=PROG_YEARS[form.program]||3;
+  const completion=form.joining?parseInt(form.joining)+duration:'—';
+  const curYr=form.joining?now-parseInt(form.joining)+1:null;
+  const curYrLabel=!curYr?'—':curYr<=0?'Not started':curYr===1?'1st Year':curYr===2?'2nd Year':curYr===3?'3rd Year':'Completed';
+  const zone=getZone(form.homeState);
+  const nextStep=()=>{
+    if(step===1&&(!form.name||!form.phone||!form.email)){addToast('error','All personal details are mandatory.');return;}
+    if(step===2&&(!form.program||!form.speciality||!form.college||!form.joining)){addToast('error','All academic fields are mandatory.');return;}
+    if(step===3&&(!form.hometown||!form.homeState)){addToast('error','Hometown and Home State are mandatory.');return;}
+    setStep(s=>s+1);
+  };
+  const submit=()=>{addToast('success','Registration submitted! Profile verification will begin after all details are reviewed.');setPage('dashboard');};
+  const steps=['Personal','Academic','Location','Review'];
+  return <div className="page">
+    <div className="ph"><div className="pt">📋 New Registration</div><div className="ps">PG Aspirant Onboarding — All fields marked * are mandatory</div></div>
+    {/* Progress */}
+    <div style={{display:'flex',gap:8,marginBottom:24,alignItems:'center'}}>
+      {steps.map((s,i)=><React.Fragment key={s}>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <div style={{width:28,height:28,borderRadius:'50%',background:i+1<=step?'#2563EB':'#F9FAFB',color:i+1<=step?'#111827':'#6B7280',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Inter,sans-serif',fontWeight:700,fontSize:12,transition:'all .2s'}}>{i+1<step?'✓':i+1}</div>
+          <span style={{fontSize:12,fontWeight:600,color:i+1===step?'#111827':'#6B7280'}}>{s}</span>
+        </div>
+        {i<steps.length-1&&<div style={{flex:1,height:2,background:i+1<step?'#2563EB':'#E5E7EB',borderRadius:99,transition:'background .3s'}}/>}
+      </React.Fragment>)}
+    </div>
+    <div style={{maxWidth:640}}>
+      {step===1&&<div className="card fi">
+        <div className="ct" style={{marginBottom:16}}>👤 Personal Details</div>
+        <div className="fg"><label className="fl">Full Name (with title) <span className="req">*</span></label><input className="fi-in" placeholder="Dr. First Last" value={form.name} onChange={e=>set('name',e.target.value)}/></div>
+        <div className="fg2">
+          <div className="fg"><label className="fl">Email Address <span className="req">*</span></label><input className="fi-in" type="email" placeholder="you@hospital.in" value={form.email} onChange={e=>set('email',e.target.value)}/></div>
+          <div className="fg"><label className="fl">Phone Number <span className="req">*</span></label><input className="fi-in" placeholder="+91 98765 43210" value={form.phone} onChange={e=>set('phone',e.target.value)}/></div>
+        </div>
+        <div className="fg"><label className="fl">NEET-PG All India Rank</label><input className="fi-in" type="number" placeholder="e.g. 142" value={form.neetRank} onChange={e=>set('neetRank',e.target.value)}/></div>
+      </div>}
+      {step===2&&<div className="card fi">
+        <div className="ct" style={{marginBottom:16}}>🎓 Academic Details</div>
+        <div className="fg2">
+          <div className="fg"><label className="fl">Program Type <span className="req">*</span></label>
+            <select className="fi-sel" value={form.program} onChange={e=>{set('program',e.target.value);set('speciality','');}}>
+              {Object.keys(SPECIALITIES).map(p=><option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div className="fg"><label className="fl">Speciality <span className="req">*</span></label>
+            <select className="fi-sel" value={form.speciality} onChange={e=>set('speciality',e.target.value)}>
+              <option value="">Select…</option>
+              {(SPECIALITIES[form.program]||[]).map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="fg"><label className="fl">College / Institution <span className="req">*</span></label><input className="fi-in" placeholder="e.g. AIIMS Delhi" value={form.college} onChange={e=>set('college',e.target.value)}/></div>
+        <div className="fg"><label className="fl">Year of Joining <span className="req">*</span></label>
+          <select className="fi-sel" value={form.joining} onChange={e=>set('joining',parseInt(e.target.value))}>
+            {[2019,2020,2021,2022,2023,2024,2025].map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        {/* Feature #3: auto fields */}
+        <div style={{background:'#EFF6FF',borderRadius:12,padding:'14px',marginTop:4}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#1D4ED8',marginBottom:8}}>✨ Auto-calculated from Year of Joining</div>
+          <div className="fg2" style={{gap:10}}>
+            <div><label className="fl">Current Academic Year</label><input className="fi-in auto" value={curYrLabel} readOnly/></div>
+            <div><label className="fl">Expected Completion</label><input className="fi-in auto" value={completion} readOnly/></div>
+          </div>
+          <div style={{fontSize:11,color:'#1D4ED8',marginTop:4}}>📅 {form.program} duration: {duration} years · Access expires: {completion!=='—'?parseInt(completion)+2:'—'}</div>
+        </div>
+      </div>}
+      {step===3&&<div className="card fi">
+        <div className="ct" style={{marginBottom:4}}>📍 Location Details</div>
+        <div style={{fontSize:12,color:'#6B7280',marginBottom:14}}>Hometown and Home State are mandatory for zone allocation and regional reporting.</div>
+        <div className="fg2">
+          <div className="fg"><label className="fl">Hometown <span className="req">*</span></label><input className="fi-in" placeholder="City / Town" value={form.hometown} onChange={e=>set('hometown',e.target.value)}/></div>
+          <div className="fg"><label className="fl">Home State <span className="req">*</span></label>
+            <select className="fi-sel" value={form.homeState} onChange={e=>set('homeState',e.target.value)}>
+              <option value="">Select state…</option>
+              {STATES.map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        {form.homeState&&<div style={{background:'#EFF6FF',borderRadius:10,padding:'10px 14px',fontSize:12,color:'#1D4ED8',marginBottom:12}}>✨ Zone auto-assigned: <strong>{getZone(form.homeState)}</strong></div>}
+        <div className="fg"><label className="fl">Current Address (optional)</label><textarea className="fi-ta" placeholder="Optional — Current city / hospital address" value={form.address} onChange={e=>set('address',e.target.value)}/></div>
+        <div style={{background:'#FFFBEB',borderRadius:10,padding:'10px 14px',fontSize:12,color:'#92400E'}}>⏰ <strong>Access Policy:</strong> Platform access is available for 2 years after your passing out year ({completion}). Access will expire in {completion!=='—'?parseInt(completion)+2:'N/A'}.</div>
+      </div>}
+      {step===4&&<div className="card fi">
+        <div className="ct" style={{marginBottom:14}}>📋 Review & Submit</div>
+        {[['Name',form.name],['Email',form.email],['Phone',form.phone],['Program',form.program],['Speciality',form.speciality],['College',form.college],['Year of Joining',form.joining],['Current Year',curYrLabel],['Expected Completion',completion],['Hometown',form.hometown],['Home State',form.homeState],['Zone',zone]].map(([l,v])=>
+          <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #F9FAFB'}}>
+            <span style={{fontSize:13,color:'#6B7280'}}>{l}</span><span style={{fontSize:13,fontWeight:600}}>{v||'—'}</span>
+          </div>
+        )}
+        <div style={{marginTop:14,background:'#F9FAFB',borderRadius:10,padding:'12px',fontSize:12,color:'#6B7280'}}>By submitting, you agree that profile verification will begin only after all details are reviewed by the Admin. You will be notified once verified.</div>
+      </div>}
+      <div style={{display:'flex',gap:10,justifyContent:'space-between',marginTop:16}}>
+        {step>1?<button className="btn btn-s" onClick={()=>setStep(s=>s-1)}>← Back</button>:<div/>}
+        {step<4?<button className="btn btn-p" onClick={nextStep}>Continue →</button>:<button className="btn btn-p" onClick={submit}>Submit Registration ✓</button>}
+      </div>
+    </div>
+  </div>;
+}
+
+// ── USERS PAGE (Feature #8, #9) ──
+function UsersPage({addToast}){
+  const [search,setSearch]=useState('');
+  const [zone,setZone]=useState('');
+  const [state,setState]=useState('');
+  const [spec,setSpec]=useState('');
+  const [sel,setSel]=useState(null);
+  const [tab,setTab]=useState('users');
+  const allUsers=[
+    {id:1,name:'Dr. Priya Sharma',email:'priya@example.com',role:'PG Aspirant',mci:'MCI-2024-78432',hometown:'Lucknow',state:'Uttar Pradesh',zone:'North',status:'active',verified:true,score:8200},
+    {id:2,name:'Dr. Ankit Verma',email:'ankit@example.com',role:'PG Aspirant',mci:'MCI-2024-91234',hometown:'Chennai',state:'Tamil Nadu',zone:'South',status:'pending',verified:false,score:0},
+    {id:3,name:'Dr. Sneha Patel',email:'sneha@example.com',role:'PG Aspirant',mci:'MCI-2024-88210',hometown:'Ahmedabad',state:'Gujarat',zone:'West',status:'active',verified:true,score:7100},
+    {id:4,name:'Dr. Kiran Rao',email:'kiran@example.com',role:'PG Aspirant',mci:'MCI-2023-66789',hometown:'Hyderabad',state:'Telangana',zone:'South',status:'active',verified:true,score:6800},
+    {id:5,name:'Rajesh Kumar',email:'rajesh@icon.com',role:'Content Admin',mci:'—',hometown:'Mumbai',state:'Maharashtra',zone:'West',status:'active',verified:true,score:0},
+  ];
+  const filtered=allUsers.filter(u=>{
+    if(search&&!u.name.toLowerCase().includes(search.toLowerCase())&&!u.email.toLowerCase().includes(search.toLowerCase())&&!u.mci.toLowerCase().includes(search.toLowerCase())&&!u.hometown.toLowerCase().includes(search.toLowerCase()))return false;
+    if(zone&&u.zone!==zone)return false;
+    if(state&&u.state!==state)return false;
+    return true;
+  });
+  const exportCSV=()=>{
+    const rows=[['Name','Email','Role','MCI/NMC','State','Zone','Status'],
+    ...filtered.map(u=>[u.name,u.email,u.role,u.mci,u.state,u.zone,u.status])];
+    const csv=rows.map(r=>r.join(',')).join('\n');
+    const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download='iConnect_users.csv';a.click();
+    addToast('success',`Exported ${filtered.length} users!`);
+  };
+  return <div className="page">
+    <div className="ph-row ph">
+      <div><div className="pt">User Management</div><div className="ps">Manage roles, access levels, and user status</div></div>
+      <button className="btn btn-s btn-sm" onClick={exportCSV}>⬇️ Export Report</button>
+    </div>
+    <div className="sg4">
+      {[{l:'Total Users',v:7,i:'👥',c:'teal'},{l:'Active',v:5,i:'👤',c:'violet'},{l:'Pending',v:1,i:'⏰',c:'amber'},{l:'Admin Roles',v:2,i:'🛡️',c:'rose'}].map((s,i)=>
+        <div key={i} className={`stat ${s.c} fu`} style={{animationDelay:`${i*.06}s`}}>
+          <div className="stat-ic">{s.i}</div><div className="stat-v">{s.v}</div><div className="stat-l">{s.l}</div>
+        </div>
+      )}
+    </div>
+    <div className="tabs">
+      {[['users','All Users'],['reports','Reports'],['roles','Role Definitions']].map(([k,l])=>
+        <button key={k} className={`tab ${tab===k?'act':''}`} onClick={()=>setTab(k)}>{l}</button>
+      )}
+    </div>
+    {tab==='users'&&<>
+      <div className="card" style={{marginBottom:14}}>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+          <div className="search-bar" style={{flex:1,minWidth:200}}><span>🔍</span><input placeholder="Search by name, email, MCI, or hometown..." value={search} onChange={e=>setSearch(e.target.value)}/></div>
+          <select className="fi-sel" style={{width:'auto'}} value={zone} onChange={e=>setZone(e.target.value)}><option value="">All Zones</option>{Object.keys(ZONES).map(z=><option key={z}>{z}</option>)}</select>
+          <select className="fi-sel" style={{width:'auto'}} value={state} onChange={e=>setState(e.target.value)}><option value="">All States</option>{STATES.map(s=><option key={s}>{s}</option>)}</select>
+          <select className="fi-sel" style={{width:'auto'}}><option>All Specializations</option></select>
+        </div>
+      </div>
+      <div className="card">
+        <div className="tw"><table><thead><tr><th>Name</th><th>MCI/NMC</th><th>Location</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>{filtered.map(u=><tr key={u.id}>
+          <td><div style={{display:'flex',alignItems:'center',gap:8}}><Avatar name={u.name} size={30}/><div><div style={{fontWeight:500,fontSize:13}}>{u.name}</div><div style={{fontSize:11,color:'#6B7280'}}>{u.email}</div></div></div></td>
+          <td style={{fontSize:13}}>{u.mci}</td>
+          <td><div style={{fontSize:13}}>{u.hometown}</div><div style={{fontSize:11,color:'#6B7280'}}>{u.state} · {u.zone}</div></td>
+          <td><span className={`bdg ${u.role==='Content Admin'?'bg-s':'bg-v'}`}>{u.role}</span></td>
+          <td>{u.status==='pending'?<div style={{display:'flex',alignItems:'center',gap:4,fontSize:13,color:'#92400E'}}><span>⏰</span>Pending</div>:<div style={{display:'flex',alignItems:'center',gap:4,fontSize:13,color:'#166534'}}><span>👤</span>Active</div>}</td>
+          <td><div style={{display:'flex',gap:4}}><button className="btn btn-s btn-sm" onClick={()=>setSel(u)}>👁</button><button className="btn btn-s btn-sm">✏️</button></div></td>
+        </tr>)}</tbody></table></div>
+      </div>
+    </>}
+    {tab==='reports'&&<div className="card"><div className="ct" style={{marginBottom:14}}>Generate Reports</div>
+      <div className="grid2">{[{t:'Zone-wise Report',i:'🗺'},{t:'State-wise Report',i:'📍'},{t:'Speciality Report',i:'🩺'},{t:'Activity Report',i:'📈'},{t:'Verification Report',i:'✅'},{t:'Hometown Report',i:'🏡'}].map((r,i)=><div key={i} style={{background:'#F9FAFB',borderRadius:8,padding:14,cursor:'pointer',border:'1px solid #E5E7EB'}} onClick={()=>addToast('success',`${r.t} downloaded!`)}>
+        <div style={{fontSize:22,marginBottom:6}}>{r.i}</div>
+        <div style={{fontWeight:600,fontSize:13}}>{r.t}</div>
+      </div>)}</div>
+    </div>}
+    {tab==='roles'&&<div className="card">
+      {[{role:'Super Admin',desc:'Full access — approvals, user management, reports, settings'},{role:'Content Admin',desc:'Upload and manage e-books, submit for Super Admin review'},{role:'PG Aspirant',desc:'Read approved e-books, view leaderboard, manage own profile'}].map((r,i)=><div key={i} style={{padding:'12px 0',borderBottom:'1px solid #E5E7EB'}}>
+        <div style={{fontWeight:600,fontSize:14}}>{r.role}</div>
+        <div style={{fontSize:13,color:'#6B7280',marginTop:3}}>{r.desc}</div>
+      </div>)}
+    </div>}
+    {sel&&<div className="overlay" onClick={()=>setSel(null)}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="mh"><div className="mt">Doctor Profile</div><button className="mc" onClick={()=>setSel(null)}>×</button></div>
+        <div className="mb">
+          <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:16,background:'#F9FAFB',borderRadius:8,padding:14}}>
+            <Avatar name={sel.name} size={48}/>
+            <div><div style={{fontWeight:700,fontSize:16}}>{sel.name}</div>
+            <div style={{fontSize:12,color:'#6B7280'}}>{sel.state} · {sel.zone}</div>
+            <div style={{display:'flex',gap:6,marginTop:6}}>
+              <span className={`bdg ${sel.status==='active'?'bg-g':'bg-a'}`}>{sel.status}</span>
+              {sel.verified&&<span className="bdg bg-sky">✅ Verified</span>}
+            </div></div>
+          </div>
+          {[['Email',sel.email],['MCI/NMC',sel.mci],['Hometown',sel.hometown],['State',sel.state],['Zone',sel.zone],['Role',sel.role]].map(([l,v])=>
+            <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'8px 0',borderBottom:'1px solid #F9FAFB'}}>
+              <span style={{fontSize:13,color:'#6B7280'}}>{l}</span><span style={{fontSize:13,fontWeight:500}}>{v}</span>
+            </div>
+          )}
+        </div>
+        <div className="mf">
+          <button className="btn btn-p btn-sm" onClick={()=>{addToast('success',`${sel.name}'s profile downloaded!`);setSel(null);}}>⬇️ Download Profile</button>
+          <button className="btn btn-s btn-sm" onClick={()=>setSel(null)}>Close</button>
+        </div>
+      </div>
+    </div>}
+  </div>;
+}
+
+// ── REPORTS PAGE ──
+function ReportsPage({addToast}){
+  return <div className="page">
+    <div className="ph"><div className="pt">📈 Reports & Analytics</div><div className="ps">Platform-wide performance insights</div></div>
+    <div className="sg3">
+      {[{t:'User Growth',v:'+23%',s:'vs last month',i:'👥',c:'#2563EB'},{t:'Downloads',v:'1,284',s:'this month',i:'⬇️',c:'#7C3AED'},{t:'Avg Session',v:'34 min',s:'+12% vs last month',i:'⏱',c:'#F59E0B'}].map((r,i)=><div key={i} className="card" style={{textAlign:'center'}}>
+        <div style={{fontSize:34,marginBottom:8}}>{r.i}</div>
+        <div style={{fontFamily:'Inter,sans-serif',fontSize:26,fontWeight:800,color:r.c}}>{r.v}</div>
+        <div style={{fontWeight:600,fontSize:14,marginTop:4}}>{r.t}</div>
+        <div style={{fontSize:12,color:'#6B7280'}}>{r.s}</div>
+      </div>)}
+    </div>
+    <div className="grid2 mt4">
+      <div className="card">
+        <div className="ct" style={{marginBottom:14}}>📊 Zone-wise Distribution</div>
+        {[['North',38,'#2563EB'],['South',26,'#7C3AED'],['West',18,'#F59E0B'],['East',12,'#EF4444'],['Central',6,'#6EE7B7']].map(([z,p,c])=><div key={z} style={{marginBottom:11}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{fontSize:13,fontWeight:500}}>{z}</span><span style={{fontSize:11,color:'#6B7280'}}>{p}%</span></div>
+          <div className="pb"><div style={{height:'100%',width:`${p}%`,background:c,borderRadius:99}}/></div>
+        </div>)}
+        <button className="btn btn-s btn-sm" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>addToast('success','Zone report downloaded!')}>⬇️ Download Zone Report</button>
+      </div>
+      <div className="card">
+        <div className="ct" style={{marginBottom:14}}>🩺 Program Distribution</div>
+        {[['MD',45,'#2563EB'],['MS',28,'#7C3AED'],['DM',15,'#F59E0B'],['MCh',8,'#EF4444'],['DNB',4,'#0EA5E9']].map(([p,pct,c])=><div key={p} style={{marginBottom:11}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{fontSize:13,fontWeight:500}}>{p}</span><span style={{fontSize:11,color:'#6B7280'}}>{pct}%</span></div>
+          <div className="pb"><div style={{height:'100%',width:`${pct}%`,background:c,borderRadius:99}}/></div>
+        </div>)}
+        <button className="btn btn-s btn-sm" style={{width:'100%',justifyContent:'center',marginTop:8}} onClick={()=>addToast('success','Program report downloaded!')}>⬇️ Download Program Report</button>
+      </div>
+    </div>
+  </div>;
+}
+
+// ── COMING SOON PAGES (Feature #12) ──
+function ComingSoonPage({title,icon,desc,features}){
+  return <div className="page">
+    <div className="ph"><div className="pt">{icon} {title}</div><div className="ps">Coming in a future version</div></div>
+    <div className="coming-soon-banner">
+      <div style={{fontSize:56,marginBottom:12}}>{icon}</div>
+      <div style={{fontFamily:'Inter,sans-serif',fontSize:22,fontWeight:800,marginBottom:8}}>{title}</div>
+      <div style={{fontSize:14,color:'rgba(255,255,255,.55)',maxWidth:440,margin:'0 auto'}}>{desc}</div>
+      <div style={{display:'inline-flex',alignItems:'center',gap:6,background:'rgba(255,179,71,.15)',border:'1px solid rgba(255,179,71,.3)',borderRadius:99,padding:'6px 16px',marginTop:14,fontSize:12,color:'#F59E0B',fontWeight:700}}>🚧 Planned for Version 3</div>
+    </div>
+    <div className="grid2">
+      {features.map((f,i)=><div key={i} className="card" style={{opacity:.7}}>
+        <div style={{fontSize:26,marginBottom:8}}>{f.i}</div>
+        <div style={{fontFamily:'Inter,sans-serif',fontWeight:700,fontSize:14,marginBottom:4}}>{f.t}</div>
+        <div style={{fontSize:12,color:'#6B7280'}}>{f.d}</div>
+        <div style={{marginTop:10}}><span className="bdg bg-a">Placeholder</span></div>
+      </div>)}
+    </div>
+  </div>;
+}
+
+// ── KAHOOT PAGE (Feature #11) ──
+function KahootPage(){
+  return <div className="page">
+    <div className="ph"><div className="pt">🎮 Kahoot Quiz Integration</div><div className="ps">Interactive live quizzes — coming soon</div></div>
+    <div className="kahoot-card" style={{marginBottom:20}}>
+      <div style={{fontSize:48,marginBottom:12}}>🎮</div>
+      <div style={{fontFamily:'Inter,sans-serif',fontSize:22,fontWeight:800,marginBottom:8}}>Kahoot! Live Quizzes</div>
+      <div style={{fontSize:14,color:'rgba(255,255,255,.6)',marginBottom:16,maxWidth:480}}>Real-time competitive quizzes for PG aspirants. Answer NEET-PG MCQs live with your batchmates and see where you rank instantly.</div>
+      <button style={{background:'rgba(255,255,255,.15)',border:'1px solid rgba(255,255,255,.3)',borderRadius:10,color:'white',padding:'10px 20px',fontSize:13,fontWeight:600,cursor:'pointer'}}>🚧 Coming in Version 3</button>
+    </div>
+    <div className="grid3">
+      {[{i:'🏆',t:'Live Competitions',d:'Real-time quiz battles with peers in your speciality'},{i:'📊',t:'Instant Results',d:'See your score and rank the moment the quiz ends'},{i:'📚',t:'Subject-wise Sets',d:'Curated NEET-PG question banks by subject'}].map((f,i)=><div key={i} className="card" style={{opacity:.75}}>
+        <div style={{fontSize:28,marginBottom:8}}>{f.i}</div>
+        <div style={{fontFamily:'Inter,sans-serif',fontWeight:700,fontSize:14,marginBottom:4}}>{f.t}</div>
+        <div style={{fontSize:12,color:'#6B7280'}}>{f.d}</div>
+        <span className="bdg bg-a" style={{marginTop:10,display:'inline-block'}}>Placeholder UI</span>
+      </div>)}
+    </div>
+  </div>;
+}
+
+// ── SETTINGS ──
+function SettingsPage({addToast}){
+  const [toggles,setT]=useState({autoApprove:false,welcomeMsg:true,digestEmail:true,leaderboardUpdates:false,reqVerify:true});
+  const tog=k=>setT(p=>({...p,[k]:!p[k]}));
+  return <div className="page">
+    <div className="ph"><div className="pt">⚙️ Settings</div><div className="ps">Platform configuration and preferences</div></div>
+    <div style={{maxWidth:640}}>
+      {[{sec:'Content Settings',items:[['auto_approve','Auto-approve from trusted admins','autoApprove'],['file_size','Max PDF size (MB)',null,100],['access_years','Access duration (years)',null,2]]},{sec:'Notification Settings',items:[['welcome','Welcome message on registration','welcomeMsg'],['digest','Daily email digest','digestEmail'],['lb','Leaderboard update alerts','leaderboardUpdates']]},{sec:'Registration & Verification',items:[['req_verify','Require admin approval for verification','reqVerify'],['hometown','Mandate hometown & home state',null,true],['access_2yr','Enforce 2-year access policy',null,true]]}].map(({sec,items})=>
+        <div key={sec} className="card" style={{marginBottom:16}}>
+          <div className="ct" style={{marginBottom:14}}>{sec}</div>
+          {items.map(([k,l,tog_k,val])=><div key={k} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid #F9FAFB'}}>
+            <span style={{fontSize:13}}>{l}</span>
+            {tog_k?<Toggle on={toggles[tog_k]} onChange={()=>tog(tog_k)}/>:<input className="fi-in" style={{width:80}} defaultValue={val}/>}
+          </div>)}
+        </div>
+      )}
+      <button className="btn btn-p" onClick={()=>addToast('success','Settings saved!')}>💾 Save Settings</button>
+    </div>
+  </div>;
+}
+
+// ── PAGE TITLES ──
+const titles={dashboard:'🏠 Dashboard',ebooks:'📚 E-Book Library',upload:'⬆️ Upload E-Book',leaderboard:'🏆 My Leaderboard',activity:'📅 My Activity',notifications:'🔔 Notifications',profile:'👤 My Profile',users:'👥 User Management',reports:'📈 Reports',settings:'⚙️ Settings',registration:'📋 Registration',social:'👥 Social Features',groups:'🎯 Interest Groups',kahoot:'🎮 Kahoot Quiz'};
+
+// ── ROOT APP ──
+function App(){
+  const [role,setRole]=useState(null);
+  const [page,setPage]=useState('dashboard');
+  const [artifacts,setArtifacts]=useState(ARTIFACTS_INIT);
+  const [notifications,setNotifications]=useState(NOTIFS_INIT);
+  const [toasts,setToasts]=useState([]);
+  const [notifPanel,setNotifPanel]=useState(false);
+
+  const addToast=useCallback((type,msg)=>{const id=Date.now();setToasts(t=>[...t,{id,type,msg}]);setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),3500);},[]);
+  const onApprove=id=>setArtifacts(a=>a.map(x=>x.id===id?{...x,status:'approved'}:x));
+  const onReject=id=>setArtifacts(a=>a.filter(x=>x.id!==id));
+  const onUpload=art=>{setArtifacts(a=>[art,...a]);setNotifications(n=>[{id:Date.now(),type:'info',icon:'📤',unread:true,time:'Just now',title:'Upload Submitted',body:`"${art.title}" is pending Super Admin approval.`,channel:'in_app'},...n]);};
+
+  const unreadCount=notifications.filter(n=>n.unread).length;
+  const pendingCount=artifacts.filter(a=>a.status==='pending').length;
+
+  // close notif panel on page change
+  useEffect(()=>setNotifPanel(false),[page]);
+
+  const login=r=>{setRole(r);setPage('dashboard');};
+  const logout=()=>{setRole(null);setPage('dashboard');};
+
+  if(!role)return <><Login onLogin={login}/><Toasts toasts={toasts}/></>;
+
+  const commonProps={artifacts,setPage,addToast,notifications,setNotifications,role,onApprove,onReject,onUpload};
+
+  const renderPage=()=>{
+    switch(page){
+      case 'dashboard':return role==='superadmin'?<SADashboard {...commonProps}/>:role==='contentadmin'?<CADashboard {...commonProps}/>:<DoctorDashboard {...commonProps}/>;
+      case 'ebooks':return <EBooksPage {...commonProps}/>;
+      case 'upload':return <UploadPage onUpload={onUpload} addToast={addToast}/>;
+      case 'leaderboard':return <LeaderboardPage/>;
+      case 'activity':return <ActivityPage/>;
+      case 'notifications':return <NotificationsPage notifications={notifications} setNotifications={setNotifications} addToast={addToast}/>;
+      case 'profile':return <ProfilePage addToast={addToast}/>;
+      case 'users':return <UsersPage addToast={addToast}/>;
+      case 'reports':return <ReportsPage addToast={addToast}/>;
+      case 'settings':return <SettingsPage addToast={addToast}/>;
+      case 'registration':return <RegistrationPage addToast={addToast} setPage={setPage}/>;
+      case 'social':return <ComingSoonPage title="Social Features" icon="👥" desc="Connect with peers, share notes, follow top performers and build your medical network." features={[{i:'👫',t:'Peer Network',d:'Follow and connect with doctors from your speciality'},{i:'📝',t:'Note Sharing',d:'Share and discover study notes'},{i:'💬',t:'Chat Groups',d:'Private and group messaging'},{i:'🌟',t:'Verification Badge',d:'Blue tick for verified doctors (Facebook-style)'}]}/>;
+      case 'groups':return <ComingSoonPage title="Interest Groups" icon="🎯" desc="Join or create groups based on speciality, college, or study topics." features={[{i:'🏥',t:'Speciality Groups',d:'MD, MS, DM groups for each subject'},{i:'📚',t:'Study Circles',d:'Small group study sessions'},{i:'📢',t:'Mass Communication',d:'Admin broadcast to all group members'},{i:'📱',t:'WhatsApp Business',d:'Group notifications via WhatsApp Business API'}]}/>;
+      case 'kahoot':return <KahootPage/>;
+      default:return <div className="page"><div className="empty"><div className="empty-ic">🚧</div><div className="empty-t">Coming Soon</div></div></div>;
+    }
+  };
+
+  return <div className="shell" onClick={()=>setNotifPanel(false)}>
+    <Sidebar role={role} page={page} setPage={setPage} onLogout={logout} pendingCount={pendingCount} unreadCount={unreadCount}/>
+    <div className="main" onClick={e=>e.stopPropagation()}>
+      <TopBar title={titles[page]||'iConnect'} role={role} unreadCount={unreadCount} setPage={setPage} notifPanelOpen={notifPanel} setNotifPanel={setNotifPanel} notifications={notifications}/>
+      {renderPage()}
+    </div>
+    <Toasts toasts={toasts}/>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

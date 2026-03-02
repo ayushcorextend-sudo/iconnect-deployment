@@ -1,0 +1,15 @@
+const mongoose = require("mongoose");
+
+const settingsSchema = new mongoose.Schema(
+  {
+    key: {
+      type: String, required: true, unique: true,
+      enum: ["auto_approve_ebooks","require_doctor_verification","email_digest_enabled","whatsapp_notifications_enabled","max_upload_size_mb","leaderboard_visible"],
+    },
+    value: { type: mongoose.Schema.Types.Mixed, required: true },
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model("Settings", settingsSchema);
