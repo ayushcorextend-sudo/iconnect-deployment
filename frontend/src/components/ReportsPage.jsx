@@ -1,4 +1,45 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+
 export default function ReportsPage({ addToast }) {
+  const [placeRows, setPlaceRows] = useState([]);
+
+  useEffect(() => {
+    async function loadPlaceReport() {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('place_of_study, college')
+          .not('place_of_study', 'is', null);
+
+        const grouped = (data || []).reduce((acc, p) => {
+          const key = p.place_of_study || p.college || '';
+          if (!key.trim()) return acc;
+          acc[key] = (acc[key] || 0) + 1;
+          return acc;
+        }, {});
+
+        setPlaceRows(
+          Object.entries(grouped)
+            .map(([college, count]) => ({ college, count }))
+            .sort((a, b) => b.count - a.count)
+        );
+      } catch (e) { /* silent */ }
+    }
+    loadPlaceReport();
+  }, []);
+
+  const exportPlaceCSV = () => {
+    const csv = ['College/Institute,Student Count',
+      ...placeRows.map(r => `"${r.college}",${r.count}`)
+    ].join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = 'place_of_study_report.csv';
+    a.click();
+    addToast('success', 'CSV exported!');
+  };
+
   return (
     <div className="page">
       <div className="ph">
@@ -46,6 +87,40 @@ export default function ReportsPage({ addToast }) {
           ))}
           <button className="btn btn-s btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: 8 }} onClick={() => addToast('success', 'Program report downloaded!')}>⬇️ Download Program Report</button>
         </div>
+      </div>
+
+      {/* Place of Study Report */}
+      <div className="card mt4">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ fontWeight: 700, fontSize: 16, margin: 0 }}>🏫 Place of Study Report</h3>
+          <button onClick={exportPlaceCSV} style={{ fontSize: 12, padding: '4px 12px', border: '1px solid #E5E7EB', borderRadius: 8, cursor: 'pointer', background: '#fff' }}>
+            ⬇️ Export CSV
+          </button>
+        </div>
+        {placeRows.length === 0 ? (
+          <div style={{ color: '#9CA3AF', textAlign: 'center', padding: 16, fontSize: 13 }}>
+            No place of study data yet — users need to fill in their college during registration.
+          </div>
+        ) : (
+          <div className="tw">
+            <table>
+              <thead>
+                <tr>
+                  <th>College / Institute</th>
+                  <th style={{ textAlign: 'right' }}>Students</th>
+                </tr>
+              </thead>
+              <tbody>
+                {placeRows.map((row, i) => (
+                  <tr key={i}>
+                    <td style={{ fontSize: 13 }}>{row.college}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#4F46E5', fontSize: 13 }}>{row.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

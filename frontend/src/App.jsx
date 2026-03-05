@@ -4,6 +4,7 @@ import {
   fetchArtifacts, approveArtifact,
   rejectArtifact,
 } from './lib/supabase';
+import { sendNotification } from './lib/sendNotification';
 import OnboardingBanner from './components/OnboardingBanner';
 import { ARTIFACTS_INIT, NOTIFS_INIT, titles } from './data/constants';
 import Login from './components/Login';
@@ -141,6 +142,15 @@ export default function App() {
       body: `"${art.title}" is pending Super Admin approval.`,
       channel: 'in_app',
     }, ...n]);
+    try {
+      const session = JSON.parse(localStorage.getItem('iconnect_session') || '{}');
+      sendNotification(
+        session.userId,
+        'Upload Submitted',
+        `"${art.title}" is pending Super Admin approval.`,
+        'info', '📤', 'in_app'
+      );
+    } catch (_) {}
   };
 
   // User management handlers (for SADashboard Review modal)

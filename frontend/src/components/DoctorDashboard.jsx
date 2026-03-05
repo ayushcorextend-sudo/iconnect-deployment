@@ -1,23 +1,81 @@
+import { useState, useEffect } from 'react';
 import Avatar from './Avatar';
 import { LB_DATA } from '../data/constants';
+import { supabase } from '../lib/supabase';
 
 export default function DoctorDashboard({ artifacts = [], notifications = [], setPage, userName }) {
   const approved = artifacts.filter(a => a.status === 'approved');
   const pending = artifacts.filter(a => a.status === 'pending');
   const unread = notifications.filter(n => n.unread).length;
-  const me = LB_DATA.find(l => l.isMe);
+
+  const [miniLB, setMiniLB] = useState(LB_DATA.slice(0, 4));
+  const [myScore, setMyScore] = useState(LB_DATA.find(l => l.isMe)?.score || 8750);
+  const [myRank, setMyRank] = useState(4);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const uid = authData?.user?.id;
+
+        const { data, error } = await supabase
+          .from('user_scores')
+          .select('user_id, total_score, quiz_score, reading_score')
+          .order('total_score', { ascending: false })
+          .limit(5);
+
+        if (error || !data || data.length === 0) return;
+
+        const userIds = data.map(d => d.user_id);
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, name, full_name, specialty, speciality, college, place_of_study')
+          .in('id', userIds);
+
+        const profileMap = (profiles || []).reduce((acc, p) => {
+          acc[p.id] = p;
+          return acc;
+        }, {});
+
+        const mapped = data.map((row, i) => {
+          const p = profileMap[row.user_id] || {};
+          return {
+            id: row.user_id,
+            name: p.full_name || p.name || 'Anonymous',
+            speciality: p.specialty || p.speciality || '—',
+            score: row.total_score,
+            quizPts: row.quiz_score,
+            readPts: row.reading_score,
+            isMe: row.user_id === uid,
+          };
+        });
+
+        setMiniLB(mapped);
+
+        const meRow = mapped.find(r => r.isMe);
+        if (meRow) {
+          setMyScore(meRow.score);
+          setMyRank(mapped.findIndex(r => r.isMe) + 1);
+        }
+      } catch (e) {
+        // keep LB_DATA fallback
+        console.warn('Mini-leaderboard fetch failed:', e.message);
+      }
+    }
+    load();
+  }, []);
 
   return (
     <div className="page">
       <div className="ph">
         <div className="pt">Welcome back, {userName || 'Doctor'}! 👋</div>
-        <div className="ps">Keep up the great work — you&apos;re ranked <strong style={{ color: '#2563EB' }}>#4</strong> this month</div>
+        <div className="ps">Keep up the great work — you&apos;re ranked <strong style={{ color: '#2563EB' }}>#{myRank}</strong> this month</div>
       </div>
       <div className="sg4">
         {[
           { l: 'Books Read', v: '14', i: '📖', c: 'teal' },
-          { l: 'My Rank', v: `#${me?.id || 4}`, i: '🏆', c: 'amber' },
-          { l: 'Total Score', v: (me?.score || 8750).toLocaleString(), i: '⭐', c: 'violet' },
+          { l: 'My Rank', v: `#${myRank}`, i: '🏆', c: 'amber' },
+          { l: 'Total Score', v: myScore.toLocaleString(), i: '⭐', c: 'violet' },
           { l: 'Unread Alerts', v: unread, i: '🔔', c: 'rose' },
         ].map((s, i) => (
           <div key={i} className={`stat ${s.c} fu`} style={{ animationDelay: `${i * 0.07}s` }}>
@@ -35,7 +93,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,.5)', marginTop: 2 }}>Based on reading, quizzes, notes & research</div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 26, fontWeight: 800, color: '#2563EB' }}>8,750</div>
+            <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 26, fontWeight: 800, color: '#2563EB' }}>{myScore.toLocaleString()}</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,.4)' }}>total points</div>
           </div>
         </div>
@@ -81,7 +139,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
             <div className="ct">🏆 Leaderboard</div>
             <button className="btn btn-s btn-sm" onClick={() => setPage('leaderboard')}>Full Board</button>
           </div>
-          {LB_DATA.slice(0, 4).map((l, i) => (
+          {miniLB.map((l, i) => (
             <div key={l.id} className={`lb-row ${l.isMe ? 'me' : ''}`}>
               <div className="lb-pos" style={{ color: i < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][i] : '#6B7280' }}>{i + 1}</div>
               <Avatar name={l.name} size={28} />

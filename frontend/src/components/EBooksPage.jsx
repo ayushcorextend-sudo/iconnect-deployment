@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { trackActivity } from '../lib/trackActivity';
 
 const demoPages = [
   { h: 'Chapter 1: Introduction', b: 'This comprehensive medical textbook covers core principles required for postgraduate medical examinations. Content is organized for rapid review and deep understanding across all major specialities.' },
@@ -15,8 +17,35 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
   const [zoom, setZoom] = useState(100);
   const [pg, setPg] = useState(1);
   const [fullscreen, setFS] = useState(false);
+  const [localArtifacts, setLocalArtifacts] = useState(artifacts);
 
-  const visible = artifacts.filter(a => {
+  // Keep localArtifacts in sync when props change
+  useEffect(() => setLocalArtifacts(artifacts), [artifacts]);
+
+  const handleRead = async (item) => {
+    setViewer(item);
+    setPg(1);
+    setZoom(100);
+    await trackActivity('article_read', item.id);
+  };
+
+  const handleDownload = async (item) => {
+    if (item.url || item.fileUrl) {
+      window.open(item.url || item.fileUrl, '_blank');
+    }
+    await trackActivity('document_downloaded', item.id);
+    try {
+      await supabase.from('artifacts')
+        .update({ downloads: (item.downloads || 0) + 1 })
+        .eq('id', item.id);
+      setLocalArtifacts(prev =>
+        prev.map(a => a.id === item.id ? { ...a, downloads: (a.downloads || 0) + 1 } : a)
+      );
+    } catch (e) { /* silent */ }
+    addToast('success', `Downloading "${item.title}"…`);
+  };
+
+  const visible = localArtifacts.filter(a => {
     if (role === 'doctor' && tab === 'approved' && a.status !== 'approved') return false;
     if (tab === 'pending' && a.status !== 'pending') return false;
     if (tab === 'approved' && a.status !== 'approved') return false;
@@ -33,6 +62,7 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
             <div style={{ fontFamily: 'Inter,sans-serif', fontWeight: 700, fontSize: 16 }}>{viewer.emoji} {viewer.title}</div>
             <div style={{ fontSize: 12, color: '#6B7280' }}>{viewer.subject} · {viewer.pages} pages</div>
           </div>
+          <button className="btn btn-s btn-sm" style={{ marginLeft: 'auto' }} onClick={() => handleDownload(viewer)}>⬇️ Download</button>
         </div>
       )}
       <div className="pdf-v" style={fullscreen ? { borderRadius: 0, height: '100vh' } : {}}>
@@ -88,16 +118,16 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
         ))}
       </div>
 
-      {role === 'doctor' && artifacts.filter(a => a.status === 'pending').length > 0 && tab !== 'approved' && (
+      {role === 'doctor' && localArtifacts.filter(a => a.status === 'pending').length > 0 && tab !== 'approved' && (
         <div style={{ background: '#FFFBEB', border: '1px solid rgba(255,179,71,.3)', borderRadius: 12, padding: '10px 16px', fontSize: 13, color: '#92400E', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-          ⏳ <strong>{artifacts.filter(a => a.status === 'pending').length} new book{artifacts.filter(a => a.status === 'pending').length > 1 ? 's' : ''}</strong> are being verified by Admin. You can see them below — interaction unlocks after approval.
+          ⏳ <strong>{localArtifacts.filter(a => a.status === 'pending').length} new book{localArtifacts.filter(a => a.status === 'pending').length > 1 ? 's' : ''}</strong> are being verified by Admin. You can see them below — interaction unlocks after approval.
         </div>
       )}
 
       {viewMode === 'grid' ? (
         <div className="eg">
           {visible.map(a => (
-            <div key={a.id} className="ec" onClick={() => { if (a.status === 'approved') { setViewer(a); setPg(1); setZoom(100); } }}>
+            <div key={a.id} className="ec" onClick={() => { if (a.status === 'approved') handleRead(a); }}>
               <div className="ec-cover" style={{ background: a.status === 'pending' ? '#F3F4F6' : 'linear-gradient(135deg,#EFF6FF,#F3F4F6)' }}>
                 <span>{a.emoji}</span>
                 {a.status === 'pending' && <span className="bdg bg-a" style={{ position: 'absolute', top: 8, right: 8 }}>⏳ Pending Verification</span>}
@@ -118,7 +148,10 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
                     <button className="btn btn-d btn-sm" onClick={() => { onReject(a.id); addToast('error', 'Rejected'); }}>✗</button>
                   </div>
                 ) : a.status === 'approved' ? (
-                  <button className="btn btn-p btn-sm">Read →</button>
+                  <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
+                    <button className="btn btn-p btn-sm" onClick={() => handleRead(a)}>Read →</button>
+                    <button className="btn btn-s btn-sm" onClick={() => handleDownload(a)}>⬇️</button>
+                  </div>
                 ) : (
                   <span style={{ fontSize: 11, color: '#6B7280' }}>Locked</span>
                 )}
@@ -145,7 +178,10 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
                     <td>{a.downloads.toLocaleString()}</td>
                     <td>
                       {a.status === 'approved'
-                        ? <button className="btn btn-p btn-sm" onClick={() => { setViewer(a); setPg(1); setZoom(100); }}>Read</button>
+                        ? <div style={{ display: 'flex', gap: 4 }}>
+                          <button className="btn btn-p btn-sm" onClick={() => handleRead(a)}>Read</button>
+                          <button className="btn btn-s btn-sm" onClick={() => handleDownload(a)}>⬇️</button>
+                        </div>
                         : role === 'superadmin'
                           ? <div style={{ display: 'flex', gap: 4 }}>
                             <button className="btn btn-p btn-sm" onClick={() => { onApprove(a.id); addToast('success', 'Approved!'); }}>✅</button>

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { ROLES } from '../data/constants'
+import { supabase } from '../lib/supabase'
 
 export default function TopBar({
   title, role, unreadCount, setPage,
@@ -8,6 +9,7 @@ export default function TopBar({
 }) {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [liveUnread, setLiveUnread] = useState(null)
   const searchRef = useRef(null)
   const recent = notifications.filter(n => n.unread).slice(0, 3)
   const r = ROLES[role]
@@ -34,6 +36,40 @@ export default function TopBar({
     : []
 
   useEffect(() => {
+    let channel
+    async function load() {
+      try {
+        const { data: authData } = await supabase.auth.getUser()
+        const user = authData?.user
+        if (!user) return
+
+        const { count } = await supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('is_read', false)
+        setLiveUnread(count || 0)
+
+        channel = supabase.channel('topbar_notifs_' + user.id)
+          .on('postgres_changes', {
+            event: '*', schema: 'public', table: 'notifications',
+            filter: `user_id=eq.${user.id}`
+          }, async () => {
+            const { count: newCount } = await supabase
+              .from('notifications')
+              .select('id', { count: 'exact', head: true })
+              .eq('user_id', user.id)
+              .eq('is_read', false)
+            setLiveUnread(newCount || 0)
+          })
+          .subscribe()
+      } catch (e) { /* silent */ }
+    }
+    load()
+    return () => { if (channel) supabase.removeChannel(channel) }
+  }, [])
+
+  useEffect(() => {
     const handleClick = (e) => {
       if (searchRef.current && !searchRef.current.contains(e.target)) {
         setSearchOpen(false)
@@ -53,6 +89,9 @@ export default function TopBar({
       document.removeEventListener('keydown', handleKey)
     }
   }, [])
+
+  // Use live count if available, fall back to prop
+  const displayUnread = liveUnread !== null ? liveUnread : (unreadCount || 0)
 
   return (
     <div className="topbar">
@@ -111,7 +150,7 @@ export default function TopBar({
                   padding: '16px 14px', color: 'var(--muted)',
                   fontSize: 13, textAlign: 'center'
                 }}>
-                  No results for "{searchQuery}"
+                  No results for &quot;{searchQuery}&quot;
                 </div>
               )}
               {searchResults.map(r => (
@@ -156,7 +195,11 @@ export default function TopBar({
         <div style={{ position: 'relative' }}>
           <div className="icon-btn" onClick={() => setNotifPanel(!notifPanelOpen)}>
             🔔
-            {unreadCount > 0 && <span className="notif-count">{unreadCount}</span>}
+            {displayUnread > 0 && (
+              <span className="notif-count" style={{ boxShadow: '0 0 0 3px rgba(239,68,68,0.2)' }}>
+                {displayUnread}
+              </span>
+            )}
           </div>
           {notifPanelOpen && (
             <div style={{

@@ -111,6 +111,12 @@ h1, h2, h3, h4, h5 { font-family: 'Inter', system-ui, sans-serif; }
 .stat.rose::after { background: var(--rose); }
 .stat.violet::after { background: var(--violet); }
 .stat.sky::after { background: var(--blue); }
+/* Vibrant left border accents */
+.stat.teal { border-left: 4px solid #10B981; }
+.stat.violet { border-left: 4px solid #4F46E5; }
+.stat.amber { border-left: 4px solid #F59E0B; }
+.stat.rose { border-left: 4px solid #EF4444; }
+.stat.sky { border-left: 4px solid #0EA5E9; }
 .stat-ic { font-size: 22px; margin-bottom: 8px; }
 .stat-v { font-size: 26px; font-weight: 700; line-height: 1; color: var(--text); }
 .stat-l { font-size: 12px; color: var(--muted); margin-top: 4px; font-weight: 400; }
@@ -121,8 +127,8 @@ h1, h2, h3, h4, h5 { font-family: 'Inter', system-ui, sans-serif; }
 
 /* BUTTONS */
 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s; border: 1px solid transparent; font-family: inherit; white-space: nowrap; }
-.btn-p { background: var(--blue); color: white; border-color: var(--blue); }
-.btn-p:hover { background: var(--blue-d); }
+.btn-p { background: linear-gradient(135deg, #4F46E5, #3730A3); color: white; border-color: #4F46E5; }
+.btn-p:hover { background: linear-gradient(135deg, #4338CA, #312E81); border-color: #4338CA; }
 .btn-s { background: var(--white); color: var(--text); border-color: var(--border); }
 .btn-s:hover { background: var(--surf); }
 .btn-d { background: var(--rose-l); color: var(--rose-d); border-color: #FECACA; }

@@ -10,7 +10,7 @@ export default function UsersPage({ users = [], addToast }) {
   const [tab, setTab] = useState('users');
 
   const filtered = users.filter(u => {
-    if (search && !u.name.toLowerCase().includes(search.toLowerCase()) && !u.email.toLowerCase().includes(search.toLowerCase()) && !(u.mci || '').toLowerCase().includes(search.toLowerCase()) && !(u.hometown || '').toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !u.name.toLowerCase().includes(search.toLowerCase()) && !u.email.toLowerCase().includes(search.toLowerCase()) && !(u.mci || '').toLowerCase().includes(search.toLowerCase()) && !(u.hometown || '').toLowerCase().includes(search.toLowerCase()) && !(u.college || '').toLowerCase().includes(search.toLowerCase()) && !(u.place_of_study || '').toLowerCase().includes(search.toLowerCase())) return false;
     if (zone && u.zone !== zone) return false;
     if (state && u.state !== state) return false;
     return true;
@@ -66,7 +66,7 @@ export default function UsersPage({ users = [], addToast }) {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <div className="search-bar" style={{ flex: 1, minWidth: 200 }}>
                 <span>🔍</span>
-                <input placeholder="Search by name, email, MCI, or hometown..." value={search} onChange={e => setSearch(e.target.value)} />
+                <input placeholder="Search by name, email, MCI, hometown, or college..." value={search} onChange={e => setSearch(e.target.value)} />
               </div>
               <select className="fi-sel" style={{ width: 'auto' }} value={zone} onChange={e => setZone(e.target.value)}>
                 <option value="">All Zones</option>

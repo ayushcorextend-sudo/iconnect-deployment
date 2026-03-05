@@ -1,12 +1,72 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Toggle from './Toggle';
+import { supabase } from '../lib/supabase';
 
 export default function NotificationsPage({ notifications, setNotifications, addToast }) {
   const [channels, setChannels] = useState({ in_app: true, email: true, whatsapp: false, sms: false });
   const [tab, setTab] = useState('all');
+  const [dbNotifs, setDbNotifs] = useState(null); // null = not yet loaded from DB
 
-  const markAll = () => setNotifications(n => n.map(x => ({ ...x, unread: false })));
-  const markOne = id => setNotifications(n => n.map(x => x.id === id ? { ...x, unread: false } : x));
+  useEffect(() => {
+    let channel;
+    async function load() {
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const user = authData?.user;
+        if (!user) return; // stay on props-based notifications in demo mode
+
+        const { data } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        setDbNotifs(data || []);
+
+        // Realtime: push new notifications live
+        channel = supabase
+          .channel('notifs_live_' + user.id)
+          .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`
+          }, payload => setDbNotifs(prev => [payload.new, ...(prev || [])]))
+          .subscribe();
+      } catch (e) {
+        console.warn('Notifications DB fetch failed:', e.message);
+      }
+    }
+    load();
+    return () => { if (channel) supabase.removeChannel(channel); };
+  }, []);
+
+  // Use DB notifications if loaded, fall back to props
+  const activeNotifs = dbNotifs !== null ? dbNotifs : (notifications || []);
+
+  const isUnread = (n) => n.is_read !== undefined ? !n.is_read : n.unread;
+
+  const markRead = async (id) => {
+    if (dbNotifs !== null) {
+      await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+      setDbNotifs(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    } else {
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, unread: false } : n));
+    }
+  };
+
+  const markAll = async () => {
+    if (dbNotifs !== null) {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user) {
+        await supabase.from('notifications').update({ is_read: true }).eq('user_id', authData.user.id);
+        setDbNotifs(prev => prev.map(n => ({ ...n, is_read: true })));
+      }
+    } else {
+      setNotifications(n => n.map(x => ({ ...x, unread: false })));
+    }
+  };
+
   const send = () => {
     setNotifications(n => [{
       id: Date.now(), type: 'success', icon: '💬', title: 'Test Notification Sent',
@@ -16,15 +76,27 @@ export default function NotificationsPage({ notifications, setNotifications, add
     addToast('success', 'Test notification sent!');
   };
 
-  const filtered = tab === 'all' ? notifications : notifications.filter(n => n.unread);
+  const unreadCount = activeNotifs.filter(n => isUnread(n)).length;
+  const filtered = tab === 'all' ? activeNotifs : activeNotifs.filter(n => isUnread(n));
   const bg = { info: '#EFF6FF', success: '#EFF6FF', warn: '#FFFBEB', error: '#FEF2F2' };
+
+  const timeDisplay = (n) => {
+    if (n.created_at) {
+      const s = Math.floor((Date.now() - new Date(n.created_at)) / 1000);
+      if (s < 60) return 'just now';
+      if (s < 3600) return Math.floor(s / 60) + 'm ago';
+      if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+      return Math.floor(s / 86400) + 'd ago';
+    }
+    return n.time || '';
+  };
 
   return (
     <div className="page">
       <div className="ph-row ph">
         <div>
           <div className="pt">🔔 Notifications</div>
-          <div className="ps">{notifications.filter(n => n.unread).length} unread</div>
+          <div className="ps">{unreadCount} unread</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-s btn-sm" onClick={send}>📤 Send Test</button>
@@ -37,21 +109,21 @@ export default function NotificationsPage({ notifications, setNotifications, add
           <div className="tabs">
             <button className={`tab ${tab === 'all' ? 'act' : ''}`} onClick={() => setTab('all')}>All</button>
             <button className={`tab ${tab === 'unread' ? 'act' : ''}`} onClick={() => setTab('unread')}>
-              Unread ({notifications.filter(n => n.unread).length})
+              Unread ({unreadCount})
             </button>
           </div>
           {filtered.length === 0
             ? <div className="empty"><div className="empty-ic">🔕</div><div className="empty-t">All clear!</div></div>
             : filtered.map(n => (
-              <div key={n.id} className={`ni ${n.unread ? 'unr' : ''}`} onClick={() => markOne(n.id)}>
+              <div key={n.id} className={`ni ${isUnread(n) ? 'unr' : ''}`} onClick={() => markRead(n.id)}>
                 <div className="ni-ic" style={{ background: bg[n.type] || '#F9FAFB' }}>{n.icon}</div>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div className="ni-t">{n.title}</div>
-                    {n.unread && <span className="bdg bg-g" style={{ fontSize: 9 }}>NEW</span>}
+                    {isUnread(n) && <span className="bdg bg-g" style={{ fontSize: 9 }}>NEW</span>}
                   </div>
                   <div className="ni-b">{n.body}</div>
-                  <div className="ni-time">{n.time} · via {n.channel}</div>
+                  <div className="ni-time">{timeDisplay(n)} · via {n.channel}</div>
                 </div>
               </div>
             ))

@@ -12,7 +12,7 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
     name: '', email: '', password: '', confirmPassword: '',
     phone: '', mciNumber: '',
     program: 'MD', speciality: '',
-    college: '', joining: 2024,
+    college: '', place_of_study: '', joining: 2024,
     hometown: '', homeState: '', neetRank: '', address: '',
   });
 
@@ -39,8 +39,8 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
         return;
       }
     }
-    if (step === 2 && (!form.program || !form.speciality || !form.college || !form.joining)) {
-      addToast('error', 'All academic fields are mandatory.');
+    if (step === 2 && (!form.program || !form.speciality || !form.college || !form.joining || !form.place_of_study)) {
+      addToast('error', 'All academic fields including place of study are mandatory.');
       return;
     }
     if (step === 3 && (!form.hometown || !form.homeState)) {
@@ -69,6 +69,7 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
         program: form.program,
         speciality: form.speciality,
         college: form.college,
+        place_of_study: form.place_of_study || form.college,
         joining_year: Number(form.joining),
         state: form.homeState,
         hometown: form.hometown,
@@ -216,6 +217,10 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
               <input className="fi-in" placeholder="e.g. AIIMS Delhi" value={form.college} onChange={e => set('college', e.target.value)} />
             </div>
             <div className="fg">
+              <label className="fl">Medical College / Place of Study <span className="req">*</span></label>
+              <input className="fi-in" placeholder="e.g. AIIMS Delhi, CMC Vellore" value={form.place_of_study} onChange={e => set('place_of_study', e.target.value)} />
+            </div>
+            <div className="fg">
               <label className="fl">Year of Joining <span className="req">*</span></label>
               <select className="fi-sel" value={form.joining} onChange={e => set('joining', parseInt(e.target.value))}>
                 {[2019, 2020, 2021, 2022, 2023, 2024, 2025].map(y => <option key={y} value={y}>{y}</option>)}
@@ -273,6 +278,7 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
               ['Name', form.name], ['Email', form.email], ['Phone', form.phone],
               ['MCI Number', form.mciNumber], ['Program', form.program],
               ['Speciality', form.speciality], ['College', form.college],
+              ['Place of Study', form.place_of_study],
               ['Year of Joining', form.joining], ['Current Year', curYrLabel],
               ['Expected Completion', completion], ['Hometown', form.hometown],
               ['Home State', form.homeState], ['Zone', getZone(form.homeState)],
