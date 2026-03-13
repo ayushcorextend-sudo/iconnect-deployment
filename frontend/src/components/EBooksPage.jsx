@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase, getUserContentStates, toggleBookmark, updateReadingProgress, getNotes, saveNote, deleteNote } from '../lib/supabase';
 import { trackActivity } from '../lib/trackActivity';
+import ReadingQuizModal from './ReadingQuizModal';
+import SmartNotesPanel from './SmartNotesPanel';
 
 const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -9,6 +11,8 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
   const [viewMode, setVM] = useState('grid');
   // Doctors only see approved content — no tab switching needed
   const [tab, setTab] = useState(role === 'doctor' ? 'approved' : 'all');
+  const [showReadingQuiz, setShowReadingQuiz] = useState(false);
+  const [showSmartNotes, setShowSmartNotes] = useState(false);
   const [viewer, setViewer] = useState(null);
   const [zoom, setZoom] = useState(100);
   const [pg, setPg] = useState(1);
@@ -234,6 +238,24 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
               >
                 📝 Notes
               </button>
+              {role === 'doctor' && (
+                <button
+                  className="pdf-btn"
+                  onClick={() => setShowReadingQuiz(true)}
+                  title="Mark as Completed — take a short quiz"
+                  style={{ background: 'rgba(16,185,129,0.25)', color: '#6EE7B7' }}
+                >
+                  ✅ Done?
+                </button>
+              )}
+              <button
+                className="pdf-btn"
+                onClick={() => setShowSmartNotes(s => !s)}
+                title="Smart Notes — AI-compressed study notes"
+                style={{ background: showSmartNotes ? 'rgba(124,58,237,0.4)' : undefined, color: showSmartNotes ? '#C4B5FD' : undefined }}
+              >
+                ✨ Notes
+              </button>
               <button
                 className="pdf-btn"
                 onClick={handleBookmark}
@@ -301,6 +323,26 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
             )}
           </div>
         </div>
+
+        {/* Smart Notes Panel */}
+        {showSmartNotes && (
+          <SmartNotesPanel
+            onClose={() => setShowSmartNotes(false)}
+            currentArtifact={viewer}
+          />
+        )}
+
+        {/* Reading Quiz Modal */}
+        {showReadingQuiz && viewer && (
+          <ReadingQuizModal
+            artifact={viewer}
+            onClose={() => setShowReadingQuiz(false)}
+            onComplete={({ score, total, pts }) => {
+              setShowReadingQuiz(false);
+              if (addToast) addToast('success', `✅ ${score}/${total} correct · +${pts} pts earned!`);
+            }}
+          />
+        )}
 
         {/* Notes side-panel */}
         {showNotes && (

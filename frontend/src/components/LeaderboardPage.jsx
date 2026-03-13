@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Avatar from './Avatar';
 import { supabase } from '../lib/supabase';
 
-export default function LeaderboardPage() {
+export default function LeaderboardPage({ setPage }) {
   const [period, setPeriod] = useState('alltime');
   const [tab, setTab] = useState('global');
   const [leaderboard, setLeaderboard] = useState([]);
@@ -18,7 +18,6 @@ export default function LeaderboardPage() {
         const uid = authData?.user?.id || null;
         setMyUserId(uid);
 
-        // Fetch current user's profile for tab filtering
         if (uid) {
           const { data: mp } = await supabase
             .from('profiles')
@@ -45,7 +44,6 @@ export default function LeaderboardPage() {
             }));
           }
         } else {
-          // weekly or monthly: compute from activity_logs
           const days = period === 'weekly' ? 7 : 30;
           const since = new Date(Date.now() - days * 86400000).toISOString();
           const { data: logs } = await supabase
@@ -81,8 +79,7 @@ export default function LeaderboardPage() {
           .in('id', userIds);
 
         const profileMap = (profiles || []).reduce((acc, p) => {
-          acc[p.id] = p;
-          return acc;
+          acc[p.id] = p; return acc;
         }, {});
 
         const mapped = scoreData.map(row => {
@@ -121,13 +118,13 @@ export default function LeaderboardPage() {
     return leaderboard;
   }, [leaderboard, tab, myProfile]);
 
-  const me = leaderboard.find(l => l.isMe);
   const myRankIdx = leaderboard.findIndex(l => l.isMe);
   const myRank = myRankIdx >= 0 ? myRankIdx + 1 : null;
+  const me = leaderboard.find(l => l.isMe);
 
   const top3 = displayedLeaderboard.slice(0, 3);
   const podOrd = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
-  const podH = [100, 132, 82];
+  const podH = [100, 140, 80];
   const podC = ['#C0C0C0', '#FFD700', '#CD7F32'];
   const podR = [2, 1, 3];
 
@@ -144,7 +141,7 @@ export default function LeaderboardPage() {
   );
 
   return (
-    <div className="page">
+    <div className="page" style={{ paddingBottom: me ? 80 : 0 }}>
       <div className="ph-row ph">
         <div>
           <div className="pt">🏆 My Leaderboard</div>
@@ -159,82 +156,109 @@ export default function LeaderboardPage() {
         </div>
       </div>
 
-      <div className="card" style={{ background: 'linear-gradient(135deg,#111827,#1F2937)', color: 'white', marginBottom: 20 }}>
-        {loading ? (
-          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', padding: '24px 0', fontSize: 14 }}>Loading your rank…</div>
-        ) : !me ? (
-          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', padding: '24px 0', fontSize: 14 }}>
-            Complete quizzes and reading activities to appear on the leaderboard.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(37,99,235,.2)', border: '3px solid #2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter,sans-serif', fontSize: 22, fontWeight: 800, color: '#2563EB' }}>
-              {myRank ? `#${myRank}` : '—'}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: 'Inter,sans-serif', fontWeight: 800, fontSize: 17 }}>{me.name} — Your Rank</div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,.5)', marginTop: 2 }}>{me.college} · {me.speciality}</div>
-              <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
-                {[['🟢', 'Quiz', me.quizPts || 0], ['🟣', 'Reading', me.readPts || 0]].map(([ic, l, v]) => (
-                  <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                    <span>{ic}</span><span style={{ color: 'rgba(255,255,255,.5)' }}>{l}:</span>
-                    <span style={{ fontWeight: 700, color: 'white' }}>{v.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 32, fontWeight: 800, color: '#2563EB' }}>{(me.score || 0).toLocaleString()}</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.4)' }}>total pts</div>
-            </div>
-          </div>
-        )}
-      </div>
-
       <div className="tabs">
         {[['global', '🌐 Global'], ['speciality', '🩺 My Speciality'], ['college', '🏥 My College']].map(([k, l]) => (
           <button key={k} className={`tab ${tab === k ? 'act' : ''}`} onClick={() => setTab(k)}>{l}</button>
         ))}
       </div>
 
+      {/* Top 3 Podium */}
       {top3.length >= 3 && (
         <div className="card" style={{ background: 'linear-gradient(135deg,#111827,#1F2937)', marginBottom: 20 }}>
-          <div style={{ textAlign: 'center', marginBottom: 8, fontSize: 11, color: 'rgba(255,255,255,.35)', fontFamily: 'Inter,sans-serif', letterSpacing: '1px', textTransform: 'uppercase' }}>Top 3 Performers</div>
+          <div style={{ textAlign: 'center', marginBottom: 12, fontSize: 11, color: 'rgba(255,255,255,.35)', fontFamily: 'Inter,sans-serif', letterSpacing: '1px', textTransform: 'uppercase' }}>
+            Top 3 Performers
+          </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 16 }}>
             {podOrd.map((l, i) => (
               <div key={l.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                {podR[i] === 1 && <span style={{ fontSize: 20 }}>👑</span>}
+                {podR[i] === 1 && <span style={{ fontSize: 22 }}>👑</span>}
                 <div style={{ position: 'relative' }}>
-                  <Avatar name={l.name} size={podR[i] === 1 ? 52 : 42} style={{ border: `3px solid ${podC[i]}` }} />
-                  <div style={{ position: 'absolute', bottom: -4, right: -4, width: 18, height: 18, borderRadius: '50%', background: podC[i], color: '#222', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid white', fontFamily: 'Inter,sans-serif' }}>{podR[i]}</div>
+                  <Avatar name={l.name} size={podR[i] === 1 ? 56 : 44} style={{ border: `3px solid ${podC[i]}` }} />
+                  <div style={{
+                    position: 'absolute', bottom: -4, right: -4,
+                    width: 20, height: 20, borderRadius: '50%',
+                    background: podC[i], color: '#222', fontSize: 9, fontWeight: 800,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '2px solid white', fontFamily: 'Inter,sans-serif',
+                  }}>
+                    {podR[i]}
+                  </div>
                 </div>
-                <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 13, fontWeight: 800, color: 'white' }}>{l.score.toLocaleString()}</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.5)', textAlign: 'center', maxWidth: 72 }}>{l.name.split(' ').slice(-1)}</div>
-                <div style={{ height: podH[i], width: 66, borderRadius: '8px 8px 0 0', background: `${podC[i]}22`, border: `1px solid ${podC[i]}44`, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 6, color: podC[i], fontSize: 11, fontFamily: 'Inter,sans-serif', fontWeight: 700 }}>#{podR[i]}</div>
+                <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 14, fontWeight: 800, color: podC[i] }}>
+                  {l.score.toLocaleString()}
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,.6)', textAlign: 'center', maxWidth: 80, wordBreak: 'break-word' }}>
+                  {l.name.split(' ').slice(-1)[0]}
+                </div>
+                <div style={{
+                  height: podH[i], width: 72, borderRadius: '8px 8px 0 0',
+                  background: `${podC[i]}22`, border: `1px solid ${podC[i]}55`,
+                  display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+                  paddingBottom: 8, color: podC[i], fontSize: 11,
+                  fontFamily: 'Inter,sans-serif', fontWeight: 700,
+                }}>
+                  #{podR[i]}
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
 
+      {/* Rankings list */}
       <div className="card">
         <div className="ct" style={{ marginBottom: 14 }}>
-          {tab === 'global' ? 'Full Rankings' : tab === 'speciality' ? `My Speciality: ${myProfile?.speciality || '—'}` : `My College: ${myProfile?.college || '—'}`}
+          {tab === 'global'
+            ? 'Full Rankings'
+            : tab === 'speciality'
+              ? `My Speciality: ${myProfile?.speciality || '—'}`
+              : `My College: ${myProfile?.college || '—'}`}
         </div>
+
         {loading ? (
-          [1,2,3,4,5].map(i => <SkeletonRow key={i} />)
+          [1, 2, 3, 4, 5].map(i => <SkeletonRow key={i} />)
         ) : displayedLeaderboard.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '24px 0', color: '#9CA3AF', fontSize: 14 }}>
-            {tab === 'global' ? 'No scores yet — start taking quizzes and reading articles!' : 'No peers found for this filter yet.'}
+          <div style={{ textAlign: 'center', padding: '32px 16px', color: '#6B7280' }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🌱</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: '#374151', marginBottom: 8 }}>
+              {tab === 'global'
+                ? "You're a pioneer here!"
+                : "You're the first from your group!"}
+            </div>
+            <div style={{ fontSize: 13, lineHeight: 1.6, maxWidth: 320, margin: '0 auto', color: '#9CA3AF' }}>
+              {tab === 'global'
+                ? "No scores yet — every point you earn right now puts you at #1. Start a quiz and claim the top spot before others show up."
+                : "None of your peers have scored yet. Be the first to represent your speciality / college — take a quiz or finish a book now."}
+            </div>
+            {setPage && (
+              <button
+                onClick={() => setPage('exam')}
+                style={{
+                  marginTop: 16, padding: '9px 22px',
+                  background: 'linear-gradient(135deg,#4F46E5,#7C3AED)',
+                  color: '#fff', border: 'none', borderRadius: 10,
+                  fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                }}
+              >
+                Take a Quiz →
+              </button>
+            )}
           </div>
         ) : (
           displayedLeaderboard.map((l, i) => (
-            <div key={l.id} className={`lb-row ${l.isMe ? 'me' : ''}`}
-              style={l.isMe ? { background: 'rgba(79,70,229,0.08)', border: '1px solid #4F46E5', borderRadius: 8 } : {}}>
-              <div className="lb-pos" style={{ color: i < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][i] : '#6B7280' }}>{i + 1}</div>
+            <div
+              key={l.id}
+              className={`lb-row ${l.isMe ? 'me' : ''}`}
+              style={l.isMe ? { background: 'rgba(79,70,229,0.08)', border: '1px solid #4F46E5', borderRadius: 8 } : {}}
+            >
+              <div className="lb-pos" style={{ color: i < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][i] : '#6B7280' }}>
+                {i + 1}
+              </div>
               <Avatar name={l.name} size={34} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{l.name}{l.isMe ? ' (You)' : ''}</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>
+                  {l.name}{l.isMe ? ' (You)' : ''}
+                </div>
                 <div style={{ fontSize: 11, color: '#6B7280' }}>{l.college} · {l.speciality}</div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                   {[['🟢', l.quizPts], ['🟣', l.readPts]].map(([c, v]) => (
@@ -243,13 +267,69 @@ export default function LeaderboardPage() {
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 15, fontWeight: 800, color: '#2563EB' }}>{l.score.toLocaleString()}</div>
+                <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 15, fontWeight: 800, color: '#2563EB' }}>
+                  {l.score.toLocaleString()}
+                </div>
                 <div style={{ fontSize: 10, color: '#6B7280' }}>pts</div>
               </div>
             </div>
           ))
         )}
       </div>
+
+      {/* Sticky personal rank footer */}
+      {!loading && (
+        <div style={{
+          position: 'sticky', bottom: 0, zIndex: 50,
+          background: 'linear-gradient(135deg,#1E1B4B,#3730A3)',
+          borderRadius: '12px 12px 0 0',
+          padding: '12px 18px',
+          display: 'flex', alignItems: 'center', gap: 14,
+          boxShadow: '0 -4px 20px rgba(0,0,0,0.2)',
+          marginLeft: -16, marginRight: -16,
+        }}>
+          <div style={{
+            width: 42, height: 42, borderRadius: '50%',
+            background: me ? 'rgba(37,99,235,0.3)' : 'rgba(255,255,255,0.1)',
+            border: `2px solid ${me ? '#2563EB' : 'rgba(255,255,255,0.2)'}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: 'Inter,sans-serif', fontSize: 14, fontWeight: 800,
+            color: me ? '#93C5FD' : 'rgba(255,255,255,0.4)',
+          }}>
+            {myRank ? `#${myRank}` : '—'}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>
+              {me ? `${me.name} · Your rank` : 'Not ranked yet'}
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 2 }}>
+              {me
+                ? `${(me.score || 0).toLocaleString()} pts total`
+                : 'Complete a quiz or read a book to earn your first points'}
+            </div>
+          </div>
+          {(!me || me.score === 0) && setPage && (
+            <button
+              onClick={() => setPage('exam')}
+              style={{
+                padding: '7px 16px', borderRadius: 8, border: 'none', flexShrink: 0,
+                background: 'linear-gradient(135deg,#F59E0B,#D97706)',
+                color: '#1E1B4B', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+              }}
+            >
+              Take a Quiz →
+            </button>
+          )}
+          {me && me.score > 0 && (
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 22, fontWeight: 800, color: '#60A5FA' }}>
+                {(me.score || 0).toLocaleString()}
+              </div>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>pts</div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -42,7 +42,7 @@ Your role:
 
 Keep responses concise (under 300 words unless asked for detail). Use bullet points for lists. Always include a disclaimer for clinical queries that real patient care requires consultation with a qualified physician.`;
 
-export default function ChatBot() {
+export default function ChatBot({ chatBotMode = null, setChatBotMode }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState('chat'); // 'chat' | 'doubt'
   const [messages, setMessages] = useState([
@@ -58,6 +58,14 @@ export default function ChatBot() {
   useEffect(() => {
     if (open) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, open]);
+
+  // Respond to external trigger (e.g. "Ask AI" button on dashboard)
+  useEffect(() => {
+    if (!chatBotMode) return;
+    setOpen(true);
+    setMode(chatBotMode);
+    if (setChatBotMode) setChatBotMode(null); // reset so re-clicks work
+  }, [chatBotMode]);
 
   const sendMessage = async () => {
     const text = input.trim();

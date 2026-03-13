@@ -65,6 +65,7 @@ function MainApp() {
   const [userName, setUserName]           = useState(null);
   const [userId, setUserId]               = useState(null);
   const [page, setPage]                   = useState('dashboard');
+  const [chatBotMode, setChatBotMode]     = useState(null); // null | 'chat' | 'doubt'
   const [artifacts, setArtifacts]         = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [toasts, setToasts]               = useState([]);
@@ -378,6 +379,7 @@ function MainApp() {
     artifacts, setArtifacts, setPage, addToast, notifications,
     setNotifications, role, onApprove, onReject, onUpload,
     userName, userId, users, onApproveUser, onRejectUser,
+    openChatBotDoubt: () => setChatBotMode('doubt'),
   };
 
   const renderPage = () => {
@@ -388,7 +390,7 @@ function MainApp() {
             : <DoctorDashboard {...commonProps} />;
       case 'ebooks':        return <EBooksPage {...commonProps} />;
       case 'upload':        return <UploadPage onUpload={onUpload} addToast={addToast} artifacts={artifacts} userId={userId} userName={userName} />;
-      case 'leaderboard':   return <LeaderboardPage />;
+      case 'leaderboard':   return <LeaderboardPage setPage={setPage} />;
       case 'activity':      return <ActivityPage addToast={addToast} />;
       case 'notifications': return <NotificationsPage notifications={notifications} setNotifications={setNotifications} addToast={addToast} setPage={setPage} />;
       case 'profile':       return <ProfilePage addToast={addToast} />;
@@ -469,7 +471,7 @@ function MainApp() {
           {renderPage()}
         </div>
         <Toasts toasts={toasts} />
-        <ChatBot />
+        <ChatBot chatBotMode={chatBotMode} setChatBotMode={setChatBotMode} />
       </div>
     </>
   );

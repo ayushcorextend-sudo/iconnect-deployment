@@ -1,13 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
 const ACTIVITY_LABELS = {
   quiz_attempted:      ['📝', 'Attempted a quiz'],
   quiz_passed:         ['✅', 'Passed a quiz'],
+  quiz_complete:       ['✅', 'Completed a reading quiz'],
   article_read:        ['📖', 'Read an article'],
   note_viewed:         ['📄', 'Viewed study notes'],
   document_downloaded: ['⬇️', 'Downloaded a document'],
   webinar_attended:    ['🎥', 'Attended a webinar'],
+  daily_login:         ['🔑', 'Daily login'],
 };
 
 const relTime = (d) => {
@@ -18,33 +20,123 @@ const relTime = (d) => {
   return Math.floor(s / 86400) + 'd ago';
 };
 
-export default function ActivityPage({ addToast }) {
-  const today = new Date();
-  const dim = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const [selDay, setSelDay] = useState(null);
+// ── 90-day GitHub-style heatmap ────────────────────────────────────────────
+function ActivityHeatmap({ data }) {
+  // Build 90 days (oldest → newest), grouped into weeks (columns of 7)
+  const days = [];
+  const now = new Date();
+  for (let i = 89; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    const iso = d.toISOString().split('T')[0];
+    days.push({ iso, count: data[iso] || 0 });
+  }
 
+  // Pad to full week columns at the start
+  const firstDow = new Date(days[0].iso).getDay(); // 0=Sun
+  const padded = [...Array(firstDow).fill(null), ...days];
+  const weeks = [];
+  for (let i = 0; i < padded.length; i += 7) {
+    weeks.push(padded.slice(i, i + 7));
+  }
+
+  const getColor = (count) => {
+    if (!count || count === 0) return '#F3F4F6';
+    if (count === 1) return '#BBF7D0';
+    if (count <= 3) return '#4ADE80';
+    if (count <= 6) return '#22C55E';
+    return '#15803D';
+  };
+
+  const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DAY_LABELS = ['S','M','T','W','T','F','S'];
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      {/* Month label row */}
+      <div style={{ display: 'flex', gap: 3, marginBottom: 4, paddingLeft: 20 }}>
+        {weeks.map((week, wi) => {
+          // Show month label when first day of month appears in this week
+          const monthDay = week.find(d => d && d.iso.endsWith('-01'));
+          const label = monthDay
+            ? MONTH_LABELS[parseInt(monthDay.iso.split('-')[1], 10) - 1]
+            : '';
+          return (
+            <div key={wi} style={{ width: 12, fontSize: 8, color: '#9CA3AF', textAlign: 'center' }}>
+              {label}
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ display: 'flex', gap: 3 }}>
+        {/* Day-of-week labels */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginRight: 2 }}>
+          {DAY_LABELS.map((d, i) => (
+            <div key={i} style={{ height: 12, fontSize: 8, color: '#9CA3AF', lineHeight: '12px', width: 12, textAlign: 'center' }}>
+              {i % 2 === 1 ? d : ''}
+            </div>
+          ))}
+        </div>
+
+        {/* Heatmap grid */}
+        {weeks.map((week, wi) => (
+          <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {week.map((day, di) => (
+              <div
+                key={di}
+                title={day ? `${day.iso}: ${day.count} activit${day.count !== 1 ? 'ies' : 'y'}` : ''}
+                style={{
+                  width: 12, height: 12, borderRadius: 2,
+                  background: day ? getColor(day.count) : 'transparent',
+                }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Legend */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 10, color: '#9CA3AF' }}>
+        <span>Less</span>
+        {['#F3F4F6','#BBF7D0','#4ADE80','#22C55E','#15803D'].map(c => (
+          <div key={c} style={{ width: 10, height: 10, borderRadius: 2, background: c }} />
+        ))}
+        <span>More</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Streak calculation ────────────────────────────────────────────────────
+function calculateStreak(activityByDate) {
+  let streak = 0;
+  const today = new Date();
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const iso = d.toISOString().split('T')[0];
+    if (activityByDate[iso]) {
+      streak++;
+    } else if (i > 0) {
+      break; // gap found — streak ends
+    }
+  }
+  return streak;
+}
+
+const pct = (actual, target) => target > 0 ? Math.min(100, Math.round((actual / target) * 100)) : 0;
+
+export default function ActivityPage({ addToast }) {
   // DB-driven state
   const [activityByDate, setActivityByDate] = useState({});
-  const [weeklyHours, setWeeklyHours] = useState([0, 0, 0, 0, 0, 0, 0]); // Mon-Sun
+  const [weeklyHours, setWeeklyHours] = useState([0, 0, 0, 0, 0, 0, 0]);
   const [activityFeed, setActivityFeed] = useState([]);
   const [quizTarget, setQuizTarget] = useState(5);
   const [readTarget, setReadTarget] = useState(7);
   const [quizProgress, setQuizProgress] = useState(0);
   const [readProgress, setReadProgress] = useState(0);
-  const [upcoming, setUpcoming] = useState([]);
-  const [totalHours, setTotalHours] = useState(0);
-
-  const loadUpcoming = useCallback(async () => {
-    const { data: authData } = await supabase.auth.getUser();
-    if (!authData?.user) return;
-    const { data } = await supabase
-      .from('webinar_registrations')
-      .select('*')
-      .eq('user_id', authData.user.id)
-      .gte('webinar_date', new Date().toISOString())
-      .order('webinar_date', { ascending: true });
-    setUpcoming(data || []);
-  }, []);
+  const [streak, setStreak] = useState(0);
 
   useEffect(() => {
     async function loadAll() {
@@ -53,33 +145,37 @@ export default function ActivityPage({ addToast }) {
         if (!authData?.user) return;
         const uid = authData.user.id;
 
-        // Calendar + weekly hours: group activity logs by date
+        // Activity logs — fetch last 90 days
+        const since90 = new Date();
+        since90.setDate(since90.getDate() - 89);
+        since90.setHours(0, 0, 0, 0);
+
         const { data: logs } = await supabase
           .from('activity_logs')
           .select('created_at, duration_minutes')
-          .eq('user_id', uid);
+          .eq('user_id', uid)
+          .gte('created_at', since90.toISOString());
+
+        // Group by date for heatmap
         const map = (logs || []).reduce((acc, log) => {
           const d = log.created_at.split('T')[0];
           acc[d] = (acc[d] || 0) + 1;
           return acc;
         }, {});
         setActivityByDate(map);
-
-        // Total hours from all logs
-        const allHours = (logs || []).reduce((acc, log) => acc + (log.duration_minutes || 30), 0) / 60;
-        setTotalHours(Math.round(allHours * 10) / 10);
+        setStreak(calculateStreak(map));
 
         // Weekly hours (Mon=0 … Sun=6) for current week
-        const now2 = new Date();
-        const day2 = now2.getDay();
-        const monday2 = new Date(now2);
-        monday2.setDate(now2.getDate() - (day2 === 0 ? 6 : day2 - 1));
-        monday2.setHours(0, 0, 0, 0);
+        const now = new Date();
+        const dow = now.getDay();
+        const monday = new Date(now);
+        monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+        monday.setHours(0, 0, 0, 0);
         const weekly = [0, 0, 0, 0, 0, 0, 0];
         (logs || []).forEach(log => {
           const d = new Date(log.created_at);
-          if (d >= monday2) {
-            const dayIdx = (d.getDay() + 6) % 7; // Mon=0 … Sun=6
+          if (d >= monday) {
+            const dayIdx = (d.getDay() + 6) % 7;
             weekly[dayIdx] += (log.duration_minutes || 30) / 60;
           }
         });
@@ -104,19 +200,13 @@ export default function ActivityPage({ addToast }) {
           if (t.target_type === 'articles_per_week') setReadTarget(t.target_value);
         });
 
-        // This week's Monday
-        const now = new Date();
-        const day = now.getDay();
-        const monday = new Date(now);
-        monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-        monday.setHours(0, 0, 0, 0);
+        // This week's progress
         const mondayISO = monday.toISOString();
-
         const { data: quizLogs } = await supabase
           .from('activity_logs')
           .select('id')
           .eq('user_id', uid)
-          .eq('activity_type', 'quiz_attempted')
+          .in('activity_type', ['quiz_attempted', 'quiz_passed', 'quiz_complete'])
           .gte('created_at', mondayISO);
         setQuizProgress((quizLogs || []).length);
 
@@ -133,8 +223,7 @@ export default function ActivityPage({ addToast }) {
       }
     }
     loadAll();
-    loadUpcoming();
-  }, [loadUpcoming]);
+  }, []);
 
   const saveTargets = async () => {
     try {
@@ -146,57 +235,29 @@ export default function ActivityPage({ addToast }) {
         { user_id: uid, target_type: 'articles_per_week', target_value: Number(readTarget) },
       ], { onConflict: 'user_id,target_type' });
       addToast('success', 'Targets saved!');
-    } catch (e) {
+    } catch (_) {
       addToast('error', 'Could not save targets');
     }
   };
 
-  const handleAddToCalendar = async (webinar) => {
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData?.user) { addToast('warn', 'Sign in to save to calendar'); return; }
-      await supabase.from('webinar_registrations').insert({
-        user_id: authData.user.id,
-        webinar_id: String(webinar.id || webinar.t),
-        webinar_title: webinar.t,
-        webinar_date: webinar.datetime || new Date(Date.now() + 86400000).toISOString(),
-      });
-      addToast('success', `"${webinar.t}" added to your schedule!`);
-      loadUpcoming();
-    } catch (e) {
-      addToast('error', 'Could not save. Try again.');
-    }
-  };
-
-  const getCalendarColor = (dateStr) => {
-    const count = activityByDate[dateStr] || 0;
-    if (count === 0) return null;
-    if (count <= 2) return '#BBF7D0';
-    if (count <= 5) return '#4ADE80';
-    return '#16A34A';
-  };
-
-  const pct = (actual, target) => target > 0 ? Math.min(100, Math.round((actual / target) * 100)) : 0;
-
-  const getDayType = (d) => {
-    if (d === today.getDate()) return 'today';
-    return 'empty';
-  };
-
-  const todayStr = today.toISOString().split('T')[0];
+  const activeDays = Object.keys(activityByDate).length;
+  const booksRead = activityFeed.filter(a => a.activity_type === 'article_read').length;
+  const quizzesDone = activityFeed.filter(a => a.activity_type?.startsWith('quiz')).length;
 
   return (
     <div className="page">
       <div className="ph">
         <div className="pt">📅 My Activity</div>
-        <div className="ps">Learning goals, schedules & calendar</div>
+        <div className="ps">Learning goals, progress & streak</div>
       </div>
+
+      {/* Stat cards */}
       <div className="sg4">
         {[
-          { l: 'Active Days', v: Object.keys(activityByDate).length || '—', i: '🔥', c: 'rose' },
-          { l: 'Books Read', v: activityFeed.filter(a => a.activity_type === 'article_read').length || '—', i: '📖', c: 'teal' },
-          { l: 'Quizzes Done', v: activityFeed.filter(a => a.activity_type?.startsWith('quiz')).length || '—', i: '📝', c: 'violet' },
-          { l: 'Hours Logged', v: totalHours > 0 ? `${totalHours}h` : '—', i: '⏱', c: 'amber' },
+          { l: 'Active Days', v: activeDays || '—', i: '📅', c: 'teal' },
+          { l: 'Books Read', v: booksRead || '—', i: '📖', c: 'violet' },
+          { l: 'Quizzes Done', v: quizzesDone || '—', i: '📝', c: 'amber' },
+          { l: 'Current Streak', v: streak > 0 ? `${streak}d` : '—', i: '🔥', c: 'rose' },
         ].map((s, i) => (
           <div key={i} className={`stat ${s.c} fu`} style={{ animationDelay: `${i * 0.07}s` }}>
             <div className="stat-ic">{s.i}</div>
@@ -206,50 +267,14 @@ export default function ActivityPage({ addToast }) {
         ))}
       </div>
 
+      {/* Heatmap + weekly progress */}
       <div className="grid2">
         <div className="card">
-          <div className="ct" style={{ marginBottom: 6 }}>Activity Calendar</div>
-          <div className="cs" style={{ marginBottom: 12 }}>{today.toLocaleString('default', { month: 'long', year: 'numeric' })}</div>
-          <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-              <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 9, fontWeight: 700, color: '#6B7280', fontFamily: 'Inter,sans-serif' }}>{d}</div>
-            ))}
+          <div className="ct" style={{ marginBottom: 4 }}>🔥 90-Day Activity</div>
+          <div className="cs" style={{ marginBottom: 14, color: streak > 0 ? '#15803D' : '#9CA3AF' }}>
+            {streak > 0 ? `${streak}-day streak — keep it up!` : 'Start studying to build your streak'}
           </div>
-          <div className="cal">
-            {Array.from({ length: dim }, (_, i) => i + 1).map(d => {
-              const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-              const calColor = getCalendarColor(dateStr);
-              const dayType = getDayType(d);
-              return (
-                <div
-                  key={d}
-                  className={`cd ${dayType}`}
-                  style={calColor ? { background: calColor, borderRadius: 6, cursor: 'pointer' } : {}}
-                  onClick={() => setSelDay(d)}
-                >
-                  {d}
-                </div>
-              );
-            })}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12, fontSize: 10, color: '#6B7280' }}>
-            {[['#BBF7D0', '1–2 activities'], ['#4ADE80', '3–5 activities'], ['#16A34A', '6+ activities'], ['#EFF6FF', 'Webinar'], ['#F3F4F6', 'No Activity']].map(([bg, l]) => (
-              <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ width: 10, height: 10, borderRadius: 3, background: bg, display: 'inline-block' }} />{l}
-              </span>
-            ))}
-          </div>
-          {selDay && (
-            <div style={{ marginTop: 12, background: '#EFF6FF', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#1D4ED8' }}>
-              <strong>Day {selDay}:</strong>{' '}
-              {(() => {
-                const ds = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(selDay).padStart(2, '0')}`;
-                const cnt = activityByDate[ds] || 0;
-                return cnt > 0 ? `✅ ${cnt} activit${cnt === 1 ? 'y' : 'ies'} recorded.`
-                  : 'No activity recorded.';
-              })()}
-            </div>
-          )}
+          <ActivityHeatmap data={activityByDate} />
         </div>
 
         <div className="card">
@@ -260,8 +285,12 @@ export default function ActivityPage({ addToast }) {
             return (
               <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 9 }}>
                 <div style={{ width: 28, fontSize: 11, fontWeight: 600, color: '#6B7280' }}>{d}</div>
-                <div className="pb" style={{ flex: 1 }}><div className="pf" style={{ width: `${(hrs / maxHrs) * 100}%` }} /></div>
-                <div style={{ fontSize: 11, color: '#6B7280', width: 32, textAlign: 'right' }}>{hrs > 0 ? `${hrs}h` : '—'}</div>
+                <div className="pb" style={{ flex: 1 }}>
+                  <div className="pf" style={{ width: `${(hrs / maxHrs) * 100}%` }} />
+                </div>
+                <div style={{ fontSize: 11, color: '#6B7280', width: 32, textAlign: 'right' }}>
+                  {hrs > 0 ? `${hrs}h` : '—'}
+                </div>
               </div>
             );
           })}
@@ -298,7 +327,7 @@ export default function ActivityPage({ addToast }) {
           {/* Reading target */}
           <div style={{ marginBottom: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 500 }}>Articles/notes per week</span>
+              <span style={{ fontSize: 12, fontWeight: 500 }}>Articles / notes per week</span>
               <input
                 type="number" min="0" max="50"
                 value={readTarget}
@@ -321,7 +350,7 @@ export default function ActivityPage({ addToast }) {
         </div>
       </div>
 
-      {/* Engagement history feed */}
+      {/* Recent activity feed */}
       <div className="card mt4">
         <div className="ch"><div className="ct">📚 Recent Activity</div></div>
         {activityFeed.length === 0 ? (
@@ -347,8 +376,7 @@ export default function ActivityPage({ addToast }) {
         )}
       </div>
 
-      {/* Upcoming webinars */}
-      {/* Study Insights — generated from activity_logs */}
+      {/* Study insights */}
       {activityFeed.length > 0 && (() => {
         const quizzes = activityFeed.filter(a => a.activity_type?.startsWith('quiz'));
         const reads = activityFeed.filter(a => a.activity_type === 'article_read');
@@ -356,17 +384,15 @@ export default function ActivityPage({ addToast }) {
         const daysSinceLast = lastActivity ? Math.floor((Date.now() - lastActivity) / 86400000) : null;
         const insights = [];
 
-        if (reads.length === 0) insights.push({ icon: '📚', text: 'You haven\'t read any e-books yet this month. Start with a short article to build your streak!', color: '#EFF6FF', textColor: '#1D4ED8' });
-        if (quizzes.length === 0) insights.push({ icon: '📝', text: 'Try the Exam Prep section — practice MCQs are one of the best ways to retain what you\'ve read.', color: '#F0FDF4', textColor: '#15803D' });
-        if (daysSinceLast !== null && daysSinceLast >= 3) insights.push({ icon: '🔥', text: `It's been ${daysSinceLast} days since your last activity. A 10-minute reading session today can restart your streak!`, color: '#FFFBEB', textColor: '#92400E' });
-        if (reads.length >= 5 && quizzes.length === 0) insights.push({ icon: '💡', text: 'Great reading habit! Combine it with quizzes to maximise retention. Head to Exam Prep.', color: '#EDE9FE', textColor: '#5B21B6' });
-        if (quizzes.length >= 3 && reads.length < 2) insights.push({ icon: '📖', text: 'You\'re doing well on quizzes! Supplement with e-book reading to deepen conceptual understanding.', color: '#EFF6FF', textColor: '#1D4ED8' });
+        if (reads.length === 0) insights.push({ icon: '📚', text: 'You haven\'t read any e-books yet. Start with a short article to build your streak!', color: '#EFF6FF', textColor: '#1D4ED8' });
+        if (quizzes.length === 0) insights.push({ icon: '📝', text: 'Try the Exam Prep section — practice MCQs are the best way to retain what you\'ve read.', color: '#F0FDF4', textColor: '#15803D' });
+        if (daysSinceLast !== null && daysSinceLast >= 3) insights.push({ icon: '🔥', text: `It's been ${daysSinceLast} days since your last activity. A 10-minute session today restarts your streak!`, color: '#FFFBEB', textColor: '#92400E' });
+        if (reads.length >= 5 && quizzes.length === 0) insights.push({ icon: '💡', text: 'Great reading habit! Combine it with quizzes to maximise retention.', color: '#EDE9FE', textColor: '#5B21B6' });
 
         if (insights.length === 0) return null;
         return (
           <div className="card mt4" style={{ marginBottom: 20 }}>
             <div className="ct" style={{ marginBottom: 12 }}>💡 Study Insights</div>
-            <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>Personalised tips based on your activity</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {insights.map((ins, i) => (
                 <div key={i} style={{ background: ins.color, borderRadius: 10, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -378,24 +404,6 @@ export default function ActivityPage({ addToast }) {
           </div>
         );
       })()}
-
-      <div className="card mt4">
-        <div className="ct" style={{ marginBottom: 14 }}>📅 My Upcoming Webinars</div>
-        {upcoming.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '20px 0', color: '#9CA3AF', fontSize: 13 }}>
-            No upcoming webinars. Register from the Conferences page.
-          </div>
-        ) : upcoming.map(w => (
-          <div key={w.id} style={{ padding: '10px 16px', background: '#EEF2FF', borderRadius: 10, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 13 }}>{w.webinar_title}</div>
-              <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
-                {w.webinar_date ? new Date(w.webinar_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'TBD'}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

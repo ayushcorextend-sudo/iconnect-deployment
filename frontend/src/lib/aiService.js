@@ -117,3 +117,45 @@ For the given doubt/question, provide a thorough explanation:
 Use bullet points. Keep under 300 words.`;
   return callGemini(system, question, 600);
 }
+
+// ── 8. Generate a 3-question reading comprehension quiz ───────────────────
+// Returns { questions: [{q, options:[{k,v}], answer, explanation}], error }
+export async function generateReadingQuiz(bookTitle, subject) {
+  const system = `You are a NEET-PG medical exam question setter.
+Generate exactly 3 multiple-choice questions to test understanding of a medical e-book.
+Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
+{"questions":[{"q":"question text","options":[{"k":"A","v":"option"},{"k":"B","v":"option"},{"k":"C","v":"option"},{"k":"D","v":"option"}],"answer":"A","explanation":"brief explanation under 60 words"}]}`;
+  const msg = `Book title: ${bookTitle}\nSubject: ${subject || 'General Medicine'}\nGenerate 3 NEET-PG MCQs to test mastery of this book.`;
+  const { text, error } = await callGemini(system, msg, 800);
+  if (error) return { questions: null, error };
+  try {
+    // Strip markdown code fences if present
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    if (!Array.isArray(parsed.questions)) throw new Error('Invalid structure');
+    return { questions: parsed.questions, error: null };
+  } catch (_) {
+    return { questions: null, error: 'Could not parse quiz. Please try again.' };
+  }
+}
+
+// ── 9. Generate a smart note + mnemonic from selected text ────────────────
+// Returns { note, mnemonic, tags[], error }
+export async function generateSmartNote(originalText, subject) {
+  const system = `You are a NEET-PG study coach. Compress the given medical text into:
+1. A concise study note (max 80 words, bullet points)
+2. A memorable mnemonic or memory tip
+3. Up to 4 relevant topic tags (single words or short phrases)
+Respond ONLY with valid JSON (no markdown):
+{"note":"...","mnemonic":"...","tags":["tag1","tag2"]}`;
+  const msg = `Subject: ${subject || 'Medicine'}\n\nText to compress:\n${originalText.slice(0, 1500)}`;
+  const { text, error } = await callGemini(system, msg, 400);
+  if (error) return { note: null, mnemonic: null, tags: [], error };
+  try {
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    return { note: parsed.note || '', mnemonic: parsed.mnemonic || '', tags: parsed.tags || [], error: null };
+  } catch (_) {
+    return { note: null, mnemonic: null, tags: [], error: 'Could not parse response.' };
+  }
+}
