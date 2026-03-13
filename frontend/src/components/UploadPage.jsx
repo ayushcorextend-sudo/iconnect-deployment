@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { SPECIALITIES } from '../data/constants';
 import { supabase, deleteArtifact, updateArtifact } from '../lib/supabase';
+import { auditContent } from '../lib/aiService';
+import AIResponseBox from './AIResponseBox';
 
 const EMOJIS = ['📗', '📘', '📙', '📕'];
 
@@ -13,6 +15,7 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
   const [uploading, setUploading] = useState(false);
   const [done, setDone] = useState(false);
   const [form, setForm] = useState({ title: '', subject: '', access: 'all', description: '' });
+  const [aiAudit, setAiAudit] = useState({ loading: false, text: null, error: null });
   const [uploaderName, setUploaderName] = useState('');
   const [uploaderUserId, setUploaderUserId] = useState(null);
   const [myArtifacts, setMyArtifacts] = useState(artifacts);
@@ -341,6 +344,44 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
                 <label className="fl">Description</label>
                 <textarea className="fi-ta" placeholder="Brief description…" value={form.description} onChange={e => set('description', e.target.value)} />
               </div>
+
+              {/* AI Content Audit */}
+              {(form.title || form.subject) && (
+                <div className="fg">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <label className="fl" style={{ margin: 0 }}>AI Content Audit</label>
+                    <button
+                      type="button"
+                      disabled={aiAudit.loading || !form.title.trim()}
+                      onClick={async () => {
+                        setAiAudit({ loading: true, text: null, error: null });
+                        const { text, error } = await auditContent(form.title, form.subject, form.description);
+                        setAiAudit({ loading: false, text, error });
+                      }}
+                      style={{
+                        padding: '4px 12px',
+                        background: aiAudit.loading ? '#E5E7EB' : 'linear-gradient(135deg,#4F46E5,#7C3AED)',
+                        color: aiAudit.loading ? '#9CA3AF' : '#fff',
+                        border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                        cursor: !form.title.trim() || aiAudit.loading ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {aiAudit.loading ? '…' : '✨ AI Audit'}
+                    </button>
+                  </div>
+                  <AIResponseBox
+                    loading={aiAudit.loading}
+                    error={aiAudit.error}
+                    text={aiAudit.text}
+                    label="Content Quality Review"
+                    onRetry={async () => {
+                      setAiAudit({ loading: true, text: null, error: null });
+                      const { text, error } = await auditContent(form.title, form.subject, form.description);
+                      setAiAudit({ loading: false, text, error });
+                    }}
+                  />
+                </div>
+              )}
 
               <div className="fg">
                 <label className="fl">Cover Image <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(optional — max 5MB)</span></label>
