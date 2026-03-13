@@ -25,12 +25,14 @@ export default function ActivityPage({ addToast }) {
 
   // DB-driven state
   const [activityByDate, setActivityByDate] = useState({});
+  const [weeklyHours, setWeeklyHours] = useState([0, 0, 0, 0, 0, 0, 0]); // Mon-Sun
   const [activityFeed, setActivityFeed] = useState([]);
   const [quizTarget, setQuizTarget] = useState(5);
   const [readTarget, setReadTarget] = useState(7);
   const [quizProgress, setQuizProgress] = useState(0);
   const [readProgress, setReadProgress] = useState(0);
   const [upcoming, setUpcoming] = useState([]);
+  const [totalHours, setTotalHours] = useState(0);
 
   const loadUpcoming = useCallback(async () => {
     const { data: authData } = await supabase.auth.getUser();
@@ -51,10 +53,10 @@ export default function ActivityPage({ addToast }) {
         if (!authData?.user) return;
         const uid = authData.user.id;
 
-        // Calendar: group activity logs by date
+        // Calendar + weekly hours: group activity logs by date
         const { data: logs } = await supabase
           .from('activity_logs')
-          .select('created_at')
+          .select('created_at, duration_minutes')
           .eq('user_id', uid);
         const map = (logs || []).reduce((acc, log) => {
           const d = log.created_at.split('T')[0];
@@ -62,6 +64,26 @@ export default function ActivityPage({ addToast }) {
           return acc;
         }, {});
         setActivityByDate(map);
+
+        // Total hours from all logs
+        const allHours = (logs || []).reduce((acc, log) => acc + (log.duration_minutes || 30), 0) / 60;
+        setTotalHours(Math.round(allHours * 10) / 10);
+
+        // Weekly hours (Mon=0 … Sun=6) for current week
+        const now2 = new Date();
+        const day2 = now2.getDay();
+        const monday2 = new Date(now2);
+        monday2.setDate(now2.getDate() - (day2 === 0 ? 6 : day2 - 1));
+        monday2.setHours(0, 0, 0, 0);
+        const weekly = [0, 0, 0, 0, 0, 0, 0];
+        (logs || []).forEach(log => {
+          const d = new Date(log.created_at);
+          if (d >= monday2) {
+            const dayIdx = (d.getDay() + 6) % 7; // Mon=0 … Sun=6
+            weekly[dayIdx] += (log.duration_minutes || 30) / 60;
+          }
+        });
+        setWeeklyHours(weekly.map(h => Math.round(h * 10) / 10));
 
         // Feed: last 20 activities
         const { data: feedData } = await supabase
@@ -156,11 +178,8 @@ export default function ActivityPage({ addToast }) {
 
   const pct = (actual, target) => target > 0 ? Math.min(100, Math.round((actual / target) * 100)) : 0;
 
-  // Build day type for fallback (keep existing event days for display)
-  const eventDays = [7, 14, 21, 28];
   const getDayType = (d) => {
     if (d === today.getDate()) return 'today';
-    if (eventDays.includes(d)) return 'event';
     return 'empty';
   };
 
@@ -177,7 +196,7 @@ export default function ActivityPage({ addToast }) {
           { l: 'Active Days', v: Object.keys(activityByDate).length || '—', i: '🔥', c: 'rose' },
           { l: 'Books Read', v: activityFeed.filter(a => a.activity_type === 'article_read').length || '—', i: '📖', c: 'teal' },
           { l: 'Quizzes Done', v: activityFeed.filter(a => a.activity_type?.startsWith('quiz')).length || '—', i: '📝', c: 'violet' },
-          { l: 'Hours Logged', v: '—', i: '⏱', c: 'amber' },
+          { l: 'Hours Logged', v: totalHours > 0 ? `${totalHours}h` : '—', i: '⏱', c: 'amber' },
         ].map((s, i) => (
           <div key={i} className={`stat ${s.c} fu`} style={{ animationDelay: `${i * 0.07}s` }}>
             <div className="stat-ic">{s.i}</div>
@@ -227,8 +246,7 @@ export default function ActivityPage({ addToast }) {
                 const ds = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(selDay).padStart(2, '0')}`;
                 const cnt = activityByDate[ds] || 0;
                 return cnt > 0 ? `✅ ${cnt} activit${cnt === 1 ? 'y' : 'ies'} recorded.`
-                  : eventDays.includes(selDay) ? '📅 CME Webinar scheduled.'
-                    : 'No activity recorded.';
+                  : 'No activity recorded.';
               })()}
             </div>
           )}
@@ -237,19 +255,22 @@ export default function ActivityPage({ addToast }) {
         <div className="card">
           <div className="ct" style={{ marginBottom: 14 }}>📊 Weekly Progress</div>
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d, i) => {
-            const hrs = [3, 5, 2, 4, 6, 1, 2][i];
+            const hrs = weeklyHours[i];
+            const maxHrs = Math.max(...weeklyHours, 1);
             return (
               <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 9 }}>
                 <div style={{ width: 28, fontSize: 11, fontWeight: 600, color: '#6B7280' }}>{d}</div>
-                <div className="pb" style={{ flex: 1 }}><div className="pf" style={{ width: `${hrs * 14}%` }} /></div>
-                <div style={{ fontSize: 11, color: '#6B7280', width: 28, textAlign: 'right' }}>{hrs}h</div>
+                <div className="pb" style={{ flex: 1 }}><div className="pf" style={{ width: `${(hrs / maxHrs) * 100}%` }} /></div>
+                <div style={{ fontSize: 11, color: '#6B7280', width: 32, textAlign: 'right' }}>{hrs > 0 ? `${hrs}h` : '—'}</div>
               </div>
             );
           })}
           <div className="divider" />
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 12, color: '#6B7280' }}>Total this week</span>
-            <span style={{ fontFamily: 'Inter,sans-serif', fontWeight: 700, color: '#2563EB' }}>23 hours</span>
+            <span style={{ fontFamily: 'Inter,sans-serif', fontWeight: 700, color: '#2563EB' }}>
+              {weeklyHours.reduce((a, b) => a + b, 0).toFixed(1)} hours
+            </span>
           </div>
           <div className="divider" />
           <div className="ct" style={{ marginBottom: 10, marginTop: 4 }}>🎯 Learning Targets</div>
@@ -327,36 +348,53 @@ export default function ActivityPage({ addToast }) {
       </div>
 
       {/* Upcoming webinars */}
-      <div className="card mt4">
-        <div className="ct" style={{ marginBottom: 14 }}>📅 Upcoming Scheduled Events</div>
-        {[
-          { id: 1, t: 'CME Webinar: Cardiology Advances', d: 'Tomorrow, 6PM', l: 'Live · Zoom', c: 'violet', datetime: new Date(Date.now() + 86400000).toISOString() },
-          { id: 2, t: 'NEET-PG Mock Test #5', d: 'Fri, 10AM', l: 'Online · 3 hrs', c: 'rose', datetime: new Date(Date.now() + 3 * 86400000).toISOString() },
-          { id: 3, t: 'Study Group: Pharmacology', d: 'Next Mon, 7PM', l: 'In-App', c: 'teal', datetime: new Date(Date.now() + 7 * 86400000).toISOString() },
-        ].map((e, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #F9FAFB' }}>
-            <div style={{ width: 46, height: 46, borderRadius: 10, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📅</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{e.t}</div>
-              <div style={{ fontSize: 11, color: '#6B7280' }}>{e.d} · {e.l}</div>
+      {/* Study Insights — generated from activity_logs */}
+      {activityFeed.length > 0 && (() => {
+        const quizzes = activityFeed.filter(a => a.activity_type?.startsWith('quiz'));
+        const reads = activityFeed.filter(a => a.activity_type === 'article_read');
+        const lastActivity = activityFeed[0]?.created_at ? new Date(activityFeed[0].created_at) : null;
+        const daysSinceLast = lastActivity ? Math.floor((Date.now() - lastActivity) / 86400000) : null;
+        const insights = [];
+
+        if (reads.length === 0) insights.push({ icon: '📚', text: 'You haven\'t read any e-books yet this month. Start with a short article to build your streak!', color: '#EFF6FF', textColor: '#1D4ED8' });
+        if (quizzes.length === 0) insights.push({ icon: '📝', text: 'Try the Exam Prep section — practice MCQs are one of the best ways to retain what you\'ve read.', color: '#F0FDF4', textColor: '#15803D' });
+        if (daysSinceLast !== null && daysSinceLast >= 3) insights.push({ icon: '🔥', text: `It's been ${daysSinceLast} days since your last activity. A 10-minute reading session today can restart your streak!`, color: '#FFFBEB', textColor: '#92400E' });
+        if (reads.length >= 5 && quizzes.length === 0) insights.push({ icon: '💡', text: 'Great reading habit! Combine it with quizzes to maximise retention. Head to Exam Prep.', color: '#EDE9FE', textColor: '#5B21B6' });
+        if (quizzes.length >= 3 && reads.length < 2) insights.push({ icon: '📖', text: 'You\'re doing well on quizzes! Supplement with e-book reading to deepen conceptual understanding.', color: '#EFF6FF', textColor: '#1D4ED8' });
+
+        if (insights.length === 0) return null;
+        return (
+          <div className="card mt4" style={{ marginBottom: 20 }}>
+            <div className="ct" style={{ marginBottom: 12 }}>💡 Study Insights</div>
+            <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>Personalised tips based on your activity</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {insights.map((ins, i) => (
+                <div key={i} style={{ background: ins.color, borderRadius: 10, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 18 }}>{ins.icon}</span>
+                  <span style={{ fontSize: 13, color: ins.textColor, lineHeight: 1.5 }}>{ins.text}</span>
+                </div>
+              ))}
             </div>
-            <button className="btn btn-s btn-sm" onClick={() => handleAddToCalendar(e)}>Add to Calendar</button>
+          </div>
+        );
+      })()}
+
+      <div className="card mt4">
+        <div className="ct" style={{ marginBottom: 14 }}>📅 My Upcoming Webinars</div>
+        {upcoming.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '20px 0', color: '#9CA3AF', fontSize: 13 }}>
+            No upcoming webinars. Register from the Conferences page.
+          </div>
+        ) : upcoming.map(w => (
+          <div key={w.id} style={{ padding: '10px 16px', background: '#EEF2FF', borderRadius: 10, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{w.webinar_title}</div>
+              <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+                {w.webinar_date ? new Date(w.webinar_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'TBD'}
+              </div>
+            </div>
           </div>
         ))}
-
-        {upcoming.length > 0 && (
-          <div style={{ marginTop: 20 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#374151' }}>📅 My Upcoming Webinars</div>
-            {upcoming.map(w => (
-              <div key={w.id} style={{ padding: '10px 16px', background: '#EEF2FF', borderRadius: 10, marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontWeight: 500, fontSize: 13 }}>{w.webinar_title}</span>
-                <span style={{ fontSize: 13, color: '#6B7280' }}>
-                  {w.webinar_date ? new Date(w.webinar_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'TBD'}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

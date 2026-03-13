@@ -1,31 +1,45 @@
 import { ROLES } from '../data/constants';
+import usePWAInstall from '../hooks/usePWAInstall';
 
 export default function Sidebar({
   role, page, setPage, onLogout,
   pendingCount, unreadCount,
   isOpen, onClose
 }) {
+  const { isInstallable, promptInstall } = usePWAInstall();
   const adminNav = [
     { k: 'dashboard', i: '📊', l: 'Dashboard' },
     { k: 'users', i: '👥', l: 'User Management' },
     { k: 'ebooks', i: '📁', l: 'Content Management' },
     { k: 'reports', i: '📈', l: 'Reports' },
     { k: 'settings', i: '⚙️', l: 'Settings' },
+    { k: 'docs', i: '📄', l: 'Documentation' },
   ];
   const contentNav = [
-    { k: 'dashboard', i: '📊', l: 'Dashboard' },
-    { k: 'ebooks', i: '📁', l: 'Content Management' },
+    { k: 'dashboard',     i: '📊', l: 'Dashboard' },
+    { k: 'upload',        i: '📤', l: 'Upload Content' },
+    { k: 'ebooks',        i: '📚', l: 'E-Book Library' },
+    { k: 'arena-host',    i: '🏟️', l: 'Host Live Arena' },
+    { k: 'notifications', i: '🔔', l: 'Notifications', b: unreadCount || null },
+    { k: 'profile',       i: '👤', l: 'My Profile' },
+    { k: 'settings',      i: '⚙️', l: 'Settings' },
   ];
   const doctorNav = [
-    { k: 'dashboard', i: '🏠', l: 'Dashboard' },
-    { k: 'ebooks', i: '📚', l: 'E-Book Library' },
-    { k: 'leaderboard', i: '🏆', l: 'My Leaderboard' },
-    { k: 'activity', i: '📅', l: 'My Activity' },
+    { k: 'dashboard',     i: '🏠', l: 'Dashboard' },
+    { k: 'calendar',      i: '📅', l: 'Study Calendar' },
+    { k: 'ebooks',        i: '📚', l: 'E-Book Library' },
+    { k: 'learn',         i: '📖', l: 'Learn Hub' },
+    { k: 'arena-student', i: '🏟️', l: 'Live Arena' },
+    { k: 'leaderboard',   i: '🏆', l: 'My Leaderboard' },
+    { k: 'activity',      i: '📅', l: 'My Activity' },
+    { k: 'performance',   i: '📊', l: 'My Performance' },
     { k: 'notifications', i: '🔔', l: 'Notifications', b: unreadCount || null },
-    { k: 'profile', i: '👤', l: 'My Profile' },
-    { k: 'social', i: '👥', l: 'Social Features' },
-    { k: 'groups', i: '🎯', l: 'Interest Groups' },
-    { k: 'kahoot', i: '🎮', l: 'Kahoot Quiz' },
+    { k: 'profile',       i: '👤', l: 'My Profile' },
+    { k: 'social',        i: '👥', l: 'Social Features' },
+    { k: 'groups',        i: '🎯', l: 'Interest Groups' },
+    { k: 'conferences',   i: '🏥', l: 'Conferences' },
+    { k: 'exam',          i: '📝', l: 'Exam Prep' },
+    { k: 'docs',          i: '📄', l: 'Documentation' },
   ];
 
   const nav = role === 'superadmin' ? adminNav : role === 'contentadmin' ? contentNav : doctorNav;
@@ -91,6 +105,25 @@ export default function Sidebar({
         })}
       </nav>
       <div className="sb-footer" style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+        {isInstallable && (
+          <button
+            onClick={promptInstall}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              width: '100%', marginBottom: 8,
+              background: 'linear-gradient(135deg,#F59E0B,#D97706)',
+              color: '#1E1B4B', border: 'none', borderRadius: 8,
+              padding: '9px 14px', fontSize: 13, fontWeight: 700,
+              cursor: 'pointer', transition: 'opacity .15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.opacity = '0.88'}
+            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+            title="Install iConnect as an app on your device"
+          >
+            <span style={{ fontSize: 16 }}>⬇</span>
+            Install App
+          </button>
+        )}
         <button
           className="logout-btn"
           style={{ color: 'rgba(255,255,255,0.5)' }}

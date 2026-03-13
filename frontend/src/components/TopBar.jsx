@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { ROLES } from '../data/constants'
 import { supabase } from '../lib/supabase'
+import usePWAInstall from '../hooks/usePWAInstall'
 
 export default function TopBar({
   title, role, unreadCount, setPage,
@@ -10,8 +11,13 @@ export default function TopBar({
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [liveUnread, setLiveUnread] = useState(null)
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   const searchRef = useRef(null)
-  const recent = notifications.filter(n => n.unread).slice(0, 3)
+  const bellRef = useRef(null)
+  const { isInstallable, promptInstall } = usePWAInstall()
+
+  // Show up to 5 most recent notifications (regardless of read status)
+  const recent = notifications.slice(0, 5)
   const r = ROLES[role]
 
   const ALL_PAGES = [
@@ -28,11 +34,7 @@ export default function TopBar({
   ]
 
   const searchResults = searchQuery.trim().length > 0
-    ? ALL_PAGES
-        .filter(p =>
-          p.label.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-        .slice(0, 6)
+    ? ALL_PAGES.filter(p => p.label.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 6)
     : []
 
   useEffect(() => {
@@ -69,6 +71,7 @@ export default function TopBar({
     return () => { if (channel) supabase.removeChannel(channel) }
   }, [])
 
+  // Close search on outside click / Escape
   useEffect(() => {
     const handleClick = (e) => {
       if (searchRef.current && !searchRef.current.contains(e.target)) {
@@ -80,6 +83,7 @@ export default function TopBar({
       if (e.key === 'Escape') {
         setSearchOpen(false)
         setSearchQuery('')
+        setNotifPanel(false)
       }
     }
     document.addEventListener('mousedown', handleClick)
@@ -89,6 +93,25 @@ export default function TopBar({
       document.removeEventListener('keydown', handleKey)
     }
   }, [])
+
+  // Track mobile breakpoint for install button visibility
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Close notif panel on outside click
+  useEffect(() => {
+    if (!notifPanelOpen) return
+    const handleClick = (e) => {
+      if (bellRef.current && !bellRef.current.contains(e.target)) {
+        setNotifPanel(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [notifPanelOpen])
 
   // Use live count if available, fall back to prop
   const displayUnread = liveUnread !== null ? liveUnread : (unreadCount || 0)
@@ -119,12 +142,9 @@ export default function TopBar({
               width: 300, background: 'var(--white)',
               border: '1px solid var(--border)', borderRadius: 8,
               boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
-              zIndex: 300, overflow: 'hidden'
+              zIndex: 1000, overflow: 'hidden'
             }}>
-              <div style={{
-                padding: '10px 12px',
-                borderBottom: '1px solid var(--border)'
-              }}>
+              <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
                 <input
                   autoFocus
                   value={searchQuery}
@@ -138,41 +158,26 @@ export default function TopBar({
                 />
               </div>
               {!searchQuery && (
-                <div style={{
-                  padding: '16px 14px', color: 'var(--muted)',
-                  fontSize: 13, textAlign: 'center'
-                }}>
+                <div style={{ padding: '16px 14px', color: 'var(--muted)', fontSize: 13, textAlign: 'center' }}>
                   Start typing to search pages...
                 </div>
               )}
               {searchQuery && searchResults.length === 0 && (
-                <div style={{
-                  padding: '16px 14px', color: 'var(--muted)',
-                  fontSize: 13, textAlign: 'center'
-                }}>
+                <div style={{ padding: '16px 14px', color: 'var(--muted)', fontSize: 13, textAlign: 'center' }}>
                   No results for &quot;{searchQuery}&quot;
                 </div>
               )}
               {searchResults.map(r => (
                 <div
                   key={r.key}
-                  onClick={() => {
-                    setPage(r.key)
-                    setSearchOpen(false)
-                    setSearchQuery('')
-                  }}
+                  onClick={() => { setPage(r.key); setSearchOpen(false); setSearchQuery('') }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '10px 14px', cursor: 'pointer',
-                    fontSize: 13, color: 'var(--text)',
-                    transition: 'background 0.15s'
+                    fontSize: 13, color: 'var(--text)', transition: 'background 0.15s'
                   }}
-                  onMouseEnter={e =>
-                    e.currentTarget.style.background = 'var(--surf)'
-                  }
-                  onMouseLeave={e =>
-                    e.currentTarget.style.background = 'transparent'
-                  }
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--surf)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
                   <span style={{ fontSize: 16, width: 24 }}>{r.icon}</span>
                   <span>{r.label}</span>
@@ -191,42 +196,180 @@ export default function TopBar({
           {darkMode ? '☀️' : '🌙'}
         </button>
 
-        {/* Notification bell */}
-        <div style={{ position: 'relative' }}>
-          <div className="icon-btn" onClick={() => setNotifPanel(!notifPanelOpen)}>
+        {/* Mobile PWA install button */}
+        {isInstallable && isMobile && (
+          <button
+            className="icon-btn"
+            onClick={promptInstall}
+            title="Install iConnect App"
+            style={{
+              background: 'linear-gradient(135deg,#F59E0B,#D97706)',
+              color: '#1E1B4B', borderRadius: 8,
+              fontWeight: 700, fontSize: 12, padding: '5px 10px',
+              border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 4,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            ⬇ Install
+          </button>
+        )}
+
+        {/* Notification bell — prominently in top-right */}
+        <div ref={bellRef} style={{ position: 'relative' }}>
+          <button
+            className="icon-btn"
+            onClick={() => setNotifPanel(!notifPanelOpen)}
+            title="Notifications"
+            style={{
+              position: 'relative',
+              transform: displayUnread > 0 ? 'scale(1.08)' : 'scale(1)',
+              transition: 'transform 0.2s',
+            }}
+          >
             🔔
             {displayUnread > 0 && (
-              <span className="notif-count" style={{ boxShadow: '0 0 0 3px rgba(239,68,68,0.2)' }}>
-                {displayUnread}
-              </span>
+              <>
+                {/* animate-ping ring behind badge */}
+                <span
+                  className="animate-ping"
+                  style={{
+                    position: 'absolute', top: -4, right: -4,
+                    width: 18, height: 18, borderRadius: '50%',
+                    background: '#EF4444', opacity: 0.5,
+                    display: 'inline-flex',
+                    pointerEvents: 'none',
+                  }}
+                />
+                {/* count badge (static, on top) */}
+                <span style={{
+                  position: 'absolute', top: -4, right: -4,
+                  background: '#EF4444', color: '#fff',
+                  fontSize: 10, fontWeight: 700, lineHeight: 1,
+                  borderRadius: '50%', minWidth: 18, height: 18,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '0 3px',
+                  boxShadow: '0 0 0 2px var(--white)',
+                }}>
+                  {displayUnread > 99 ? '99+' : displayUnread}
+                </span>
+              </>
             )}
-          </div>
+          </button>
+
+          {/* Notification dropdown */}
           {notifPanelOpen && (
             <div style={{
-              position: 'absolute', right: 0, top: 42, width: 320,
+              position: 'absolute', right: 0, top: 46,
+              width: 340,
               background: 'var(--white)',
-              borderRadius: 8, border: '1px solid var(--border)',
-              boxShadow: '0 10px 15px -3px rgba(0,0,0,.1)', zIndex: 300,
+              borderRadius: 12,
+              border: '1px solid var(--border)',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
+              zIndex: 1000,
               animation: 'scaleIn .15s ease',
+              overflow: 'hidden',
             }}>
-              <div style={{ padding: '12px 14px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
-                <span style={{ fontWeight: 600, fontSize: 13 }}>Notifications</span>
-                <span style={{ fontSize: 11, color: '#2563EB', cursor: 'pointer' }} onClick={() => setPage('notifications')}>See all</span>
+              {/* Header */}
+              <div style={{
+                padding: '14px 16px 12px',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                borderBottom: '1px solid var(--border)',
+                background: 'var(--surf)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontWeight: 700, fontSize: 14 }}>Notifications</span>
+                  {displayUnread > 0 && (
+                    <span style={{
+                      background: '#EF4444', color: '#fff',
+                      fontSize: 10, fontWeight: 700,
+                      borderRadius: 99, padding: '1px 7px',
+                    }}>
+                      {displayUnread} unread
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setNotifPanel(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16, lineHeight: 1 }}
+                >
+                  ×
+                </button>
               </div>
-              <div style={{ padding: '6px', maxHeight: 280, overflowY: 'auto' }}>
-                {recent.length === 0
-                  ? <div style={{ padding: 16, textAlign: 'center', fontSize: 13, color: '#6B7280' }}>All caught up! ✅</div>
-                  : recent.map(n => (
-                    <div key={n.id} className="ni unr" onClick={() => { setPage('notifications'); setNotifPanel(false); }}>
-                      <div className="ni-ic" style={{ background: '#EFF6FF' }}>{n.icon}</div>
-                      <div>
-                        <div className="ni-t">{n.title}</div>
-                        <div className="ni-b">{n.body.substring(0, 55)}…</div>
-                        <div className="ni-time">{n.time}</div>
+
+              {/* Notification list */}
+              <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                {recent.length === 0 ? (
+                  <div style={{ padding: '28px 16px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
+                    <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500 }}>All caught up!</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>No new notifications</div>
+                  </div>
+                ) : (
+                  recent.map((n, idx) => (
+                    <div
+                      key={n.id}
+                      onClick={() => { setPage('notifications'); setNotifPanel(false) }}
+                      style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 10,
+                        padding: '12px 16px',
+                        cursor: 'pointer',
+                        borderBottom: idx < recent.length - 1 ? '1px solid var(--border)' : 'none',
+                        background: n.is_read === false ? 'rgba(37,99,235,0.06)' : 'transparent',
+                        transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surf)'}
+                      onMouseLeave={e => e.currentTarget.style.background = n.is_read === false ? 'rgba(37,99,235,0.06)' : 'transparent'}
+                    >
+                      {/* Unread dot */}
+                      <div style={{ paddingTop: 3, flexShrink: 0 }}>
+                        <div style={{
+                          width: 7, height: 7, borderRadius: '50%',
+                          background: n.is_read === false ? '#EF4444' : 'transparent',
+                          border: n.is_read === false ? 'none' : '1px solid var(--border)',
+                        }} />
+                      </div>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                        background: n.is_read === false ? '#EFF6FF' : 'var(--surf)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 15,
+                      }}>
+                        {n.icon || '🔔'}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: n.is_read === false ? 600 : 500, color: 'var(--text)', marginBottom: 2 }}>
+                          {n.title}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {n.body?.substring(0, 60)}{n.body?.length > 60 ? '…' : ''}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>{n.time}</div>
                       </div>
                     </div>
                   ))
-                }
+                )}
+              </div>
+
+              {/* Footer: View All */}
+              <div style={{
+                padding: '10px 16px',
+                borderTop: '1px solid var(--border)',
+                background: 'var(--surf)',
+              }}>
+                <button
+                  onClick={() => { setPage('notifications'); setNotifPanel(false) }}
+                  style={{
+                    width: '100%', padding: '8px', background: '#2563EB',
+                    color: '#fff', border: 'none', borderRadius: 8,
+                    fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#1D4ED8'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#2563EB'}
+                >
+                  View All Notifications →
+                </button>
               </div>
             </div>
           )}

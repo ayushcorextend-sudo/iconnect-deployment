@@ -1,7 +1,7 @@
 export const ROLES = {
-  superadmin: { label: 'Super Admin', icon: '🛡️', name: 'Dr. Rajesh Kumar', email: 'admin@iconnect.in' },
-  contentadmin: { label: 'Content Admin', icon: '📚', name: 'Priya Sharma', email: 'content@iconnect.in' },
-  doctor: { label: 'PG Aspirant', icon: '🩺', name: 'Dr. Sneha Verma', email: 'sneha@iconnect.in' },
+  superadmin:   { label: 'Super Admin',   icon: '🛡️' },
+  contentadmin: { label: 'Content Admin', icon: '📚' },
+  doctor:       { label: 'PG Aspirant',   icon: '🩺' },
 };
 
 export const STATES = [
@@ -12,18 +12,67 @@ export const STATES = [
   'Delhi', 'Jammu & Kashmir',
 ];
 
-export const ZONES = {
-  North: ['Delhi', 'Haryana', 'Punjab', 'Uttar Pradesh', 'Uttarakhand', 'Himachal Pradesh', 'Jammu & Kashmir'],
-  South: ['Andhra Pradesh', 'Karnataka', 'Kerala', 'Tamil Nadu', 'Telangana'],
-  East: ['Bihar', 'Jharkhand', 'Odisha', 'West Bengal', 'Assam', 'Arunachal Pradesh', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Sikkim', 'Tripura'],
-  West: ['Goa', 'Gujarat', 'Maharashtra', 'Rajasthan'],
-  Central: ['Chhattisgarh', 'Madhya Pradesh'],
+export const DISTRICTS_BY_STATE = {
+  'Andhra Pradesh': ['Visakhapatnam', 'East Godavari', 'West Godavari', 'Krishna', 'Guntur', 'Kurnool', 'Nellore', 'Chittoor', 'Kadapa', 'Anantapur', 'Srikakulam', 'Vizianagaram'],
+  'Arunachal Pradesh': ['Papum Pare', 'East Kameng', 'Lower Subansiri', 'East Siang', 'West Siang', 'Tirap', 'Changlang'],
+  'Assam': ['Kamrup Metro', 'Sonitpur', 'Dibrugarh', 'Cachar', 'Nagaon', 'Jorhat', 'Barpeta', 'Lakhimpur', 'Golaghat', 'Sivasagar'],
+  'Bihar': ['Patna', 'Gaya', 'Muzaffarpur', 'Bhagalpur', 'Darbhanga', 'Purnia', 'Rohtas', 'Siwan', 'Vaishali', 'Samastipur', 'Nalanda', 'Aurangabad'],
+  'Chhattisgarh': ['Raipur', 'Bilaspur', 'Durg', 'Rajnandgaon', 'Surguja', 'Korba', 'Raigarh', 'Janjgir-Champa', 'Jagdalpur'],
+  'Goa': ['North Goa', 'South Goa'],
+  'Gujarat': ['Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Bhavnagar', 'Jamnagar', 'Junagadh', 'Gandhinagar', 'Anand', 'Mehsana', 'Bharuch', 'Amreli'],
+  'Haryana': ['Gurugram', 'Faridabad', 'Ambala', 'Hisar', 'Rohtak', 'Karnal', 'Panipat', 'Sonipat', 'Yamunanagar', 'Kurukshetra', 'Jhajjar'],
+  'Himachal Pradesh': ['Shimla', 'Kangra', 'Mandi', 'Solan', 'Una', 'Kullu', 'Hamirpur', 'Sirmaur', 'Bilaspur', 'Chamba'],
+  'Jharkhand': ['Ranchi', 'Dhanbad', 'Bokaro', 'East Singhbhum', 'Hazaribagh', 'Giridih', 'Deoghar', 'Dumka', 'West Singhbhum'],
+  'Karnataka': ['Bangalore Urban', 'Mysore', 'Tumkur', 'Belgaum', 'Dakshina Kannada', 'Shimoga', 'Dharwad', 'Gulbarga', 'Mandya', 'Hassan', 'Bijapur', 'Udupi'],
+  'Kerala': ['Thiruvananthapuram', 'Ernakulam', 'Thrissur', 'Kozhikode', 'Palakkad', 'Malappuram', 'Kollam', 'Alappuzha', 'Kottayam', 'Kannur', 'Wayanad', 'Pathanamthitta'],
+  'Madhya Pradesh': ['Indore', 'Bhopal', 'Jabalpur', 'Gwalior', 'Ujjain', 'Sagar', 'Rewa', 'Satna', 'Chhindwara', 'Morena', 'Vidisha', 'Dewas'],
+  'Maharashtra': ['Mumbai', 'Pune', 'Nashik', 'Aurangabad', 'Nagpur', 'Thane', 'Solapur', 'Amravati', 'Kolhapur', 'Satara', 'Raigad', 'Osmanabad'],
+  'Manipur': ['Imphal East', 'Imphal West', 'Thoubal', 'Bishnupur', 'Churachandpur', 'Senapati', 'Ukhrul'],
+  'Meghalaya': ['East Khasi Hills', 'West Khasi Hills', 'Ri Bhoi', 'East Jaintia Hills', 'East Garo Hills', 'West Garo Hills'],
+  'Mizoram': ['Aizawl', 'Lunglei', 'Champhai', 'Kolasib', 'Serchhip', 'Lawngtlai'],
+  'Nagaland': ['Kohima', 'Dimapur', 'Mokokchung', 'Phek', 'Tuensang', 'Wokha', 'Mon'],
+  'Odisha': ['Khordha', 'Cuttack', 'Sambalpur', 'Ganjam', 'Sundargarh', 'Balasore', 'Koraput', 'Puri', 'Kendrapara', 'Jagatsinghpur'],
+  'Punjab': ['Ludhiana', 'Amritsar', 'Jalandhar', 'Patiala', 'Bathinda', 'Mohali', 'Gurdaspur', 'Hoshiarpur', 'Faridkot', 'Rupnagar'],
+  'Rajasthan': ['Jaipur', 'Jodhpur', 'Kota', 'Ajmer', 'Bikaner', 'Udaipur', 'Alwar', 'Bharatpur', 'Sikar', 'Sri Ganganagar', 'Nagaur', 'Jhalawar'],
+  'Sikkim': ['East Sikkim', 'West Sikkim', 'North Sikkim', 'South Sikkim'],
+  'Tamil Nadu': ['Chennai', 'Coimbatore', 'Madurai', 'Salem', 'Tiruchirappalli', 'Vellore', 'Erode', 'Tirunelveli', 'Dindigul', 'Thanjavur', 'Tiruppur', 'Kanchipuram'],
+  'Telangana': ['Hyderabad', 'Ranga Reddy', 'Medchal-Malkajgiri', 'Karimnagar', 'Warangal Urban', 'Khammam', 'Nizamabad', 'Nalgonda', 'Mahabubnagar', 'Sangareddy'],
+  'Tripura': ['West Tripura', 'South Tripura', 'Gomati', 'Sipahijala', 'Khowai', 'North Tripura'],
+  'Uttar Pradesh': ['Lucknow', 'Kanpur Nagar', 'Agra', 'Varanasi', 'Prayagraj', 'Meerut', 'Ghaziabad', 'Gautam Buddha Nagar', 'Bareilly', 'Gorakhpur', 'Aligarh', 'Moradabad'],
+  'Uttarakhand': ['Dehradun', 'Haridwar', 'Udham Singh Nagar', 'Nainital', 'Pauri Garhwal', 'Almora', 'Tehri Garhwal', 'Rishikesh'],
+  'West Bengal': ['Kolkata', 'North 24 Parganas', 'South 24 Parganas', 'Hooghly', 'Howrah', 'Purba Medinipur', 'Paschim Medinipur', 'Bardhaman', 'Murshidabad', 'Nadia'],
+  'Delhi': ['Central Delhi', 'East Delhi', 'New Delhi', 'North Delhi', 'North East Delhi', 'South Delhi', 'West Delhi', 'South West Delhi', 'North West Delhi'],
+  'Jammu & Kashmir': ['Srinagar', 'Jammu', 'Anantnag', 'Baramulla', 'Pulwama', 'Kupwara', 'Rajouri', 'Poonch', 'Budgam', 'Kathua'],
 };
 
-export const getZone = state => {
-  for (const [z, states] of Object.entries(ZONES))
-    if (states.includes(state)) return z;
-  return 'Central';
+// Hierarchical zone mapping for analytics — auto-derived from State, never user-selected
+export const STATE_TO_ZONE = {
+  // North
+  'Delhi': 'North', 'Haryana': 'North', 'Himachal Pradesh': 'North',
+  'Jammu & Kashmir': 'North', 'Punjab': 'North', 'Rajasthan': 'North',
+  'Uttarakhand': 'North', 'Uttar Pradesh': 'North',
+  // South
+  'Andhra Pradesh': 'South', 'Karnataka': 'South', 'Kerala': 'South',
+  'Tamil Nadu': 'South', 'Telangana': 'South',
+  // East
+  'Arunachal Pradesh': 'East', 'Assam': 'East', 'Bihar': 'East',
+  'Jharkhand': 'East', 'Manipur': 'East', 'Meghalaya': 'East',
+  'Mizoram': 'East', 'Nagaland': 'East', 'Odisha': 'East',
+  'Sikkim': 'East', 'Tripura': 'East', 'West Bengal': 'East',
+  // West
+  'Goa': 'West', 'Gujarat': 'West', 'Maharashtra': 'West',
+  // Central
+  'Chhattisgarh': 'Central', 'Madhya Pradesh': 'Central',
+};
+
+export const getZone = (state) => STATE_TO_ZONE[state] || null;
+
+export const ZONE_CONFIG = {
+  North:   { color: '#2563EB', bg: '#EFF6FF', emoji: '🔷' },
+  South:   { color: '#10B981', bg: '#ECFDF5', emoji: '🟢' },
+  East:    { color: '#F59E0B', bg: '#FFFBEB', emoji: '🟡' },
+  West:    { color: '#8B5CF6', bg: '#F5F3FF', emoji: '🟣' },
+  Central: { color: '#EF4444', bg: '#FEF2F2', emoji: '🔴' },
 };
 
 export const SPECIALITIES = {
@@ -36,40 +85,6 @@ export const SPECIALITIES = {
 
 export const PROG_YEARS = { MD: 3, MS: 3, DM: 3, MCh: 3, DNB: 3 };
 
-export const ARTIFACTS_INIT = [
-  { id: 1, title: "Harrison's Principles of Internal Medicine", subject: 'Internal Medicine', type: 'PDF', size: '24.5 MB', uploadedBy: 'Priya Sharma', date: '2024-01-15', status: 'approved', downloads: 342, pages: 890, emoji: '📗', access: 'all' },
-  { id: 2, title: "Gray's Anatomy for Students", subject: 'Anatomy', type: 'PDF', size: '38.2 MB', uploadedBy: 'Priya Sharma', date: '2024-01-20', status: 'approved', downloads: 289, pages: 742, emoji: '📘', access: 'all' },
-  { id: 3, title: 'Pharmacology by Rang & Dale', subject: 'Pharmacology', type: 'PDF', size: '19.1 MB', uploadedBy: 'Priya Sharma', date: '2024-02-01', status: 'pending', downloads: 0, pages: 620, emoji: '📙', access: 'all' },
-  { id: 4, title: 'Robbins Pathology — Core Concepts', subject: 'Pathology', type: 'PDF', size: '31.0 MB', uploadedBy: 'Priya Sharma', date: '2024-02-05', status: 'pending', downloads: 0, pages: 512, emoji: '📕', access: 'md_ms' },
-  { id: 5, title: "Netter's Clinical Anatomy", subject: 'Anatomy', type: 'PDF', size: '45.8 MB', uploadedBy: 'Priya Sharma', date: '2024-02-08', status: 'approved', downloads: 156, pages: 640, emoji: '📗', access: 'all' },
-];
-
-export const LB_DATA = [
-  { id: 1, name: 'Dr. Arjun Mehta', college: 'AIIMS Delhi', score: 9840, speciality: 'Cardiology', quizPts: 3800, readPts: 3200, notesPts: 1540, resPts: 1300 },
-  { id: 2, name: 'Dr. Kavya Nair', college: 'CMC Vellore', score: 9420, speciality: 'Neurology', quizPts: 3600, readPts: 3100, notesPts: 1420, resPts: 1300 },
-  { id: 3, name: 'Dr. Rohan Patel', college: 'KEM Mumbai', score: 9100, speciality: 'Surgery', quizPts: 3400, readPts: 3000, notesPts: 1400, resPts: 1300 },
-  { id: 4, name: 'Dr. Sneha Verma', college: 'PGIMER', score: 8750, speciality: 'Internal Medicine', quizPts: 3200, readPts: 2950, notesPts: 1300, resPts: 1300, isMe: true },
-  { id: 5, name: 'Dr. Aditya Singh', college: 'JIPMER', score: 8420, speciality: 'Orthopaedics', quizPts: 3000, readPts: 2800, notesPts: 1300, resPts: 1320 },
-  { id: 6, name: 'Dr. Pooja Iyer', college: 'Madras Medical College', score: 8100, speciality: 'Paediatrics', quizPts: 2900, readPts: 2800, notesPts: 1200, resPts: 1200 },
-  { id: 7, name: 'Dr. Vikram Joshi', college: 'BHU Varanasi', score: 7890, speciality: 'Radiology', quizPts: 2800, readPts: 2700, notesPts: 1200, resPts: 1190 },
-  { id: 8, name: 'Dr. Ananya Rao', college: 'Manipal', score: 7650, speciality: 'Gynaecology', quizPts: 2700, readPts: 2600, notesPts: 1200, resPts: 1150 },
-];
-
-export const NOTIFS_INIT = [
-  { id: 1, type: 'success', icon: '🎉', title: 'Welcome to iConnect!', body: 'Your account has been created. Complete your profile to get verified. — Yokesh (Admin)', time: 'Just now', unread: true, channel: 'in_app' },
-  { id: 2, type: 'info', icon: '📗', title: 'New E-Book Available', body: '"Harrison\'s Principles" has been approved and is now available in the library.', time: '1 hr ago', unread: true, channel: 'in_app' },
-  { id: 3, type: 'info', icon: '🏆', title: 'Leaderboard Update', body: 'You moved up 3 positions! You are now ranked #4 in your batch.', time: '3 hrs ago', unread: true, channel: 'in_app' },
-  { id: 4, type: 'warn', icon: '⏰', title: 'Upcoming CME Webinar', body: 'Live Cardiology Advances session — Tomorrow at 6:00 PM IST. Tap to add to calendar.', time: 'Yesterday', unread: false, channel: 'whatsapp' },
-  { id: 5, type: 'info', icon: '📝', title: 'Quiz Available: NEET-PG Mock #4', body: 'New quiz has been published. 90 minutes, 100 questions. Attempt now!', time: '2 days ago', unread: false, channel: 'email' },
-];
-
-export const USERS_DATA = [
-  { id: 1, name: 'Dr. Sneha Verma', email: 'sneha@iconnect.in', role: 'PG Aspirant', prog: 'MD', speciality: 'Internal Medicine', college: 'PGIMER', year: '2nd Year', joining: 2023, state: 'Punjab', hometown: 'Chandigarh', zone: 'North', status: 'active', verified: true, score: 8750 },
-  { id: 2, name: 'Dr. Arjun Mehta', email: 'arjun@iconnect.in', role: 'PG Aspirant', prog: 'DM', speciality: 'Cardiology', college: 'AIIMS Delhi', year: '1st Year', joining: 2024, state: 'Delhi', hometown: 'New Delhi', zone: 'North', status: 'active', verified: true, score: 9840 },
-  { id: 3, name: 'Dr. Kavya Nair', email: 'kavya@iconnect.in', role: 'PG Aspirant', prog: 'MD', speciality: 'Neurology', college: 'CMC Vellore', year: '3rd Year', joining: 2022, state: 'Tamil Nadu', hometown: 'Thiruvananthapuram', zone: 'South', status: 'active', verified: true, score: 9420 },
-  { id: 4, name: 'Dr. Rohan Patel', email: 'rohan@iconnect.in', role: 'PG Aspirant', prog: 'MS', speciality: 'Surgery', college: 'KEM Mumbai', year: '2nd Year', joining: 2023, state: 'Maharashtra', hometown: 'Pune', zone: 'West', status: 'inactive', verified: false, score: 9100 },
-  { id: 5, name: 'Priya Sharma', email: 'content@iconnect.in', role: 'Content Admin', prog: '—', speciality: '—', college: '—', year: '—', joining: 2023, state: 'Madhya Pradesh', hometown: 'Bhopal', zone: 'Central', status: 'active', verified: true, score: 0 },
-];
 
 export const ab = n => {
   const c = ['#2563EB', '#7C6FF7', '#FFB347', '#FF6B8A', '#38BDF8'];
@@ -90,5 +105,13 @@ export const titles = {
   registration: '📋 Registration',
   social: '👥 Social Features',
   groups: '🎯 Interest Groups',
-  kahoot: '🎮 Kahoot Quiz',
+  kahoot: '🎮 Live Quiz',
+  conferences: '🏥 Medical Conferences',
+  exam: '📝 NEET-PG Exam Prep',
+  docs: '📄 Documentation',
+  performance: '📊 My Performance',
+  learn: '📖 Learn Hub',
+  'arena-host': '🏟️ Host Live Arena',
+  'arena-student': '🏟️ Live Arena',
+  calendar: '📅 Study Calendar',
 };

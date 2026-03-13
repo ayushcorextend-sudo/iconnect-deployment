@@ -1,36 +1,83 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Avatar from './Avatar';
-import { LB_DATA } from '../data/constants';
 import { supabase } from '../lib/supabase';
 
 export default function LeaderboardPage() {
-  const [period, setPeriod] = useState('monthly');
+  const [period, setPeriod] = useState('alltime');
   const [tab, setTab] = useState('global');
-  const [leaderboard, setLeaderboard] = useState(LB_DATA);
+  const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [myUserId, setMyUserId] = useState(null);
+  const [myProfile, setMyProfile] = useState(null);
 
   useEffect(() => {
     async function load() {
+      setLoading(true);
       try {
         const { data: authData } = await supabase.auth.getUser();
-        setMyUserId(authData?.user?.id || null);
+        const uid = authData?.user?.id || null;
+        setMyUserId(uid);
 
-        const { data, error } = await supabase
-          .from('user_scores')
-          .select('user_id, total_score, quiz_score, reading_score')
-          .order('total_score', { ascending: false })
-          .limit(50);
+        // Fetch current user's profile for tab filtering
+        if (uid) {
+          const { data: mp } = await supabase
+            .from('profiles')
+            .select('speciality, college')
+            .eq('id', uid)
+            .maybeSingle();
+          setMyProfile(mp || null);
+        }
 
-        if (error || !data || data.length === 0) {
+        let scoreData = [];
+
+        if (period === 'alltime') {
+          const { data, error } = await supabase
+            .from('user_scores')
+            .select('user_id, total_score, quiz_score, reading_score')
+            .order('total_score', { ascending: false })
+            .limit(50);
+          if (!error && data) {
+            scoreData = data.map(d => ({
+              user_id: d.user_id,
+              score: d.total_score || 0,
+              quizPts: d.quiz_score || 0,
+              readPts: d.reading_score || 0,
+            }));
+          }
+        } else {
+          // weekly or monthly: compute from activity_logs
+          const days = period === 'weekly' ? 7 : 30;
+          const since = new Date(Date.now() - days * 86400000).toISOString();
+          const { data: logs } = await supabase
+            .from('activity_logs')
+            .select('user_id, score_delta, activity_type')
+            .gte('created_at', since);
+
+          const agg = {};
+          (logs || []).forEach(log => {
+            if (!agg[log.user_id]) agg[log.user_id] = { score: 0, quizPts: 0, readPts: 0 };
+            const delta = log.score_delta || 0;
+            agg[log.user_id].score += delta;
+            if (log.activity_type?.startsWith('quiz')) agg[log.user_id].quizPts += delta;
+            if (log.activity_type === 'article_read') agg[log.user_id].readPts += delta;
+          });
+          scoreData = Object.entries(agg)
+            .map(([user_id, s]) => ({ user_id, ...s }))
+            .filter(d => d.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 50);
+        }
+
+        if (scoreData.length === 0) {
+          setLeaderboard([]);
           setLoading(false);
           return;
         }
 
-        const userIds = data.map(d => d.user_id);
+        const userIds = scoreData.map(d => d.user_id);
         const { data: profiles } = await supabase
           .from('profiles')
-          .select('id, name, full_name, specialty, speciality, college, place_of_study')
+          .select('id, name, speciality, college')
           .in('id', userIds);
 
         const profileMap = (profiles || []).reduce((acc, p) => {
@@ -38,36 +85,47 @@ export default function LeaderboardPage() {
           return acc;
         }, {});
 
-        const mapped = data.map((row) => {
+        const mapped = scoreData.map(row => {
           const p = profileMap[row.user_id] || {};
           return {
             id: row.user_id,
-            name: p.full_name || p.name || 'Anonymous',
-            college: p.college || p.place_of_study || '—',
-            speciality: p.specialty || p.speciality || '—',
-            score: row.total_score,
-            quizPts: row.quiz_score,
-            readPts: row.reading_score,
-            notesPts: 0,
-            resPts: 0,
-            isMe: row.user_id === authData?.user?.id,
+            name: p.name || 'Anonymous',
+            college: p.college || '—',
+            speciality: p.speciality || '—',
+            score: row.score,
+            quizPts: row.quizPts,
+            readPts: row.readPts,
+            isMe: row.user_id === uid,
           };
         });
 
         setLeaderboard(mapped);
       } catch (e) {
-        console.warn('Leaderboard fetch failed, using fallback:', e.message);
+        console.warn('Leaderboard fetch failed:', e.message);
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, []);
+  }, [period]);
 
-  const me = leaderboard.find(l => l.isMe) || leaderboard.find(l => l.isMe === undefined && LB_DATA.find(d => d.isMe && d.name === l.name)) || LB_DATA.find(l => l.isMe);
-  const myRank = leaderboard.findIndex(l => l.isMe) + 1 || 4;
+  const displayedLeaderboard = useMemo(() => {
+    if (tab === 'speciality') {
+      const mySpec = myProfile?.speciality;
+      if (mySpec) return leaderboard.filter(l => l.speciality === mySpec);
+    }
+    if (tab === 'college') {
+      const myCollege = myProfile?.college;
+      if (myCollege) return leaderboard.filter(l => l.college === myCollege);
+    }
+    return leaderboard;
+  }, [leaderboard, tab, myProfile]);
 
-  const top3 = leaderboard.slice(0, 3);
+  const me = leaderboard.find(l => l.isMe);
+  const myRankIdx = leaderboard.findIndex(l => l.isMe);
+  const myRank = myRankIdx >= 0 ? myRankIdx + 1 : null;
+
+  const top3 = displayedLeaderboard.slice(0, 3);
   const podOrd = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
   const podH = [100, 132, 82];
   const podC = ['#C0C0C0', '#FFD700', '#CD7F32'];
@@ -102,35 +160,35 @@ export default function LeaderboardPage() {
       </div>
 
       <div className="card" style={{ background: 'linear-gradient(135deg,#111827,#1F2937)', color: 'white', marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(37,99,235,.2)', border: '3px solid #2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter,sans-serif', fontSize: 22, fontWeight: 800, color: '#2563EB' }}>#{myRank}</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'Inter,sans-serif', fontWeight: 800, fontSize: 17 }}>{me?.name || 'Your Rank'} — Your Rank</div>
-            <div style={{ fontSize: 13, color: 'rgba(255,255,255,.5)', marginTop: 2 }}>{me?.college || '—'} · {me?.speciality || '—'}</div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
-              {[['🟢', 'Quiz', me?.quizPts || 0], ['🟣', 'Reading', me?.readPts || 0], ['🟡', 'Notes', me?.notesPts || 0], ['🔵', 'Research', me?.resPts || 0]].map(([ic, l, v]) => (
-                <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                  <span>{ic}</span><span style={{ color: 'rgba(255,255,255,.5)' }}>{l}:</span>
-                  <span style={{ fontWeight: 700, color: 'white' }}>{v.toLocaleString()}</span>
-                </div>
-              ))}
+        {loading ? (
+          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', padding: '24px 0', fontSize: 14 }}>Loading your rank…</div>
+        ) : !me ? (
+          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.4)', padding: '24px 0', fontSize: 14 }}>
+            Complete quizzes and reading activities to appear on the leaderboard.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(37,99,235,.2)', border: '3px solid #2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter,sans-serif', fontSize: 22, fontWeight: 800, color: '#2563EB' }}>
+              {myRank ? `#${myRank}` : '—'}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: 'Inter,sans-serif', fontWeight: 800, fontSize: 17 }}>{me.name} — Your Rank</div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,.5)', marginTop: 2 }}>{me.college} · {me.speciality}</div>
+              <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+                {[['🟢', 'Quiz', me.quizPts || 0], ['🟣', 'Reading', me.readPts || 0]].map(([ic, l, v]) => (
+                  <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                    <span>{ic}</span><span style={{ color: 'rgba(255,255,255,.5)' }}>{l}:</span>
+                    <span style={{ fontWeight: 700, color: 'white' }}>{v.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 32, fontWeight: 800, color: '#2563EB' }}>{(me.score || 0).toLocaleString()}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,.4)' }}>total pts</div>
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 32, fontWeight: 800, color: '#2563EB' }}>{(me?.score || 0).toLocaleString()}</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,.4)' }}>total pts</div>
-            <div style={{ fontSize: 11, color: '#2563EB', marginTop: 4 }}>↑ +3 positions this month</div>
-          </div>
-        </div>
-        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
-          {[['📚', 'Books Read', '6'], ['📝', 'Quizzes', '23'], ['📋', 'Notes', '14'], ['🔬', 'Research', '8']].map(([i, l, v]) => (
-            <div key={l} style={{ background: 'rgba(255,255,255,.07)', borderRadius: 10, padding: '10px', textAlign: 'center' }}>
-              <div style={{ fontSize: 20 }}>{i}</div>
-              <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 16, fontWeight: 800, color: '#2563EB', margin: '4px 0 2px' }}>{v}</div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,.4)', fontFamily: 'Inter,sans-serif', fontWeight: 600 }}>{l}</div>
-            </div>
-          ))}
-        </div>
+        )}
       </div>
 
       <div className="tabs">
@@ -160,15 +218,17 @@ export default function LeaderboardPage() {
       )}
 
       <div className="card">
-        <div className="ct" style={{ marginBottom: 14 }}>Full Rankings</div>
+        <div className="ct" style={{ marginBottom: 14 }}>
+          {tab === 'global' ? 'Full Rankings' : tab === 'speciality' ? `My Speciality: ${myProfile?.speciality || '—'}` : `My College: ${myProfile?.college || '—'}`}
+        </div>
         {loading ? (
           [1,2,3,4,5].map(i => <SkeletonRow key={i} />)
-        ) : leaderboard.length === 0 ? (
+        ) : displayedLeaderboard.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '24px 0', color: '#9CA3AF', fontSize: 14 }}>
-            No scores yet — start taking quizzes and reading articles!
+            {tab === 'global' ? 'No scores yet — start taking quizzes and reading articles!' : 'No peers found for this filter yet.'}
           </div>
         ) : (
-          leaderboard.map((l, i) => (
+          displayedLeaderboard.map((l, i) => (
             <div key={l.id} className={`lb-row ${l.isMe ? 'me' : ''}`}
               style={l.isMe ? { background: 'rgba(79,70,229,0.08)', border: '1px solid #4F46E5', borderRadius: 8 } : {}}>
               <div className="lb-pos" style={{ color: i < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][i] : '#6B7280' }}>{i + 1}</div>
@@ -178,7 +238,7 @@ export default function LeaderboardPage() {
                 <div style={{ fontSize: 11, color: '#6B7280' }}>{l.college} · {l.speciality}</div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                   {[['🟢', l.quizPts], ['🟣', l.readPts]].map(([c, v]) => (
-                    <span key={c} style={{ fontSize: 10, color: '#6B7280' }}>{c} {v.toLocaleString()}</span>
+                    <span key={c} style={{ fontSize: 10, color: '#6B7280' }}>{c} {(v || 0).toLocaleString()}</span>
                   ))}
                 </div>
               </div>

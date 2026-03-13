@@ -7,6 +7,9 @@ const SCORE_MAP = {
   note_viewed: 5,
   document_downloaded: 5,
   webinar_attended: 30,
+  daily_login: 2,
+  profile_complete: 25,
+  verification_complete: 50,
 };
 
 export async function trackActivity(activityType, referenceId = '') {
@@ -42,6 +45,8 @@ export async function trackActivity(activityType, referenceId = '') {
       reading_score: (existing?.reading_score || 0) + (isReading ? scoreDelta : 0),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' });
+    // TODO: Check if user entered top 10 after score update and send milestone notification
+    // Query: SELECT COUNT(*) FROM user_scores WHERE total_score > newScore → if count < 10 → top 10 alert
 
   } catch (e) {
     // Never crash the UI for tracking failures

@@ -3,23 +3,20 @@ import Toggle from './Toggle';
 import { supabase } from '../lib/supabase';
 
 export default function SettingsPage({ addToast }) {
-  const [toggles, setT] = useState({ autoApprove: false, welcomeMsg: true, digestEmail: true, leaderboardUpdates: false, reqVerify: true });
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
   const [smsEnabled, setSmsEnabled] = useState(false);
   const [welcomeMsg, setWelcomeMsg] = useState(true);
   const [kahootPin, setKahootPin] = useState('');
-
-  const session = JSON.parse(localStorage.getItem('iconnect_session') || '{}');
-  const role = session.role;
-
-  const tog = k => setT(p => ({ ...p, [k]: !p[k] }));
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
     async function loadPrefs() {
       try {
         const { data: authData } = await supabase.auth.getUser();
         if (!authData?.user) return;
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', authData.user.id).maybeSingle();
+        setIsSuperAdmin(profile?.role === 'superadmin');
         const { data } = await supabase
           .from('notification_preferences')
           .select('*')
@@ -63,42 +60,13 @@ export default function SettingsPage({ addToast }) {
     } catch (e) { addToast('error', 'Failed to save PIN'); }
   };
 
-  const sections = [
-    {
-      sec: 'Content Settings',
-      items: [['auto_approve', 'Auto-approve from trusted admins', 'autoApprove'], ['file_size', 'Max PDF size (MB)', null, 100], ['access_years', 'Access duration (years)', null, 2]],
-    },
-    {
-      sec: 'Notification Settings',
-      items: [['welcome', 'Welcome message on registration', 'welcomeMsg'], ['digest', 'Daily email digest', 'digestEmail'], ['lb', 'Leaderboard update alerts', 'leaderboardUpdates']],
-    },
-    {
-      sec: 'Registration & Verification',
-      items: [['req_verify', 'Require admin approval for verification', 'reqVerify'], ['hometown', 'Mandate hometown & home state', null, true], ['access_2yr', 'Enforce 2-year access policy', null, true]],
-    },
-  ];
-
   return (
     <div className="page">
       <div className="ph">
         <div className="pt">⚙️ Settings</div>
-        <div className="ps">Platform configuration and preferences</div>
+        <div className="ps">Notification preferences and platform configuration</div>
       </div>
       <div style={{ maxWidth: 640 }}>
-        {sections.map(({ sec, items }) => (
-          <div key={sec} className="card" style={{ marginBottom: 16 }}>
-            <div className="ct" style={{ marginBottom: 14 }}>{sec}</div>
-            {items.map(([k, l, togKey, val]) => (
-              <div key={k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F9FAFB' }}>
-                <span style={{ fontSize: 13 }}>{l}</span>
-                {togKey
-                  ? <Toggle on={toggles[togKey]} onChange={() => tog(togKey)} />
-                  : <input className="fi-in" style={{ width: 80 }} defaultValue={val} />
-                }
-              </div>
-            ))}
-          </div>
-        ))}
 
         {/* Notification Channel Preferences */}
         <div className="card" style={{ marginBottom: 16 }}>
@@ -116,10 +84,8 @@ export default function SettingsPage({ addToast }) {
           ))}
         </div>
 
-        <button className="btn btn-p" onClick={() => addToast('success', 'Settings saved!')}>💾 Save Settings</button>
-
         {/* Kahoot Settings — superadmin only */}
-        {role === 'superadmin' && (
+        {isSuperAdmin && (
           <div style={{ background: '#fff', borderRadius: 16, padding: 24, border: '1px solid #E5E7EB', marginTop: 24 }}>
             <h3 style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>🎮 Kahoot Settings</h3>
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end' }}>
