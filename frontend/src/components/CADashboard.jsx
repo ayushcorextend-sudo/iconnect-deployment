@@ -41,7 +41,7 @@ export default function CADashboard({ userId, userName, setPage, notifications =
 
   // Content-related alerts only (not doctor-management noise)
   const contentAlerts = (notifications || []).filter(n => {
-    if (!n.unread) return false;
+    if (n.is_read !== false) return false;
     const t = ((n.title || '') + ' ' + (n.body || '')).toLowerCase();
     return t.includes('artifact') || t.includes('e-book') || t.includes('ebook')
       || t.includes('approved') || t.includes('rejected') || t.includes('content')

@@ -39,6 +39,7 @@ export default function Sidebar({
     { k: 'groups',        i: '🎯', l: 'Interest Groups' },
     { k: 'conferences',   i: '🏥', l: 'Conferences' },
     { k: 'exam',          i: '📝', l: 'Exam Prep' },
+    { k: 'case-sim',      i: '🏥', l: 'Case Simulator' },
     { k: 'docs',          i: '📄', l: 'Documentation' },
   ];
 

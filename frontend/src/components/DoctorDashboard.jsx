@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import Avatar from './Avatar';
 import { supabase, getUserContentStates, toggleBookmark } from '../lib/supabase';
+import { generateStudyPlan } from '../lib/aiService';
+import AIResponseBox from './AIResponseBox';
 
 // ── 35-day GitHub-style heatmap ────────────────────────────────
 function ActivityHeatmap({ data }) {
@@ -131,6 +133,8 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
   const [heatmapData, setHeatmapData] = useState(Array(35).fill(0));
   const [weeklyMins, setWeeklyMins] = useState(0);
   const [recentActivities, setRecentActivities] = useState([]);
+  const [studyPlan, setStudyPlan] = useState({ loading: false, text: null, error: null });
+  const [mySpeciality, setMySpeciality] = useState('');
 
   useEffect(() => {
     async function load() {
@@ -139,6 +143,10 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         const uid = authData?.user?.id;
         if (!uid) return;
         setCurrentUserId(uid);
+
+        // ── Profile speciality ────────────────────────────
+        const { data: profileData } = await supabase.from('profiles').select('speciality').eq('id', uid).maybeSingle();
+        if (profileData?.speciality) setMySpeciality(profileData.speciality);
 
         // ── Content states (bookmarks + progress) ─────────
         const states = await getUserContentStates(uid);
@@ -297,14 +305,14 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
       {/* ─────────────────────────────────────────────────────────────
           LATEST ALERTS (top-tier widget — only when unread exist)
       ───────────────────────────────────────────────────────────── */}
-      {notifications.filter(n => n.unread).length > 0 && (
+      {notifications.filter(n => n.is_read === false).length > 0 && (
         <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: '#92400E' }}>🔔 Latest Alerts</div>
             <button className="btn btn-s btn-sm" onClick={() => setPage('notifications')}>View All</button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {notifications.filter(n => n.unread).slice(0, 3).map(n => (
+            {notifications.filter(n => n.is_read === false).slice(0, 3).map(n => (
               <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', background: '#fff', borderRadius: 8, border: '1px solid #FDE68A' }}>
                 <span style={{ fontSize: 16, flexShrink: 0 }}>{n.icon || '🔔'}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -503,6 +511,46 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
           </div>
         )}
       </div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          SECTION 2.4: AI STUDY PLAN
+      ───────────────────────────────────────────────────────────── */}
+      {!dashLoading && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="ch" style={{ marginBottom: 12 }}>
+            <div className="ct">🗓 AI Study Plan</div>
+            {!studyPlan.loading && (
+              <button
+                className="btn btn-sm"
+                style={{ background: 'linear-gradient(135deg,#4F46E5,#7C3AED)', color: '#fff', border: 'none', cursor: 'pointer' }}
+                onClick={async () => {
+                  setStudyPlan({ loading: true, text: null, error: null });
+                  const { text, error } = await generateStudyPlan(mySpeciality, booksRead, myQuizPts, myScore);
+                  setStudyPlan({ loading: false, text, error });
+                }}
+              >
+                {studyPlan.text ? '↺ Regenerate' : '✨ Generate Plan'}
+              </button>
+            )}
+          </div>
+          {!studyPlan.loading && !studyPlan.text && !studyPlan.error && (
+            <div style={{ textAlign: 'center', padding: '16px 0', color: '#9CA3AF', fontSize: 13 }}>
+              Click <strong>✨ Generate Plan</strong> to get a personalised 7-day study schedule from AI.
+            </div>
+          )}
+          <AIResponseBox
+            loading={studyPlan.loading}
+            error={studyPlan.error}
+            text={studyPlan.text}
+            label="7-Day Study Plan"
+            onRetry={async () => {
+              setStudyPlan({ loading: true, text: null, error: null });
+              const { text, error } = await generateStudyPlan(mySpeciality, booksRead, myQuizPts, myScore);
+              setStudyPlan({ loading: false, text, error });
+            }}
+          />
+        </div>
+      )}
 
       {/* ─────────────────────────────────────────────────────────────
           SECTION 2.5: ACTIVITY CALENDAR & WEEKLY GOAL

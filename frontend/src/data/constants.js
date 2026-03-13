@@ -114,4 +114,5 @@ export const titles = {
   'arena-host': '🏟️ Host Live Arena',
   'arena-student': '🏟️ Live Arena',
   calendar: '📅 Study Calendar',
+  'case-sim': '🏥 Case Simulator',
 };

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { trackActivity } from '../lib/trackActivity';
 import { sendNotification } from '../lib/sendNotification';
+import { explainQuestion } from '../lib/aiService';
+import AIResponseBox from './AIResponseBox';
 
 const OPTS = ['A', 'B', 'C', 'D'];
 
@@ -15,6 +17,7 @@ export default function ExamPage({ addToast }) {
   const [answers, setAnswers] = useState({});        // { questionId: 'A'|'B'|'C'|'D' }
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore] = useState(null);
+  const [aiExplains, setAiExplains] = useState({}); // { [qId]: { loading, text, error } }
 
   useEffect(() => {
     supabase.from('exam_subjects').select('*').order('id')
@@ -79,6 +82,14 @@ export default function ExamPage({ addToast }) {
         }
       }
     } catch (_) {}
+  };
+
+  const handleAIExplain = async (rq) => {
+    const qid = rq.id;
+    setAiExplains(prev => ({ ...prev, [qid]: { loading: true, text: null, error: null } }));
+    const rOpts = [{ k: 'A', v: rq.option_a }, { k: 'B', v: rq.option_b }, { k: 'C', v: rq.option_c }, { k: 'D', v: rq.option_d }];
+    const { text, error } = await explainQuestion(rq.question, rOpts, rq.correct, rq.explanation);
+    setAiExplains(prev => ({ ...prev, [qid]: { loading: false, text, error } }));
   };
 
   // ── Subject grid ────────────────────────────────────────────
@@ -202,6 +213,28 @@ export default function ExamPage({ addToast }) {
                   💡 {rq.explanation}
                 </div>
               )}
+              {/* AI Explain button */}
+              {!aiExplains[rq.id]?.text && !aiExplains[rq.id]?.loading && (
+                <button
+                  onClick={() => handleAIExplain(rq)}
+                  style={{
+                    marginTop: 10, padding: '5px 12px',
+                    background: 'linear-gradient(135deg,#EDE9FE,#EFF6FF)',
+                    border: '1px solid #C4B5FD', borderRadius: 8,
+                    fontSize: 12, fontWeight: 600, color: '#6D28D9',
+                    cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5,
+                  }}
+                >
+                  ✨ Explain with AI
+                </button>
+              )}
+              <AIResponseBox
+                loading={aiExplains[rq.id]?.loading}
+                error={aiExplains[rq.id]?.error}
+                text={aiExplains[rq.id]?.text}
+                label="AI Explanation"
+                onRetry={() => handleAIExplain(rq)}
+              />
             </div>
           );
         })}

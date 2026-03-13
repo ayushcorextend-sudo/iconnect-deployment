@@ -40,6 +40,7 @@ import ConferencesPage from './components/ConferencesPage';
 import ExamPage from './components/ExamPage';
 import ChatBot from './components/ChatBot';
 import DocumentationPage from './components/DocumentationPage';
+import CaseSimulator from './components/CaseSimulator';
 import ProfileSetupPage from './components/ProfileSetupPage';
 import MyPerformancePage from './components/MyPerformancePage';
 
@@ -428,6 +429,7 @@ function MainApp() {
       case 'arena-host':   return <LiveArenaHost userId={userId} addToast={addToast} />;
       case 'arena-student': return <LiveArenaStudent userId={userId} addToast={addToast} />;
       case 'calendar':     return <StudyCalendar userId={userId} addToast={addToast} />;
+      case 'case-sim':     return <CaseSimulator addToast={addToast} />;
       default: return (
         <div className="page">
           <div className="empty">
