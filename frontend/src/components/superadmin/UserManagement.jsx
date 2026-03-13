@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import Avatar from '../Avatar';
 import { downloadCSV } from '../../lib/exportUtils';
@@ -43,17 +43,26 @@ export default function UserManagement({ addToast }) {
   const [form, setForm]                   = useState({ title: '', body: '', type: 'info' });
   // null | 'zone' | 'state' | 'speciality' | 'verification' | 'activity'
   const [generatingReport, setGeneratingReport] = useState(null);
+  // Batch-fetched quiz_attempts — loaded alongside profiles, no N+1
+  const [attempts, setAttempts] = useState([]);
 
-  // ── Data Fetching — includes all metadata for reports ─────────────────────
+  // ── LAYER 0: Batch data fetching — profiles + quiz_attempts in one round-trip ──
   const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, name, email, role, status, created_at, state, zone, speciality, hometown, is_verified')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setUsers(data || []);
+      const [{ data: profileData, error: profileErr }, { data: attData, error: attErr }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, name, email, role, status, created_at, state, zone, speciality, hometown, is_verified')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('quiz_attempts')
+          .select('user_id, score, total, finished_at'),
+      ]);
+      if (profileErr) throw profileErr;
+      if (attErr) throw attErr;
+      setUsers(profileData || []);
+      setAttempts(attData || []);
     } catch (e) {
       addToast('error', 'Could not load users: ' + e.message);
     } finally {
@@ -62,6 +71,29 @@ export default function UserManagement({ addToast }) {
   }, [addToast]);
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  // ── LAYER 1: userPerformanceMap — reduce all attempts into per-user stats ─
+  // Formula: (SUM score / SUM total_points) * 100 = percentage score
+  const perfMap = useMemo(() => attempts.reduce((acc, a) => {
+    const uid = a.user_id;
+    if (!acc[uid]) acc[uid] = { totalAttempts: 0, totalScore: 0, totalPoints: 0, lastActivity: null };
+    acc[uid].totalAttempts++;
+    acc[uid].totalScore  += (a.score || 0);
+    acc[uid].totalPoints += (a.total || 0);
+    if (a.finished_at && (!acc[uid].lastActivity || a.finished_at > acc[uid].lastActivity)) {
+      acc[uid].lastActivity = a.finished_at;
+    }
+    return acc;
+  }, {}), [attempts]);
+
+  // Returns percentage rounded to 1dp, or null if no data
+  const calcPct = (entry) => {
+    if (!entry || entry.totalAttempts === 0) return null;
+    if (entry.totalPoints > 0)
+      return parseFloat((entry.totalScore / entry.totalPoints * 100).toFixed(1));
+    // Fallback: treat score as raw % when total is not recorded
+    return parseFloat((entry.totalScore / entry.totalAttempts).toFixed(1));
+  };
 
   // ── Filtering ─────────────────────────────────────────────────────────────
   const filtered = users.filter(u => {
@@ -152,25 +184,37 @@ export default function UserManagement({ addToast }) {
     }
   };
 
-  // ── REPORT: Speciality-wise ───────────────────────────────────────────────
+  // ── REPORT: Speciality Performance (with Performance Index) ──────────────
   const reportSpeciality = async () => {
     setGeneratingReport('speciality');
     try {
+      // Group by speciality, track both names and user IDs (for score lookup)
       const groups = {};
       users.forEach(u => {
         const key = u.speciality?.trim();
-        if (!key) return; // skip null/empty — only meaningful data
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(u.name || u.email || '—');
+        if (!key) return;
+        if (!groups[key]) groups[key] = { names: [], userIds: [] };
+        groups[key].names.push(u.name || u.email || '—');
+        groups[key].userIds.push(u.id);
       });
 
       const data = Object.entries(groups)
-        .sort((a, b) => b[1].length - a[1].length)
-        .map(([spec, names]) => ({
-          'Speciality': spec,
-          'Count':      names.length,
-          'User Names': names.join('; '),
-        }));
+        .sort((a, b) => b[1].names.length - a[1].names.length)
+        .map(([spec, grp]) => {
+          // Performance Index = mean of each doctor's avg score % in this speciality
+          const pcts = grp.userIds
+            .map(uid => calcPct(perfMap[uid]))
+            .filter(p => p !== null);
+          const perfIndex = pcts.length > 0
+            ? `${parseFloat((pcts.reduce((s, p) => s + p, 0) / pcts.length).toFixed(1))}%`
+            : 'No attempts';
+          return {
+            'Speciality':        spec,
+            'Count':             grp.names.length,
+            'Performance Index': perfIndex,
+            'User Names':        grp.names.join('; '),
+          };
+        });
 
       if (!downloadCSV(data, `iConnect_Speciality_Report_${stamp()}`)) {
         addToast('info', 'No speciality data found. Ask users to complete their profiles.');
@@ -215,50 +259,33 @@ export default function UserManagement({ addToast }) {
     }
   };
 
-  // ── REPORT: Activity (quiz engagement) ───────────────────────────────────
+  // ── REPORT: Activity — uses pre-loaded perfMap (no extra fetch, no N+1) ──
   const reportActivity = async () => {
     setGeneratingReport('activity');
     try {
-      // Fetch all quiz attempts — SA RLS allows full read
-      const { data: attempts, error } = await supabase
-        .from('quiz_attempts')
-        .select('user_id, score, finished_at');
-      if (error) throw error;
-
-      if (!attempts || attempts.length === 0) {
+      if (attempts.length === 0) {
         addToast('info', 'No quiz activity recorded yet.');
         return;
       }
 
-      // Aggregate per user
-      const byUser = {};
-      attempts.forEach(a => {
-        if (!byUser[a.user_id]) byUser[a.user_id] = { attempts: 0, totalScore: 0, lastActivity: null };
-        byUser[a.user_id].attempts++;
-        byUser[a.user_id].totalScore += a.score || 0;
-        if (a.finished_at && (!byUser[a.user_id].lastActivity || a.finished_at > byUser[a.user_id].lastActivity)) {
-          byUser[a.user_id].lastActivity = a.finished_at;
-        }
-      });
-
-      // Build map for quick lookup
       const userMap = {};
       users.forEach(u => { userMap[u.id] = u; });
 
-      const data = Object.entries(byUser)
+      const data = Object.entries(perfMap)
         .map(([uid, stats]) => {
-          const u = userMap[uid];
+          const u      = userMap[uid];
+          const pct    = calcPct(stats);
+          // Guarantee primitives — no [object Object] in CSV
           return {
-            'Name':           u?.name  || '—',
-            'Email':          u?.email || '—',
-            'Role':           ROLES[u?.role] || u?.role || '—',
-            'Quiz Attempts':  stats.attempts,
-            'Total Score':    stats.totalScore,
-            'Avg Score':      stats.attempts > 0 ? Math.round(stats.totalScore / stats.attempts) : 0,
-            'Last Activity':  fmtDate(stats.lastActivity),
+            'Name':             String(u?.name  || '—'),
+            'Email':            String(u?.email || '—'),
+            'Total Quizzes':    Number(stats.totalAttempts),
+            'Average Score %':  pct !== null ? `${pct}%` : 'No attempts',
+            'Last Activity':    fmtDate(stats.lastActivity),
           };
         })
-        .sort((a, b) => b['Quiz Attempts'] - a['Quiz Attempts']);
+        // Sort descending by Total Quizzes — top students at the top
+        .sort((a, b) => b['Total Quizzes'] - a['Total Quizzes']);
 
       if (!downloadCSV(data, `iConnect_Activity_Report_${stamp()}`)) {
         addToast('info', 'No data available for this report yet.');
@@ -450,6 +477,7 @@ export default function UserManagement({ addToast }) {
                   <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: '#374151' }}>Role</th>
                   <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: '#374151' }}>Status</th>
                   <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: '#374151' }}>Speciality</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: '#374151' }}>Avg Score</th>
                   <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: '#374151' }}>Joined</th>
                 </tr>
               </thead>
@@ -501,6 +529,21 @@ export default function UserManagement({ addToast }) {
                       </td>
                       <td style={{ padding: '12px 14px', color: '#6B7280', fontSize: 12 }}>
                         {u.speciality || <span style={{ color: '#D1D5DB' }}>—</span>}
+                      </td>
+                      <td style={{ padding: '12px 14px' }}>
+                        {u.role === 'doctor' ? (() => {
+                          const pct = calcPct(perfMap[u.id]);
+                          if (pct === null) return <span style={{ color: '#D1D5DB', fontSize: 11 }}>—</span>;
+                          const color = pct >= 75 ? '#059669' : pct >= 50 ? '#D97706' : '#DC2626';
+                          return (
+                            <span style={{
+                              fontSize: 11, fontWeight: 700, padding: '2px 8px',
+                              borderRadius: 99, background: color + '18', color,
+                            }}>
+                              {pct}%
+                            </span>
+                          );
+                        })() : <span style={{ color: '#D1D5DB', fontSize: 11 }}>—</span>}
                       </td>
                       <td style={{ padding: '12px 14px', color: '#6B7280' }}>{relDate(u.created_at)}</td>
                     </tr>
