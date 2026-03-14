@@ -27,7 +27,7 @@ export default function DoubtBoard({ userId, role, addToast }) {
   const loadDoubts = async () => {
     setLoading(true);
     try {
-      let q = supabase.from('doubts').select('*, profiles:user_id(full_name)').order('created_at', { ascending: false });
+      let q = supabase.from('doubts').select('*, profiles:user_id(name)').order('created_at', { ascending: false });
       if (filter !== 'all') q = q.eq('status', filter);
       const { data, error } = await q;
       if (error) throw error;
@@ -43,7 +43,7 @@ export default function DoubtBoard({ userId, role, addToast }) {
     try {
       const { data, error } = await supabase
         .from('doubt_replies')
-        .select('*, profiles:user_id(full_name, role)')
+        .select('*, profiles:user_id(name, role)')
         .eq('doubt_id', doubtId)
         .order('created_at');
       if (error) throw error;
@@ -68,7 +68,7 @@ export default function DoubtBoard({ userId, role, addToast }) {
       const { data, error } = await supabase
         .from('doubt_replies')
         .insert({ doubt_id: doubtId, user_id: userId, body: replyText.trim(), is_official: isAdmin })
-        .select('*, profiles:user_id(full_name, role)').single();
+        .select('*, profiles:user_id(name, role)').single();
       if (error) throw error;
       setReplies(prev => ({ ...prev, [doubtId]: [...(prev[doubtId] || []), data] }));
       setReplyText('');
@@ -141,7 +141,7 @@ export default function DoubtBoard({ userId, role, addToast }) {
                     </div>
                     <div style={{ fontSize: 12, color: '#6B7280' }}>
                       {d.subject && `${d.subject} · `}
-                      {d.profiles?.full_name || 'Unknown'} · {relTime(d.created_at)}
+                      {d.profiles?.name || 'Unknown'} · {relTime(d.created_at)}
                     </div>
                   </div>
                   <span style={{ fontSize: 16, color: '#9CA3AF', transition: 'transform .2s', transform: isExp ? 'rotate(90deg)' : 'none' }}>▶</span>
@@ -161,7 +161,7 @@ export default function DoubtBoard({ userId, role, addToast }) {
                             borderLeft: `3px solid ${r.is_official ? '#2563EB' : '#E5E7EB'}`,
                           }}>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
-                              <span style={{ fontWeight: 700, fontSize: 13 }}>{r.profiles?.full_name || 'Unknown'}</span>
+                              <span style={{ fontWeight: 700, fontSize: 13 }}>{r.profiles?.name || 'Unknown'}</span>
                               {r.is_official && <span style={{ fontSize: 10, fontWeight: 700, color: '#2563EB', background: '#DBEAFE', padding: '1px 6px', borderRadius: 8 }}>Official</span>}
                               <span style={{ fontSize: 11, color: '#9CA3AF', marginLeft: 'auto' }}>{relTime(r.created_at)}</span>
                             </div>
