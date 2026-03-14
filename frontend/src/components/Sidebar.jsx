@@ -13,7 +13,7 @@ export default function Sidebar({
     { k: 'ebooks', i: '📁', l: 'Content Management' },
     { k: 'reports', i: '📈', l: 'Reports' },
     { k: 'settings', i: '⚙️', l: 'Settings' },
-    { k: 'docs', i: '📄', l: 'Documentation' },
+    { k: 'broadcast', i: '📡', l: 'Broadcast' },
   ];
   const contentNav = [
     { k: 'dashboard',     i: '📊', l: 'Dashboard' },
@@ -40,7 +40,6 @@ export default function Sidebar({
     { k: 'conferences',   i: '🏥', l: 'Conferences' },
     { k: 'exam',          i: '📝', l: 'Exam Prep' },
     { k: 'case-sim',      i: '🏥', l: 'Case Simulator' },
-    { k: 'docs',          i: '📄', l: 'Documentation' },
   ];
 
   const nav = role === 'superadmin' ? adminNav : role === 'contentadmin' ? contentNav : doctorNav;

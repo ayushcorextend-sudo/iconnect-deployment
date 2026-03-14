@@ -39,7 +39,7 @@ import KahootPage from './components/KahootPage';
 import ConferencesPage from './components/ConferencesPage';
 import ExamPage from './components/ExamPage';
 import ChatBot from './components/ChatBot';
-import DocumentationPage from './components/DocumentationPage';
+import BroadcastPage from './components/BroadcastPage';
 import CaseSimulator from './components/CaseSimulator';
 import ProfileSetupPage from './components/ProfileSetupPage';
 import MyPerformancePage from './components/MyPerformancePage';
@@ -380,6 +380,7 @@ function MainApp() {
     setNotifications, role, onApprove, onReject, onUpload,
     userName, userId, users, onApproveUser, onRejectUser,
     openChatBotDoubt: () => setChatBotMode('doubt'),
+    darkMode,
   };
 
   const renderPage = () => {
@@ -425,7 +426,7 @@ function MainApp() {
       case 'kahoot':       return <KahootPage />;
       case 'conferences':  return <ConferencesPage role={role} addToast={addToast} />;
       case 'exam':         return <ExamPage addToast={addToast} />;
-      case 'docs':         return <DocumentationPage role={role} addToast={addToast} />;
+      case 'broadcast':    return <BroadcastPage {...commonProps} />;
       case 'performance':  return <MyPerformancePage userId={userId} />;
       case 'learn':        return <LearnHub userId={userId} addToast={addToast} />;
       case 'arena-host':   return <LiveArenaHost userId={userId} addToast={addToast} />;
