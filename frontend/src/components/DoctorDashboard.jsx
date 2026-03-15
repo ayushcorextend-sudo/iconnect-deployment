@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Avatar from './Avatar';
 import { supabase, getUserContentStates, toggleBookmark } from '../lib/supabase';
-import { generateStudyPlan } from '../lib/aiService';
+import { generateStudyPlan, getPersonalizedSuggestions } from '../lib/aiService';
 import AIResponseBox from './AIResponseBox';
 
 // ── 35-day GitHub-style heatmap ────────────────────────────────
@@ -135,6 +135,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
   const [recentActivities, setRecentActivities] = useState([]);
   const [studyPlan, setStudyPlan] = useState({ loading: false, text: null, error: null });
   const [mySpeciality, setMySpeciality] = useState('');
+  const [aiForYou, setAiForYou] = useState({ loading: true, items: [], error: null });
   const [reminderPopover, setReminderPopover] = useState(false);
   const [reminderLeadMins, setReminderLeadMins] = useState(60);
   const [reminderChannels, setReminderChannels] = useState(['in_app']);
@@ -250,6 +251,23 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
           .limit(20);
         const unreadArts = (arts || []).filter(a => !readIds.has(String(a.id)));
         setRecommendations(unreadArts.sort(() => Math.random() - 0.5).slice(0, 3));
+
+        // ── AI Personalised "For You" suggestions (async, non-blocking) ──────
+        const recentSubjectsSet = new Set(
+          (arts || []).filter(a => readIds.has(String(a.id))).map(a => a.subject).filter(Boolean)
+        );
+        const lastActivityLog = logs?.[0];
+        getPersonalizedSuggestions({
+          speciality: profileData?.speciality || '',
+          booksRead: logs ? logs.filter(l => l.activity_type === 'article_read').length : 0,
+          quizScore: 0, // will be updated after score fetch completes
+          totalScore: 0,
+          weeklyMins: 0,
+          lastActive: lastActivityLog?.created_at || null,
+          recentSubjects: Array.from(recentSubjectsSet).slice(0, 5),
+        }).then(({ suggestions, error }) => {
+          setAiForYou({ loading: false, items: suggestions || [], error: error || null });
+        });
 
         // ── Next Webinar ──────────────────────────────────
         const { data: wb } = await supabase
@@ -469,70 +487,200 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
       )}
 
       {/* ─────────────────────────────────────────────────────────────
-          SECTION 2: AI SUGGESTIONS
+          SECTION 2: PERSONALISED "FOR YOU" AI WIDGET
       ───────────────────────────────────────────────────────────── */}
       <div style={{
         background: 'linear-gradient(135deg, #1E40AF 0%, #4F46E5 60%, #7C3AED 100%)',
-        borderRadius: 14, padding: 20, marginBottom: 20, color: '#fff',
+        borderRadius: 16, padding: 20, marginBottom: 20, color: '#fff',
+        boxShadow: '0 8px 32px rgba(79,70,229,0.25)',
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 3 }}>✨ AI Suggestions</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Next learning recommendations based on your activity</div>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+              background: 'rgba(255,255,255,0.18)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+            }}>✨</div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+                For You
+                <span style={{
+                  fontSize: 10, fontWeight: 600, background: 'rgba(255,255,255,0.2)',
+                  padding: '2px 8px', borderRadius: 99, letterSpacing: '0.5px',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                }}>AI POWERED</span>
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>Personalised just for you · updates on every login</div>
+            </div>
           </div>
           <button
             onClick={() => openChatBotDoubt ? openChatBotDoubt() : setPage('ebooks')}
             style={{
               background: 'rgba(255,255,255,0.15)', color: '#fff',
               border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: 8, padding: '6px 14px', fontSize: 12,
+              borderRadius: 9, padding: '7px 16px', fontSize: 12,
               fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(4px)',
+              display: 'flex', alignItems: 'center', gap: 6,
+              transition: 'background .2s',
             }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.25)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
           >
-            🤖 Ask AI →
+            🤖 Ask AI
           </button>
         </div>
 
-        {recommendations.length === 0 ? (
-          <div style={{
-            background: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: '16px',
-            textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.75)',
-          }}>
-            📚 Read more books to unlock personalised AI recommendations!
-          </div>
-        ) : (
+        {/* AI-generated personalised suggestions */}
+        {aiForYou.loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {recommendations.map((r, i) => (
-              <div
-                key={r.id}
-                onClick={() => setPage('ebooks')}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  background: 'rgba(255,255,255,0.12)',
-                  borderRadius: 10, padding: '10px 14px',
-                  cursor: 'pointer', transition: 'background .2s',
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
-              >
-                <div style={{
-                  width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                  background: 'rgba(255,255,255,0.15)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
-                }}>
-                  {r.emoji || '📚'}
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{
+                background: 'rgba(255,255,255,0.1)',
+                borderRadius: 11, padding: '12px 14px',
+                display: 'flex', alignItems: 'center', gap: 12,
+                animation: 'pulse 1.5s ease-in-out infinite',
+              }}>
+                <div style={{ width: 38, height: 38, borderRadius: 9, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ height: 11, background: 'rgba(255,255,255,0.12)', borderRadius: 5, width: '70%', marginBottom: 7 }} />
+                  <div style={{ height: 9, background: 'rgba(255,255,255,0.08)', borderRadius: 5, width: '50%' }} />
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {r.title}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
-                    {r.subject} · {r.pages || '—'} pages
-                  </div>
-                </div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', flexShrink: 0 }}>#{i + 1} pick</div>
+                <div style={{ width: 52, height: 20, borderRadius: 99, background: 'rgba(255,255,255,0.1)' }} />
               </div>
             ))}
+            <div style={{ textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
+              ✨ AI is personalising your suggestions…
+            </div>
+          </div>
+        ) : aiForYou.items.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {aiForYou.items.map((s, i) => {
+              const tagColors = {
+                'Weak Area':   { bg: 'rgba(239,68,68,0.25)',  text: '#FCA5A5', border: 'rgba(239,68,68,0.4)' },
+                'Due Today':   { bg: 'rgba(245,158,11,0.25)', text: '#FCD34D', border: 'rgba(245,158,11,0.4)' },
+                'High Yield':  { bg: 'rgba(16,185,129,0.25)', text: '#6EE7B7', border: 'rgba(16,185,129,0.4)' },
+                'Quick Win':   { bg: 'rgba(59,130,246,0.25)', text: '#93C5FD', border: 'rgba(59,130,246,0.4)' },
+                'Streak Risk': { bg: 'rgba(239,68,68,0.2)',   text: '#FCA5A5', border: 'rgba(239,68,68,0.35)' },
+                'Trending':    { bg: 'rgba(168,85,247,0.25)', text: '#C4B5FD', border: 'rgba(168,85,247,0.4)' },
+              };
+              const tc = tagColors[s.tag] || { bg: 'rgba(255,255,255,0.12)', text: '#E2E8F0', border: 'rgba(255,255,255,0.25)' };
+              return (
+                <div
+                  key={i}
+                  onClick={() => setPage(s.action || 'ebooks')}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    background: 'rgba(255,255,255,0.1)',
+                    borderRadius: 11, padding: '11px 14px',
+                    cursor: 'pointer', transition: 'background .2s, transform .15s',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.18)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.transform = 'none'; }}
+                >
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 9, flexShrink: 0,
+                    background: 'rgba(255,255,255,0.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+                    border: '1px solid rgba(255,255,255,0.2)',
+                  }}>
+                    {s.icon || '📚'}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>
+                      {s.title}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {s.reason}
+                    </div>
+                  </div>
+                  <div style={{
+                    padding: '3px 9px', borderRadius: 99, fontSize: 10, fontWeight: 700,
+                    background: tc.bg, color: tc.text, border: `1px solid ${tc.border}`,
+                    whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.3px',
+                  }}>
+                    {s.tag}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* Fallback: show Supabase recommendations if AI failed */
+          recommendations.length === 0 ? (
+            <div style={{
+              background: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: '16px',
+              textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.75)',
+            }}>
+              📚 Read more books to unlock personalised AI recommendations!
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {recommendations.map((r, i) => (
+                <div
+                  key={r.id}
+                  onClick={() => setPage('ebooks')}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    background: 'rgba(255,255,255,0.12)',
+                    borderRadius: 10, padding: '10px 14px',
+                    cursor: 'pointer', transition: 'background .2s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
+                >
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+                    background: 'rgba(255,255,255,0.15)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+                  }}>
+                    {r.emoji || '📚'}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {r.title}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
+                      {r.subject} · {r.pages || '—'} pages
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', flexShrink: 0 }}>#{i + 1} pick</div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+
+        {/* Bottom divider + unread content picks */}
+        {!aiForYou.loading && recommendations.length > 0 && aiForYou.items.length > 0 && (
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', marginBottom: 8, letterSpacing: '0.5px' }}>
+              ALSO UNREAD FOR YOU
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {recommendations.map(r => (
+                <div
+                  key={r.id}
+                  onClick={() => setPage('ebooks')}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 7,
+                    background: 'rgba(255,255,255,0.1)', borderRadius: 8,
+                    padding: '6px 10px', cursor: 'pointer',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    transition: 'background .15s', fontSize: 12,
+                    color: 'rgba(255,255,255,0.85)',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                >
+                  <span style={{ fontSize: 14 }}>{r.emoji || '📖'}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
+                    {r.title}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

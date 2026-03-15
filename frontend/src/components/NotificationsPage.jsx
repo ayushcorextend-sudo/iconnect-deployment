@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Toggle from './Toggle';
 import { supabase } from '../lib/supabase';
+import { getCached, setCached } from '../lib/dataCache';
 
 // Default prefs shape — mirrors notification_preferences table columns
 const DEFAULT_CHANNELS = { in_app_enabled: true, email_enabled: true, whatsapp_enabled: false, sms_enabled: false };
@@ -35,7 +36,16 @@ export default function NotificationsPage({ addToast, setPage }) {
         if (!user) { setLoading(false); return; }
         userIdRef.current = user.id;
 
-        // Fetch notifications
+        // ── Restore cached prefs instantly (no flicker) ─────────────────────
+        const cachedPrefs = getCached(`notif_prefs_${user.id}`);
+        if (cachedPrefs) {
+          setChannels(cachedPrefs.channels);
+          setTriggers(cachedPrefs.triggers);
+          setPrefsLoaded(true);
+          setLoading(false);
+        }
+
+        // Fetch notifications (always fresh — new ones may have arrived)
         const { data: rows, error: notifErr } = await supabase
           .from('notifications')
           .select('*')
@@ -45,7 +55,7 @@ export default function NotificationsPage({ addToast, setPage }) {
         if (notifErr) throw notifErr;
         setNotifs(rows || []);
 
-        // Fetch preferences
+        // Fetch preferences (always refresh in background)
         const { data: prefs, error: prefsErr } = await supabase
           .from('notification_preferences')
           .select('*')
@@ -54,21 +64,26 @@ export default function NotificationsPage({ addToast, setPage }) {
 
         if (prefsErr) throw prefsErr;
 
+        const freshChannels = {
+          in_app_enabled:   prefs?.in_app_enabled   ?? true,
+          email_enabled:    prefs?.email_enabled     ?? true,
+          whatsapp_enabled: prefs?.whatsapp_enabled  ?? false,
+          sms_enabled:      prefs?.sms_enabled       ?? false,
+        };
+        const freshTriggers = {
+          new_ebook:           prefs?.new_ebook           ?? true,
+          webinar_reminders:   prefs?.webinar_reminders   ?? true,
+          quiz_available:      prefs?.quiz_available       ?? true,
+          admin_messages:      prefs?.admin_messages       ?? true,
+          leaderboard_changes: prefs?.leaderboard_changes  ?? false,
+          study_group_invites: prefs?.study_group_invites  ?? false,
+        };
+
         if (prefs) {
-          setChannels({
-            in_app_enabled:   prefs.in_app_enabled   ?? true,
-            email_enabled:    prefs.email_enabled     ?? true,
-            whatsapp_enabled: prefs.whatsapp_enabled  ?? false,
-            sms_enabled:      prefs.sms_enabled       ?? false,
-          });
-          setTriggers({
-            new_ebook:           prefs.new_ebook           ?? true,
-            webinar_reminders:   prefs.webinar_reminders   ?? true,
-            quiz_available:      prefs.quiz_available       ?? true,
-            admin_messages:      prefs.admin_messages       ?? true,
-            leaderboard_changes: prefs.leaderboard_changes  ?? false,
-            study_group_invites: prefs.study_group_invites  ?? false,
-          });
+          setChannels(freshChannels);
+          setTriggers(freshTriggers);
+          // Cache prefs for next visit (5-min TTL — these rarely change)
+          setCached(`notif_prefs_${user.id}`, { channels: freshChannels, triggers: freshTriggers }, 5 * 60 * 1000);
         }
         setPrefsLoaded(true);
 

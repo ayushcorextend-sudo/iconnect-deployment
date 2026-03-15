@@ -43,6 +43,7 @@ import BroadcastPage from './components/BroadcastPage';
 import CaseSimulator from './components/CaseSimulator';
 import ProfileSetupPage from './components/ProfileSetupPage';
 import MyPerformancePage from './components/MyPerformancePage';
+import PageTransition from './components/ui/PageTransition';
 
 // ─── Outer shell ─────────────────────────────────────────────────────────────
 // Wraps the entire app in ErrorBoundary + AuthProvider. No business logic here.
@@ -469,7 +470,9 @@ function MainApp() {
             setSidebarOpen={setSidebarOpen}
           />
           <OnboardingBanner role={role} currentPage={page} setPage={setPage} />
-          {renderPage()}
+          <PageTransition pageKey={page}>
+            {renderPage()}
+          </PageTransition>
         </div>
         <Toasts toasts={toasts} />
         <ChatBot chatBotMode={chatBotMode} setChatBotMode={setChatBotMode} />

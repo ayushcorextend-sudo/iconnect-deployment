@@ -1,14 +1,59 @@
 /**
- * aiService.js — Centralised Gemini AI service layer for iConnect
+ * aiService.js — Centralised AI service layer for iConnect
  *
- * All functions call the gemini-proxy Supabase edge function.
- * Each function returns { text, error } — never throws.
+ * PRIMARY: NVIDIA API (set VITE_NVIDIA_API_KEY in your .env file)
+ * FALLBACK: Google Gemini via Supabase edge function (gemini-proxy)
+ *
+ * To use NVIDIA: create a .env file in the frontend folder with:
+ *   VITE_NVIDIA_API_KEY=nvapi-xxxxxxxxxxxxxxxxxxxx
+ *
+ * All functions return { text, error } — never throws.
  */
 
+// ── Supabase Gemini proxy (fallback) ─────────────────────────────────────────
 const SUPABASE_URL = 'https://kzxsyeznpudomeqxbnvp.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6eHN5ZXpucHVkb21lcXhibnZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMjQ1NjEsImV4cCI6MjA4NzkwMDU2MX0.4w2UkRl3rxq2WOiQDmY4aMPGUhQ_5V4W8hridmGmy9o';
 
+// ── NVIDIA API config ─────────────────────────────────────────────────────────
+// Reads from VITE_NVIDIA_API_KEY environment variable (set in .env file)
+const NVIDIA_API_KEY = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_NVIDIA_API_KEY) || '';
+const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
+const NVIDIA_MODEL = 'meta/llama-3.1-70b-instruct';
+
+// ── NVIDIA caller ─────────────────────────────────────────────────────────────
+async function callNvidia(systemPrompt, userMessage, maxTokens = 512) {
+  try {
+    const res = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${NVIDIA_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: NVIDIA_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
+        ],
+        max_tokens: maxTokens,
+        temperature: 0.7,
+        stream: false,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { text: null, error: err.message || `NVIDIA API error ${res.status}` };
+    }
+    const data = await res.json();
+    const text = data.choices?.[0]?.message?.content || '';
+    return { text, error: null };
+  } catch (e) {
+    return { text: null, error: e.message || 'Network error' };
+  }
+}
+
+// ── Gemini via Supabase edge function (fallback) ──────────────────────────────
 async function callGemini(systemPrompt, userMessage, maxTokens = 512) {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/gemini-proxy`, {
@@ -34,16 +79,27 @@ async function callGemini(systemPrompt, userMessage, maxTokens = 512) {
   }
 }
 
-// ── 1. Explain a NEET-PG MCQ question ─────────────────────────────────────
+// ── Smart router: NVIDIA first, Gemini fallback ───────────────────────────────
+async function callAI(systemPrompt, userMessage, maxTokens = 512) {
+  if (NVIDIA_API_KEY) {
+    const result = await callNvidia(systemPrompt, userMessage, maxTokens);
+    if (!result.error) return result;
+    // Log and fall back to Gemini on NVIDIA failure
+    console.warn('[iConnect AI] NVIDIA API failed, falling back to Gemini:', result.error);
+  }
+  return callGemini(systemPrompt, userMessage, maxTokens);
+}
+
+// ── 1. Explain a NEET-PG MCQ question ─────────────────────────────────────────
 export async function explainQuestion(question, options, correctKey, existingExplanation) {
   const system = `You are a NEET-PG medical education expert. Explain MCQ answers concisely for PG aspirants.
 Format: 2-3 sentences on WHY the correct answer is right, and briefly why the others are wrong. Keep it under 150 words.`;
   const optText = options.map(o => `${o.k}. ${o.v}`).join('\n');
   const msg = `Question: ${question}\n\nOptions:\n${optText}\n\nCorrect Answer: ${correctKey}${existingExplanation ? `\n\nHint: ${existingExplanation}` : ''}`;
-  return callGemini(system, msg, 256);
+  return callAI(system, msg, 256);
 }
 
-// ── 2. Generate a personalised study plan ─────────────────────────────────
+// ── 2. Generate a personalised study plan ─────────────────────────────────────
 export async function generateStudyPlan(speciality, booksRead, quizScore, totalScore) {
   const system = `You are a NEET-PG study advisor. Create a brief, actionable 7-day study plan for a PG aspirant.
 Use bullet points. Keep it under 200 words. Focus on high-yield topics for Indian PG exams.`;
@@ -51,10 +107,10 @@ Use bullet points. Keep it under 200 words. Focus on high-yield topics for India
 Books read this month: ${booksRead || 0}
 Quiz score: ${quizScore || 0} pts / Total score: ${totalScore || 0} pts
 Please generate a personalised 7-day study plan to improve weak areas.`;
-  return callGemini(system, msg, 400);
+  return callAI(system, msg, 400);
 }
 
-// ── 3. Generate a clinical case simulation ────────────────────────────────
+// ── 3. Generate a clinical case simulation ────────────────────────────────────
 export async function getClinicalCase(speciality) {
   const system = `You are a clinical case generator for NEET-PG exam preparation.
 Generate a short clinical vignette with:
@@ -63,10 +119,10 @@ Generate a short clinical vignette with:
 3. The correct answer with brief explanation
 Format clearly with emojis. Keep under 250 words.`;
   const msg = `Generate a NEET-PG style clinical case for: ${speciality || 'Internal Medicine'}`;
-  return callGemini(system, msg, 512);
+  return callAI(system, msg, 512);
 }
 
-// ── 4. AI content audit for uploaded e-books ─────────────────────────────
+// ── 4. AI content audit for uploaded e-books ─────────────────────────────────
 export async function auditContent(title, subject, description) {
   const system = `You are a medical content quality reviewer for a PG education platform.
 Review the given content metadata and provide:
@@ -76,10 +132,10 @@ Review the given content metadata and provide:
 4. Any content safety concerns
 Keep it under 150 words. Be direct and helpful.`;
   const msg = `Title: ${title}\nSubject: ${subject || 'Unknown'}\nDescription: ${description || 'No description provided'}`;
-  return callGemini(system, msg, 300);
+  return callAI(system, msg, 300);
 }
 
-// ── 5. Predictive engagement alerts for super admins ─────────────────────
+// ── 5. Predictive engagement alerts for super admins ─────────────────────────
 export async function getPredictiveAlerts(stats) {
   const system = `You are a platform engagement analyst for a medical education app.
 Based on usage statistics, generate 3-5 actionable alerts/recommendations.
@@ -91,10 +147,10 @@ Format as bullet points. Be specific and data-driven. Under 200 words.`;
 - Pending verifications: ${stats.pendingVerifications || 0}
 - Most popular subject: ${stats.topSubject || 'Unknown'}
 Generate engagement improvement alerts.`;
-  return callGemini(system, msg, 400);
+  return callAI(system, msg, 400);
 }
 
-// ── 6. Knowledge gap analysis ─────────────────────────────────────────────
+// ── 6. Knowledge gap analysis ─────────────────────────────────────────────────
 export async function analyzeKnowledgeGap(subjectScores) {
   const system = `You are a NEET-PG learning analytics expert.
 Identify knowledge gaps from quiz performance data and suggest targeted interventions.
@@ -103,10 +159,10 @@ Format: 3-4 bullet points. Under 150 words.`;
     .map(s => `${s.subject}: ${s.avgScore}% (${s.attempts} attempts)`)
     .join('\n');
   const msg = `Subject performance breakdown:\n${subjectList || 'No data yet'}\n\nIdentify top knowledge gaps and suggest study priorities.`;
-  return callGemini(system, msg, 300);
+  return callAI(system, msg, 300);
 }
 
-// ── 7. Doubt Buster — deep-dive answer for specific medical questions ─────
+// ── 7. Doubt Buster — deep-dive answer for specific medical questions ─────────
 export async function askDoubtBuster(question) {
   const system = `You are a senior medical educator specialising in NEET-PG exam preparation.
 For the given doubt/question, provide a thorough explanation:
@@ -115,10 +171,10 @@ For the given doubt/question, provide a thorough explanation:
 - Memory tips or mnemonics if applicable
 - Common exam traps to avoid
 Use bullet points. Keep under 300 words.`;
-  return callGemini(system, question, 600);
+  return callAI(system, question, 600);
 }
 
-// ── 8. Generate a 3-question reading comprehension quiz ───────────────────
+// ── 8. Generate a 3-question reading comprehension quiz ───────────────────────
 // Returns { questions: [{q, options:[{k,v}], answer, explanation}], error }
 export async function generateReadingQuiz(bookTitle, subject) {
   const system = `You are a NEET-PG medical exam question setter.
@@ -126,10 +182,9 @@ Generate exactly 3 multiple-choice questions to test understanding of a medical 
 Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
 {"questions":[{"q":"question text","options":[{"k":"A","v":"option"},{"k":"B","v":"option"},{"k":"C","v":"option"},{"k":"D","v":"option"}],"answer":"A","explanation":"brief explanation under 60 words"}]}`;
   const msg = `Book title: ${bookTitle}\nSubject: ${subject || 'General Medicine'}\nGenerate 3 NEET-PG MCQs to test mastery of this book.`;
-  const { text, error } = await callGemini(system, msg, 800);
+  const { text, error } = await callAI(system, msg, 800);
   if (error) return { questions: null, error };
   try {
-    // Strip markdown code fences if present
     const clean = text.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(clean);
     if (!Array.isArray(parsed.questions)) throw new Error('Invalid structure');
@@ -139,7 +194,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
   }
 }
 
-// ── 9. Generate a smart note + mnemonic from selected text ────────────────
+// ── 9. Generate a smart note + mnemonic from selected text ────────────────────
 // Returns { note, mnemonic, tags[], error }
 export async function generateSmartNote(originalText, subject) {
   const system = `You are a NEET-PG study coach. Compress the given medical text into:
@@ -149,7 +204,7 @@ export async function generateSmartNote(originalText, subject) {
 Respond ONLY with valid JSON (no markdown):
 {"note":"...","mnemonic":"...","tags":["tag1","tag2"]}`;
   const msg = `Subject: ${subject || 'Medicine'}\n\nText to compress:\n${originalText.slice(0, 1500)}`;
-  const { text, error } = await callGemini(system, msg, 400);
+  const { text, error } = await callAI(system, msg, 400);
   if (error) return { note: null, mnemonic: null, tags: [], error };
   try {
     const clean = text.replace(/```json|```/g, '').trim();
@@ -157,5 +212,55 @@ Respond ONLY with valid JSON (no markdown):
     return { note: parsed.note || '', mnemonic: parsed.mnemonic || '', tags: parsed.tags || [], error: null };
   } catch (_) {
     return { note: null, mnemonic: null, tags: [], error: 'Could not parse response.' };
+  }
+}
+
+// ── 10. Personalised "For You" suggestions on login ──────────────────────────
+// Returns { suggestions: [{icon, title, reason, tag, action}], error }
+// action is one of: 'ebooks' | 'exam' | 'learn' | 'arena-student' | 'calendar' | 'case-sim'
+export async function getPersonalizedSuggestions({ speciality, booksRead, quizScore, totalScore, weeklyMins, lastActive, recentSubjects = [] }) {
+  const system = `You are a personalised learning advisor for NEET-PG medical exam aspirants on the iConnect platform.
+Analyse the student's activity data and generate exactly 3 hyper-personalised study suggestions.
+Each suggestion must directly relate to their specific data (scores, subjects studied, activity gaps).
+
+Respond ONLY with valid JSON — no markdown, no extra text, no explanation outside the JSON:
+[
+  {
+    "icon": "emoji",
+    "title": "short action title (max 50 chars)",
+    "reason": "personalised reason based on their data (max 75 chars)",
+    "tag": "one of: Weak Area | Due Today | High Yield | Quick Win | Streak Risk | Trending",
+    "action": "one of: ebooks | exam | learn | arena-student | calendar | case-sim"
+  }
+]`;
+
+  const inactiveDays = lastActive
+    ? Math.floor((Date.now() - new Date(lastActive)) / 86400000)
+    : null;
+
+  const msg = `Student profile:
+- Speciality: ${speciality || 'General Medicine'}
+- Books read this month: ${booksRead || 0}
+- Quiz score: ${quizScore || 0} pts
+- Total score: ${totalScore || 0} pts
+- Weekly study time: ${Math.round(((weeklyMins || 0) / 60) * 10) / 10}h
+- Days since last activity: ${inactiveDays !== null ? inactiveDays : 'unknown'}
+- Recently studied subjects: ${recentSubjects.length > 0 ? recentSubjects.join(', ') : 'None yet'}
+
+Generate 3 data-driven, personalised suggestions for this student.`;
+
+  const { text, error } = await callAI(system, msg, 600);
+  if (error) return { suggestions: null, error };
+
+  try {
+    const clean = text.replace(/```json|```/g, '').trim();
+    // Find JSON array even if there's extra text
+    const match = clean.match(/\[[\s\S]*?\]/);
+    if (!match) throw new Error('No JSON array found');
+    const parsed = JSON.parse(match[0]);
+    if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('Empty or invalid array');
+    return { suggestions: parsed.slice(0, 4), error: null };
+  } catch (_) {
+    return { suggestions: null, error: 'Could not parse suggestions.' };
   }
 }

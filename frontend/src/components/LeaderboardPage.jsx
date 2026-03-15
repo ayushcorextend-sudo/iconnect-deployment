@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Avatar from './Avatar';
 import { supabase } from '../lib/supabase';
+import { getCached, setCached } from '../lib/dataCache';
 
 export default function LeaderboardPage({ setPage }) {
   const [period, setPeriod] = useState('alltime');
@@ -12,19 +13,32 @@ export default function LeaderboardPage({ setPage }) {
 
   useEffect(() => {
     async function load() {
-      setLoading(true);
+      // ── Stale-while-revalidate: show cached data instantly ──────────────
+      const cacheKey = `lb_${period}`;
+      const cached = getCached(cacheKey);
+      if (cached) {
+        setLeaderboard(cached.leaderboard);
+        setMyProfile(cached.myProfile);
+        setMyUserId(cached.myUserId);
+        setLoading(false); // no skeleton flash on repeat visits
+      } else {
+        setLoading(true);
+      }
+
       try {
         const { data: authData } = await supabase.auth.getUser();
         const uid = authData?.user?.id || null;
         setMyUserId(uid);
 
+        let myProfileData = null;
         if (uid) {
           const { data: mp } = await supabase
             .from('profiles')
             .select('speciality, college')
             .eq('id', uid)
             .maybeSingle();
-          setMyProfile(mp || null);
+          myProfileData = mp || null;
+          setMyProfile(myProfileData);
         }
 
         let scoreData = [];
@@ -97,6 +111,8 @@ export default function LeaderboardPage({ setPage }) {
         });
 
         setLeaderboard(mapped);
+        // Update cache for next visit (2-min TTL)
+        setCached(`lb_${period}`, { leaderboard: mapped, myProfile: myProfileData, myUserId: uid });
       } catch (e) {
         console.warn('Leaderboard fetch failed:', e.message);
       } finally {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { getCached, setCached } from '../lib/dataCache';
 
 const ACTIVITY_LABELS = {
   quiz_attempted:      ['📝', 'Attempted a quiz'],
@@ -145,6 +146,19 @@ export default function ActivityPage({ addToast }) {
         if (!authData?.user) return;
         const uid = authData.user.id;
 
+        // ── Restore from cache instantly to eliminate loading flash ─────────
+        const cached = getCached(`activity_${uid}`);
+        if (cached) {
+          setActivityByDate(cached.activityByDate);
+          setWeeklyHours(cached.weeklyHours);
+          setActivityFeed(cached.activityFeed);
+          setStreak(cached.streak);
+          setQuizProgress(cached.quizProgress);
+          setReadProgress(cached.readProgress);
+          setQuizTarget(cached.quizTarget);
+          setReadTarget(cached.readTarget);
+        }
+
         // Activity logs — fetch last 90 days
         const since90 = new Date();
         since90.setDate(since90.getDate() - 89);
@@ -216,7 +230,20 @@ export default function ActivityPage({ addToast }) {
           .eq('user_id', uid)
           .in('activity_type', ['article_read', 'note_viewed'])
           .gte('created_at', mondayISO);
-        setReadProgress((readLogs || []).length);
+        const readProg = (readLogs || []).length;
+        setReadProgress(readProg);
+
+        // ── Write fresh data to cache (90s TTL) ────────────────────────────
+        setCached(`activity_${uid}`, {
+          activityByDate: map,
+          weeklyHours: weekly.map(h => Math.round(h * 10) / 10),
+          activityFeed: feedData || [],
+          streak: calculateStreak(map),
+          quizProgress: (quizLogs || []).length,
+          readProgress: readProg,
+          quizTarget,
+          readTarget,
+        }, 90 * 1000);
 
       } catch (e) {
         console.warn('ActivityPage load failed:', e.message);
