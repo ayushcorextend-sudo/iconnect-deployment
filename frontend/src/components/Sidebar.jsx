@@ -77,7 +77,7 @@ export default function Sidebar({
     { k: 'users', l: 'User Management' },
     { k: 'ebooks', l: 'Content Management' },
     { k: 'reports', l: 'Reports' },
-    { k: 'broadcast', l: 'Broadcast' },
+    { k: 'broadcast', l: 'Engage' },
     { k: 'settings', l: 'Settings' },
   ];
 
@@ -89,6 +89,7 @@ export default function Sidebar({
     { k: 'upload', l: 'Upload Content' },
     { k: 'ebooks', l: 'E-Book Library' },
     { k: 'arena-host', l: 'Host Live Arena' },
+    { k: 'broadcast', l: 'Notification Center' },
   ];
   const caAccount = [
     { k: 'notifications', l: 'Notifications', b: unreadCount || null },

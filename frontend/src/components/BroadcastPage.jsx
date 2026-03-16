@@ -2,6 +2,309 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 
 /* ═══════════════════════════════════════════════════
+   CONTENT ADMIN — Notification Center
+   Lets content admins send notifications about their
+   uploaded content and view past sends.
+   ═══════════════════════════════════════════════════ */
+function ContentAdminNotificationCenter({ userId, addToast, darkMode }) {
+  const dm = darkMode;
+  const bg        = dm ? '#0F172A' : '#F8FAFC';
+  const cardBg    = dm ? '#1E293B' : '#fff';
+  const border    = dm ? '#334155' : '#E5E7EB';
+  const textP     = dm ? '#F1F5F9' : '#111827';
+  const textS     = dm ? '#94A3B8' : '#6B7280';
+
+  const [myContent, setMyContent]       = useState([]);
+  const [sentNotifs, setSentNotifs]     = useState([]);
+  const [loadingContent, setLoadingContent] = useState(true);
+  const [form, setForm]                 = useState({ title: '', body: '', type: 'info', contentId: '' });
+  const [sending, setSending]           = useState(false);
+  const [targetCount, setTargetCount]   = useState(null);
+
+  // Fetch this content admin's uploaded artifacts + their past sent notifications
+  useEffect(() => {
+    async function load() {
+      if (!userId) return;
+      try {
+        // My uploaded content
+        const { data: arts } = await supabase
+          .from('artifacts')
+          .select('id, title, subject, emoji, status, downloads')
+          .eq('uploaded_by_id', userId)
+          .order('id', { ascending: false })
+          .limit(30);
+        setMyContent(arts || []);
+
+        // Count verified doctors to show as target
+        const { count } = await supabase
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('role', 'doctor')
+          .eq('status', 'approved');
+        setTargetCount(count || 0);
+
+        // Past notifications sent by this admin (via title matching — quick approximation)
+        const { data: notifsSent } = await supabase
+          .from('notifications')
+          .select('id, title, body, type, created_at')
+          .eq('sender_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(10);
+        setSentNotifs(notifsSent || []);
+      } catch (_) {}
+      setLoadingContent(false);
+    }
+    load();
+  }, [userId]);
+
+  const handleSend = async () => {
+    if (!form.title.trim() || !form.body.trim()) {
+      addToast('warn', 'Please fill in the title and message.');
+      return;
+    }
+    setSending(true);
+    try {
+      // Fetch all approved doctor IDs
+      const { data: doctors } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'doctor')
+        .eq('status', 'approved');
+
+      if (!doctors?.length) { addToast('warn', 'No verified users found.'); setSending(false); return; }
+
+      // Batch insert notifications
+      const rows = doctors.map(d => ({
+        user_id:   d.id,
+        sender_id: userId,
+        title:     form.title.trim(),
+        body:      form.body.trim(),
+        type:      form.type,
+        icon:      form.type === 'success' ? '✅' : form.type === 'warn' ? '⚠️' : form.type === 'error' ? '🚨' : 'ℹ️',
+        is_read:   false,
+      }));
+
+      const { error } = await supabase.from('notifications').insert(rows);
+      if (error) throw error;
+
+      addToast('success', `Notification sent to ${doctors.length} users!`);
+      setForm({ title: '', body: '', type: 'info', contentId: '' });
+
+      // Refresh sent list
+      const { data: refreshed } = await supabase
+        .from('notifications')
+        .select('id, title, body, type, created_at')
+        .eq('sender_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      setSentNotifs(refreshed || []);
+    } catch (e) {
+      addToast('error', 'Failed to send: ' + (e.message || 'Try again'));
+    }
+    setSending(false);
+  };
+
+  const typeColors = {
+    info:    { bg: '#EFF6FF', color: '#2563EB', label: 'Info' },
+    success: { bg: '#ECFDF5', color: '#059669', label: 'Success' },
+    warn:    { bg: '#FFFBEB', color: '#D97706', label: 'Warning' },
+    error:   { bg: '#FEF2F2', color: '#DC2626', label: 'Alert' },
+  };
+
+  const relTime = (ts) => {
+    const s = Math.floor((Date.now() - new Date(ts)) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.floor(s / 60) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return Math.floor(s / 86400) + 'd ago';
+  };
+
+  return (
+    <div className="page" style={{ background: bg, minHeight: '100vh' }}>
+      {/* Page header */}
+      <div className="ph">
+        <div className="pt">📣 Notification Center</div>
+        <div className="ps">Send announcements to all verified users about your content</div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
+
+        {/* LEFT: Compose */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Stats strip */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {[
+              { label: 'My Uploads', value: myContent.length, icon: '📚', color: '#4F46E5', bg: '#EEF2FF' },
+              { label: 'Target Users', value: targetCount ?? '…', icon: '👥', color: '#059669', bg: '#ECFDF5' },
+            ].map(s => (
+              <div key={s.label} style={{ background: dm ? cardBg : s.bg, border: `1px solid ${border}`, borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 22 }}>{s.icon}</span>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.value}</div>
+                  <div style={{ fontSize: 11, color: textS }}>{s.label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Compose card */}
+          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 16, padding: 20 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: textP, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              ✍️ Compose Notification
+            </div>
+
+            {/* Type selector */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: textS, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Type</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {Object.entries(typeColors).map(([k, v]) => (
+                  <button
+                    key={k}
+                    onClick={() => setForm(f => ({ ...f, type: k }))}
+                    style={{
+                      padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      background: form.type === k ? v.bg : dm ? '#334155' : '#F9FAFB',
+                      color: form.type === k ? v.color : textS,
+                      border: `1.5px solid ${form.type === k ? v.color : border}`,
+                      transition: 'all .15s',
+                    }}
+                  >
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Link to content (optional) */}
+            {myContent.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: textS, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Link to your content (optional)</div>
+                <select
+                  value={form.contentId}
+                  onChange={e => {
+                    const art = myContent.find(a => String(a.id) === e.target.value);
+                    setForm(f => ({
+                      ...f,
+                      contentId: e.target.value,
+                      title: art ? `New Content: ${art.title}` : f.title,
+                      body: art ? `"${art.title}" (${art.subject}) is now available in the E-Book Library. Start reading to earn points!` : f.body,
+                    }));
+                  }}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${border}`, background: dm ? '#334155' : '#fff', color: textP, fontSize: 13, outline: 'none' }}
+                >
+                  <option value="">— Select content to auto-fill —</option>
+                  {myContent.map(a => (
+                    <option key={a.id} value={String(a.id)}>{a.emoji} {a.title} · {a.status === 'approved' ? '✅' : '⏳'}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Title */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: textS, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Title</div>
+              <input
+                value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="e.g. New content just uploaded!"
+                maxLength={80}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1px solid ${border}`, background: dm ? '#334155' : '#fff', color: textP, fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            {/* Message */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: textS, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Message</div>
+              <textarea
+                value={form.body}
+                onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
+                placeholder="Describe what's new or why users should check it out…"
+                rows={3}
+                maxLength={300}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1px solid ${border}`, background: dm ? '#334155' : '#fff', color: textP, fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
+              />
+              <div style={{ fontSize: 10, color: textS, textAlign: 'right', marginTop: 2 }}>{form.body.length}/300</div>
+            </div>
+
+            {/* Send button */}
+            <button
+              onClick={handleSend}
+              disabled={sending || !form.title.trim() || !form.body.trim()}
+              style={{
+                width: '100%', padding: '11px', borderRadius: 10, border: 'none', cursor: sending ? 'not-allowed' : 'pointer',
+                background: sending ? '#E5E7EB' : 'linear-gradient(135deg, #4F46E5, #7C3AED)',
+                color: sending ? '#9CA3AF' : '#fff', fontWeight: 700, fontSize: 14, transition: 'all .2s',
+              }}
+            >
+              {sending ? '⏳ Sending…' : `📣 Send to ${targetCount ?? '…'} users`}
+            </button>
+          </div>
+        </div>
+
+        {/* RIGHT: My Uploads + Sent History */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* My Uploads */}
+          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 16, padding: 20 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: textP, marginBottom: 14 }}>📚 My Uploads</div>
+            {loadingContent ? (
+              [1,2,3].map(i => <div key={i} style={{ height: 40, background: dm ? '#334155' : '#F3F4F6', borderRadius: 8, marginBottom: 8 }} />)
+            ) : myContent.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: textS, fontSize: 13 }}>No uploads yet</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {myContent.map(a => (
+                  <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: dm ? '#334155' : '#F9FAFB', border: `1px solid ${border}` }}>
+                    <span style={{ fontSize: 18, flexShrink: 0 }}>{a.emoji || '📚'}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: textP, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</div>
+                      <div style={{ fontSize: 11, color: textS }}>{a.subject} · ⬇️ {a.downloads || 0}</div>
+                    </div>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
+                      background: a.status === 'approved' ? '#ECFDF5' : '#FFFBEB',
+                      color: a.status === 'approved' ? '#059669' : '#D97706',
+                    }}>
+                      {a.status === 'approved' ? '✅ Live' : '⏳ Pending'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Sent History */}
+          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 16, padding: 20 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: textP, marginBottom: 14 }}>📬 Recent Sends</div>
+            {sentNotifs.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '16px 0', color: textS, fontSize: 13 }}>
+                No notifications sent yet
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {sentNotifs.map(n => {
+                  const tc = typeColors[n.type] || typeColors.info;
+                  return (
+                    <div key={n.id} style={{ padding: '10px 12px', borderRadius: 10, background: dm ? '#334155' : tc.bg, border: `1px solid ${border}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: dm ? '#E2E8F0' : tc.color, flex: 1 }}>{n.title}</div>
+                        <div style={{ fontSize: 10, color: textS, flexShrink: 0 }}>{relTime(n.created_at)}</div>
+                      </div>
+                      <div style={{ fontSize: 11, color: textS, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
    TYPE CONFIG — maps notification types to visual styles
    ═══════════════════════════════════════════════════ */
 const TYPE_CONFIG = {
@@ -27,12 +330,17 @@ const SCORE_BUCKETS = [
 export default function BroadcastPage({ role, userId, darkMode, addToast }) {
 
   // ─── GATE: Superadmin only ───
+  // ── Content Admin: Notification Center view ──────────────────────────────
+  if (role === 'contentadmin') {
+    return <ContentAdminNotificationCenter userId={userId} addToast={addToast} darkMode={darkMode} />;
+  }
+
   if (role !== 'superadmin') {
     return (
       <div style={{ padding: 60, textAlign: 'center', color: '#9CA3AF' }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
         <div style={{ fontWeight: 700, fontSize: 16 }}>Access Restricted</div>
-        <div style={{ fontSize: 13, marginTop: 4 }}>Only Super Admins can access the Broadcast Engine.</div>
+        <div style={{ fontSize: 13, marginTop: 4 }}>Only Super Admins can access the Engage Engine.</div>
       </div>
     );
   }

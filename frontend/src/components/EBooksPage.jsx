@@ -575,6 +575,15 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
                 <div className="ec-body">
                   <div className="ec-title">{a.title}</div>
                   <div className="ec-meta">{a.subject} · {a.pages} pages</div>
+                  {/* Uploader attribution — super admin only */}
+                  {role === 'superadmin' && a.uploadedBy && a.uploadedBy !== 'Unknown' && (
+                    <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <div style={{ width: 3, height: 13, borderRadius: 99, background: '#818CF8', flexShrink: 0 }} />
+                      <span style={{ fontSize: 10, color: '#6B7280' }}>
+                        Uploaded by <strong style={{ color: '#4F46E5', fontWeight: 700 }}>{a.uploadedBy}</strong>
+                      </span>
+                    </div>
+                  )}
                   {a.status === 'approved' && savedPage > 1 && (
                     <div style={{ marginTop: 4 }}>
                       <span style={{ fontSize: 10, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', borderRadius: 99, padding: '2px 8px' }}>
@@ -613,7 +622,7 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
             <table>
               <thead>
                 <tr>
-                  <th>Title</th><th>Subject</th><th>Access</th><th>Status</th><th>Progress</th><th>Action</th>
+                  <th>Title</th><th>Subject</th><th>Access</th><th>Status</th>{role === 'superadmin' && <th>Uploaded By</th>}<th>Progress</th><th>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -632,6 +641,16 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
                       <td><span className="bdg bg-v">{a.subject}</span></td>
                       <td><span className="bdg bg-s">{a.access === 'md_ms' ? 'MD/MS Only' : a.access === 'dm_mch' ? 'DM/MCh' : 'All'}</span></td>
                       <td><span className={`bdg ${a.status === 'approved' ? 'bg-g' : 'bg-a'}`}>{a.status === 'approved' ? '✅ Approved' : '⏳ Pending'}</span></td>
+                      {role === 'superadmin' && (
+                        <td>
+                          {a.uploadedBy && a.uploadedBy !== 'Unknown' ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <div style={{ width: 3, height: 12, borderRadius: 99, background: '#818CF8', flexShrink: 0 }} />
+                              <span style={{ fontSize: 12, color: '#4F46E5', fontWeight: 600 }}>{a.uploadedBy}</span>
+                            </div>
+                          ) : <span style={{ fontSize: 11, color: '#9CA3AF' }}>—</span>}
+                        </td>
+                      )}
                       <td>
                         {a.status === 'approved' && savedPage > 1
                           ? <span style={{ fontSize: 11, color: '#2563EB', fontWeight: 600 }}>p.{savedPage}/{a.pages || '?'}</span>
