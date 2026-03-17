@@ -16,14 +16,43 @@ const relTime = (ts) => {
   return             Math.floor(s / 86400) + 'd ago';
 };
 
+// ── Date grouping helper ────────────────────────────────────────
+function groupByDate(items) {
+  const now = new Date();
+  const todayStr  = now.toISOString().split('T')[0];
+  const yesterdayStr = new Date(now - 86400000).toISOString().split('T')[0];
+  const weekAgo = new Date(now - 7 * 86400000);
+  const groups = { Today: [], Yesterday: [], 'This Week': [], Older: [] };
+  items.forEach(n => {
+    const d = n.created_at?.split('T')[0];
+    if (d === todayStr) groups.Today.push(n);
+    else if (d === yesterdayStr) groups.Yesterday.push(n);
+    else if (new Date(d) >= weekAgo) groups['This Week'].push(n);
+    else groups.Older.push(n);
+  });
+  return groups;
+}
+
+// Type → left border color
+const TYPE_BORDER = { info: '#3B82F6', success: '#10B981', warn: '#F59E0B', error: '#EF4444' };
+
 export default function NotificationsPage({ addToast, setPage }) {
   const [notifs, setNotifs]         = useState([]);
   const [loading, setLoading]       = useState(true);
   const [tab, setTab]               = useState('all');
+  const [expanded, setExpanded]     = useState(new Set());
   const [channels, setChannels]     = useState(DEFAULT_CHANNELS);
   const [triggers, setTriggers]     = useState(DEFAULT_TRIGGERS);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const userIdRef                   = useRef(null);
+
+  function toggleExpand(id) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
 
   // ── Load notifications + preferences on mount ──────────────
   useEffect(() => {
@@ -244,58 +273,72 @@ export default function NotificationsPage({ addToast, setPage }) {
           ) : filtered.length === 0 ? (
             <div className="empty">
               <div className="empty-ic">🔕</div>
-              <div className="empty-t">All clear!</div>
+              <div className="empty-t">You're all caught up!</div>
               <div className="empty-s">{tab === 'all' ? 'No notifications yet.' : `No ${tab} notifications.`}</div>
             </div>
-          ) : (
-            filtered.map(n => (
-              <div
-                key={n.id}
-                className={`ni ${isUnread(n) ? 'unr' : ''}`}
-                style={{
-                  cursor: 'pointer',
-                  background: isUnread(n) ? 'rgba(37,99,235,0.06)' : 'transparent',
-                  borderLeft: isUnread(n) ? '3px solid #EF4444' : '3px solid transparent',
-                }}
-                onClick={() => handleClick(n)}
-              >
-                {/* Unread red dot */}
-                <div style={{ paddingTop: 4, flexShrink: 0 }}>
-                  <div style={{
-                    width: 8, height: 8, borderRadius: '50%',
-                    background: isUnread(n) ? '#EF4444' : 'transparent',
-                    border: isUnread(n) ? 'none' : '1px solid #E5E7EB',
-                  }} />
-                </div>
-                <div className="ni-ic" style={{ background: typeBg[n.type] || '#F9FAFB' }}>{n.icon}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                    <div className="ni-t" style={{ fontWeight: isUnread(n) ? 700 : 500 }}>{n.title}</div>
-                    {isUnread(n) && (
-                      <button
-                        onClick={e => { e.stopPropagation(); markRead(n.id); }}
-                        title="Mark as read"
-                        style={{
-                          flexShrink: 0, background: 'none',
-                          border: '1px solid #D1D5DB', borderRadius: 6,
-                          cursor: 'pointer', padding: '2px 8px',
-                          fontSize: 11, color: '#6B7280',
-                          display: 'flex', alignItems: 'center', gap: 3,
-                          transition: 'all 0.15s', whiteSpace: 'nowrap',
-                        }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#F0FDF4'; e.currentTarget.style.borderColor = '#10B981'; e.currentTarget.style.color = '#10B981'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.color = '#6B7280'; }}
-                      >
-                        ✓ Mark read
-                      </button>
-                    )}
+          ) : (() => {
+            const groups = groupByDate(filtered);
+            return Object.entries(groups).map(([label, items]) => {
+              if (items.length === 0) return null;
+              return (
+                <div key={label}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: '#9CA3AF', letterSpacing: '0.8px', textTransform: 'uppercase', padding: '10px 4px 6px', marginTop: 4 }}>
+                    {label}
                   </div>
-                  <div className="ni-b">{n.body}</div>
-                  <div className="ni-time">{relTime(n.created_at)} · via {n.channel}</div>
+                  {items.map(n => {
+                    const isExpanded = expanded.has(n.id);
+                    const borderColor = TYPE_BORDER[n.type] || '#6B7280';
+                    return (
+                      <div
+                        key={n.id}
+                        onClick={() => { toggleExpand(n.id); handleClick(n); }}
+                        style={{
+                          cursor: 'pointer', marginBottom: 6, borderRadius: 10, overflow: 'hidden',
+                          background: isUnread(n) ? 'rgba(37,99,235,0.05)' : '#F9FAFB',
+                          border: `1px solid ${isUnread(n) ? borderColor + '44' : '#F3F4F6'}`,
+                          borderLeft: `4px solid ${borderColor}`,
+                          transition: 'background .15s',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.05)'}
+                        onMouseLeave={e => e.currentTarget.style.background = isUnread(n) ? 'rgba(37,99,235,0.05)' : '#F9FAFB'}
+                      >
+                        {/* Header row */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px' }}>
+                          <div style={{
+                            width: 8, height: 8, borderRadius: '50%', flexShrink: 0, marginTop: 4,
+                            background: isUnread(n) ? borderColor : 'transparent',
+                            border: isUnread(n) ? 'none' : '1px solid #E5E7EB',
+                          }} />
+                          <div className="ni-ic" style={{ background: typeBg[n.type] || '#F9FAFB', flexShrink: 0 }}>{n.icon}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                              <div className="ni-t" style={{ fontWeight: isUnread(n) ? 700 : 500 }}>{n.title}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                                {isUnread(n) && (
+                                  <button
+                                    onClick={e => { e.stopPropagation(); markRead(n.id); }}
+                                    style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 11, color: '#6B7280', whiteSpace: 'nowrap' }}
+                                  >✓</button>
+                                )}
+                                <span style={{ fontSize: 12, color: '#9CA3AF' }}>{isExpanded ? '▲' : '▼'}</span>
+                              </div>
+                            </div>
+                            <div className="ni-time">{relTime(n.created_at)} · via {n.channel}</div>
+                          </div>
+                        </div>
+                        {/* Expanded body */}
+                        {isExpanded && n.body && (
+                          <div style={{ padding: '0 12px 12px 42px', fontSize: 13, color: '#374151', lineHeight: 1.6, animation: 'fadeIn .15s ease' }}>
+                            {n.body}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-            ))
-          )}
+              );
+            });
+          })()}
         </div>
 
         {/* ── Right: preferences ── */}

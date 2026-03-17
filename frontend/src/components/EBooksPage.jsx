@@ -133,14 +133,19 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
   // ── Handlers ─────────────────────────────────────────────────
 
   const handleRead = async (item) => {
-    // TODO: Notify uploader when their content is accessed.
-    // `uploaded_by` is currently a display-name string, not a user_id.
-    // Add an `uploader_id` column to artifacts to enable push notifications here.
     const savedPage = contentStates[String(item.id)]?.currentPage || 1;
     setViewer(item);
     setPg(Math.min(savedPage, item.pages || 1));
-    setZoom(100);
+    // Restore zoom from localStorage
+    const storedZoom = localStorage.getItem(`ebook_zoom_${item.id}`);
+    setZoom(storedZoom ? Number(storedZoom) : 100);
     await trackActivity('article_read', item.id);
+  };
+
+  const handleZoom = (newZoom) => {
+    const clamped = Math.min(250, Math.max(50, newZoom));
+    setZoom(clamped);
+    if (viewer) localStorage.setItem(`ebook_zoom_${viewer.id}`, String(clamped));
   };
 
   const handleClose = async () => {
@@ -217,7 +222,18 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
             </div>
           </div>
         )}
-        <div className="pdf-v" style={fullscreen ? { borderRadius: 0, height: '100vh' } : {}}>
+        {/* Thin reading progress bar */}
+      {viewer.pages > 1 && (
+        <div style={{ height: 3, background: '#E5E7EB', borderRadius: 0, marginBottom: 0, overflow: 'hidden' }}>
+          <div style={{
+            height: '100%',
+            width: `${Math.min(100, Math.round((pg / viewer.pages) * 100))}%`,
+            background: 'linear-gradient(90deg, #4F46E5, #7C3AED)',
+            transition: 'width .3s ease',
+          }} />
+        </div>
+      )}
+      <div className="pdf-v" style={fullscreen ? { borderRadius: 0, height: '100vh' } : {}}>
           <div className="pdf-tb">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {!viewer.file_url && (
@@ -268,10 +284,10 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
               >
                 🔖 {isBookmarked ? 'Saved' : 'Bookmark'}
               </button>
-              <button className="pdf-btn" onClick={() => setZoom(z => Math.max(50, z - 25))}>−</button>
+              <button className="pdf-btn" onClick={() => handleZoom(zoom - 25)}>−</button>
               <span style={{ color: 'rgba(255,255,255,.6)', fontSize: 12, minWidth: 38, textAlign: 'center' }}>{zoom}%</span>
-              <button className="pdf-btn" onClick={() => setZoom(z => Math.min(250, z + 25))}>+</button>
-              <button className="pdf-btn" onClick={() => setZoom(100)}>Reset</button>
+              <button className="pdf-btn" onClick={() => handleZoom(zoom + 25)}>+</button>
+              <button className="pdf-btn" onClick={() => handleZoom(100)}>Reset</button>
               <button className="pdf-btn" onClick={() => setFS(f => !f)}>{fullscreen ? '⤡' : '⤢'}</button>
               {fullscreen && <button className="pdf-btn" onClick={handleClose}>✕ Close</button>}
             </div>
@@ -584,11 +600,15 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
                       </span>
                     </div>
                   )}
-                  {a.status === 'approved' && savedPage > 1 && (
-                    <div style={{ marginTop: 4 }}>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', borderRadius: 99, padding: '2px 8px' }}>
-                        ▶ Resume p.{savedPage}
-                      </span>
+                  {a.status === 'approved' && a.pages > 1 && savedPage > 1 && (
+                    <div style={{ marginTop: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#9CA3AF', marginBottom: 3 }}>
+                        <span>p.{savedPage} / {a.pages}</span>
+                        <span>{Math.round((savedPage / a.pages) * 100)}%</span>
+                      </div>
+                      <div style={{ background: '#E5E7EB', borderRadius: 99, height: 4, overflow: 'hidden' }}>
+                        <div style={{ background: 'linear-gradient(90deg,#4F46E5,#7C3AED)', height: '100%', width: `${Math.min(100, Math.round((savedPage / a.pages) * 100))}%`, transition: 'width .3s' }} />
+                      </div>
                     </div>
                   )}
                   <div style={{ marginTop: 6 }}>

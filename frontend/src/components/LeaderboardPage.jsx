@@ -1,7 +1,23 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Avatar from './Avatar';
 import { supabase } from '../lib/supabase';
 import { getCached, setCached } from '../lib/dataCache';
+
+const PAGE_SIZE = 20;
+
+function calculateStreak(logs) {
+  const dates = new Set((logs || []).map(l => l.created_at.split('T')[0]));
+  let streak = 0;
+  const today = new Date();
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const iso = d.toISOString().split('T')[0];
+    if (dates.has(iso)) streak++;
+    else if (i > 0) break;
+  }
+  return streak;
+}
 
 export default function LeaderboardPage({ setPage }) {
   const [period, setPeriod] = useState('alltime');
@@ -10,6 +26,9 @@ export default function LeaderboardPage({ setPage }) {
   const [loading, setLoading] = useState(true);
   const [myUserId, setMyUserId] = useState(null);
   const [myProfile, setMyProfile] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [myStreak, setMyStreak] = useState(0);
+  const myRowRef = useRef(null);
 
   useEffect(() => {
     async function load() {
@@ -32,13 +51,13 @@ export default function LeaderboardPage({ setPage }) {
 
         let myProfileData = null;
         if (uid) {
-          const { data: mp } = await supabase
-            .from('profiles')
-            .select('speciality, college')
-            .eq('id', uid)
-            .maybeSingle();
-          myProfileData = mp || null;
+          const [mpRes, streakRes] = await Promise.all([
+            supabase.from('profiles').select('speciality, college').eq('id', uid).maybeSingle(),
+            supabase.from('activity_logs').select('created_at').eq('user_id', uid).gte('created_at', new Date(Date.now() - 365 * 86400000).toISOString()),
+          ]);
+          myProfileData = mpRes.data || null;
           setMyProfile(myProfileData);
+          setMyStreak(calculateStreak(streakRes.data || []));
         }
 
         let scoreData = [];
@@ -122,6 +141,8 @@ export default function LeaderboardPage({ setPage }) {
     load();
   }, [period]);
 
+  useEffect(() => setCurrentPage(1), [period, tab]);
+
   const displayedLeaderboard = useMemo(() => {
     if (tab === 'speciality') {
       const mySpec = myProfile?.speciality;
@@ -137,6 +158,14 @@ export default function LeaderboardPage({ setPage }) {
   const myRankIdx = leaderboard.findIndex(l => l.isMe);
   const myRank = myRankIdx >= 0 ? myRankIdx + 1 : null;
   const me = leaderboard.find(l => l.isMe);
+  const totalPages = Math.ceil(displayedLeaderboard.length / PAGE_SIZE);
+  const pagedList = displayedLeaderboard.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const myPage = myRankIdx >= 0 ? Math.ceil((myRankIdx + 1) / PAGE_SIZE) : null;
+
+  function jumpToMyRank() {
+    if (myPage && myPage !== currentPage) { setCurrentPage(myPage); return; }
+    myRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 
   const top3 = displayedLeaderboard.slice(0, 3);
   const podOrd = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
@@ -223,12 +252,21 @@ export default function LeaderboardPage({ setPage }) {
 
       {/* Rankings list */}
       <div className="card">
-        <div className="ct" style={{ marginBottom: 14 }}>
-          {tab === 'global'
-            ? 'Full Rankings'
-            : tab === 'speciality'
-              ? `My Speciality: ${myProfile?.speciality || '—'}`
-              : `My College: ${myProfile?.college || '—'}`}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+          <div className="ct" style={{ margin: 0 }}>
+            {tab === 'global' ? 'Full Rankings' : tab === 'speciality' ? `My Speciality: ${myProfile?.speciality || '—'}` : `My College: ${myProfile?.college || '—'}`}
+            {!loading && displayedLeaderboard.length > 0 && (
+              <span style={{ fontSize: 12, fontWeight: 500, color: '#9CA3AF', marginLeft: 8 }}>({displayedLeaderboard.length} users)</span>
+            )}
+          </div>
+          {myRank && (
+            <button
+              onClick={jumpToMyRank}
+              style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 8, padding: '5px 14px', fontSize: 12, fontWeight: 700, color: '#4F46E5', cursor: 'pointer' }}
+            >
+              🎯 Jump to My Rank #{myRank}
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -261,14 +299,17 @@ export default function LeaderboardPage({ setPage }) {
             )}
           </div>
         ) : (
-          displayedLeaderboard.map((l, i) => (
+          pagedList.map((l, i) => {
+            const globalIdx = (currentPage - 1) * PAGE_SIZE + i;
+            return (
             <div
               key={l.id}
+              ref={l.isMe ? myRowRef : null}
               className={`lb-row ${l.isMe ? 'me' : ''}`}
               style={l.isMe ? { background: 'rgba(79,70,229,0.08)', border: '1px solid #4F46E5', borderRadius: 8 } : {}}
             >
-              <div className="lb-pos" style={{ color: i < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][i] : '#6B7280' }}>
-                {i + 1}
+              <div className="lb-pos" style={{ color: globalIdx < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][globalIdx] : '#6B7280' }}>
+                {globalIdx + 1}
               </div>
               <Avatar name={l.name} size={34} />
               <div style={{ flex: 1 }}>
@@ -289,7 +330,24 @@ export default function LeaderboardPage({ setPage }) {
                 <div style={{ fontSize: 10, color: '#6B7280' }}>pts</div>
               </div>
             </div>
-          ))
+            );
+          })
+        )}
+        {/* Pagination */}
+        {!loading && totalPages > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14, paddingTop: 12, borderTop: '1px solid #F3F4F6' }}>
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 7, padding: '5px 12px', fontSize: 13, cursor: currentPage === 1 ? 'not-allowed' : 'pointer', color: currentPage === 1 ? '#D1D5DB' : '#374151' }}
+            >← Prev</button>
+            <span style={{ fontSize: 13, color: '#6B7280' }}>Page {currentPage} of {totalPages}</span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 7, padding: '5px 12px', fontSize: 13, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', color: currentPage === totalPages ? '#D1D5DB' : '#374151' }}
+            >Next →</button>
+          </div>
         )}
       </div>
 
@@ -315,8 +373,13 @@ export default function LeaderboardPage({ setPage }) {
             {myRank ? `#${myRank}` : '—'}
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>
+            <div style={{ color: '#fff', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {me ? `${me.name} · Your rank` : 'Not ranked yet'}
+              {myStreak > 0 && (
+                <span style={{ fontSize: 10, fontWeight: 700, background: 'rgba(239,68,68,0.25)', color: '#FCA5A5', padding: '2px 7px', borderRadius: 99, border: '1px solid rgba(239,68,68,0.4)' }}>
+                  🔥 {myStreak}d streak
+                </span>
+              )}
             </div>
             <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 2 }}>
               {me
