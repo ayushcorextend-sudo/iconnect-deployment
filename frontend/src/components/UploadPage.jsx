@@ -3,11 +3,14 @@ import { SPECIALITIES } from '../data/constants';
 import { supabase, deleteArtifact, updateArtifact } from '../lib/supabase';
 import { auditContent } from '../lib/aiService';
 import AIResponseBox from './AIResponseBox';
+import ConfirmModal from './ui/ConfirmModal';
 
 const EMOJIS = ['📗', '📘', '📙', '📕'];
 
 export default function UploadPage({ onUpload, addToast, artifacts = [], onDelete, userId: userIdProp, userName: userNameProp }) {
   const [drag, setDrag] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [pendingArchiveId, setPendingArchiveId] = useState(null);
   const [file, setFile] = useState(null);
   const [thumbnailFile, setThumbnailFile] = useState(null);
   const [thumbnailPreview, setThumbnailPreview] = useState(null);
@@ -195,7 +198,6 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this artifact? This action cannot be undone.')) return;
     setMyArtifacts(prev => prev.filter(a => a.id !== id));
     try {
       await deleteArtifact(id);
@@ -208,7 +210,6 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
   };
 
   const handleArchive = async (id) => {
-    if (!confirm('Archive this artifact? It will be hidden from all users but not deleted.')) return;
     setMyArtifacts(prev => prev.map(a => a.id === id ? { ...a, status: 'archived' } : a));
     try {
       await updateArtifact(id, { status: 'archived' });
@@ -465,13 +466,13 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
                       >✏️</button>
                       {a.status !== 'archived' && (
                         <button
-                          onClick={() => handleArchive(a.id)}
+                          onClick={() => setPendingArchiveId(a.id)}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#9CA3AF', flexShrink: 0, padding: '2px 4px', lineHeight: 1 }}
                           title="Archive artifact"
                         >📦</button>
                       )}
                       <button
-                        onClick={() => handleDelete(a.id)}
+                        onClick={() => setPendingDeleteId(a.id)}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#9CA3AF', flexShrink: 0, padding: '2px 4px', lineHeight: 1 }}
                         title="Delete artifact"
                       >🗑</button>
@@ -619,6 +620,24 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
             </div>
           </div>
         </div>
+      )}
+
+      {pendingDeleteId && (
+        <ConfirmModal
+          message="Delete this artifact? This action cannot be undone."
+          confirmLabel="Delete"
+          onConfirm={() => { const id = pendingDeleteId; setPendingDeleteId(null); handleDelete(id); }}
+          onCancel={() => setPendingDeleteId(null)}
+        />
+      )}
+      {pendingArchiveId && (
+        <ConfirmModal
+          message="Archive this artifact? It will be hidden from all users but not deleted."
+          confirmLabel="Archive"
+          danger={false}
+          onConfirm={() => { const id = pendingArchiveId; setPendingArchiveId(null); handleArchive(id); }}
+          onCancel={() => setPendingArchiveId(null)}
+        />
       )}
     </div>
   );

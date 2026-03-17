@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import ConfirmModal from '../ui/ConfirmModal';
 
 const fmt = (iso) => {
   if (!iso) return '—';
@@ -21,6 +22,7 @@ export default function KahootScheduler({ userId, addToast }) {
   const [arenas, setArenas]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
+  const [pendingCancelId, setPendingCancelId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [quizzes, setQuizzes] = useState([]);
 
@@ -80,7 +82,6 @@ export default function KahootScheduler({ userId, addToast }) {
   };
 
   const cancelArena = async (id) => {
-    if (!confirm('Cancel this arena session?')) return;
     try {
       const { error } = await supabase.from('live_arenas').update({ status: 'finished' }).eq('id', id);
       if (error) throw error;
@@ -166,7 +167,7 @@ export default function KahootScheduler({ userId, addToast }) {
                   <div style={{ fontSize: 11, color: '#9CA3AF' }}>{a.quizzes?.subject}</div>
                 </div>
                 {a.status === 'waiting' && (
-                  <button onClick={() => cancelArena(a.id)} className="btn btn-d btn-sm" style={{ flexShrink: 0 }}>
+                  <button onClick={() => setPendingCancelId(a.id)} className="btn btn-d btn-sm" style={{ flexShrink: 0 }}>
                     Cancel
                   </button>
                 )}
@@ -174,6 +175,15 @@ export default function KahootScheduler({ userId, addToast }) {
             );
           })}
         </div>
+      )}
+
+      {pendingCancelId && (
+        <ConfirmModal
+          message="Cancel this arena session? Participants will not be able to join."
+          confirmLabel="Cancel Session"
+          onConfirm={() => { const id = pendingCancelId; setPendingCancelId(null); cancelArena(id); }}
+          onCancel={() => setPendingCancelId(null)}
+        />
       )}
     </div>
   );

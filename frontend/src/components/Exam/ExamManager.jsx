@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import QuestionEditor from './QuestionEditor';
+import ConfirmModal from '../ui/ConfirmModal';
 
 const EMPTY_SUBJECT = { name: '', icon: '📝', difficulty: 'mixed' };
 const DIFFICULTIES = ['easy', 'medium', 'hard', 'mixed'];
@@ -13,6 +14,7 @@ export default function ExamManager({ userId, addToast }) {
   const [form, setForm] = useState(EMPTY_SUBJECT);
   const [saving, setSaving] = useState(false);
   const [editingSubject, setEditingSubject] = useState(null);  // open QuestionEditor
+  const [pendingDelete, setPendingDelete] = useState(null);    // { subject }
 
   useEffect(() => { load(); }, []);
 
@@ -60,7 +62,6 @@ export default function ExamManager({ userId, addToast }) {
   }
 
   async function handleDelete(s) {
-    if (!confirm(`Delete "${s.name}"? All questions in this subject will also be deleted.`)) return;
     try {
       const { error } = await supabase.from('exam_subjects').delete().eq('id', s.id);
       if (error) throw error;
@@ -129,7 +130,7 @@ export default function ExamManager({ userId, addToast }) {
                     📝 Questions
                   </button>
                   <button onClick={() => openEdit(s)} style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 8, cursor: 'pointer', padding: '6px 8px', fontSize: 14 }}>✏️</button>
-                  <button onClick={() => handleDelete(s)} style={{ background: 'none', border: '1px solid #FEE2E2', borderRadius: 8, cursor: 'pointer', padding: '6px 8px', fontSize: 14 }}>🗑️</button>
+                  <button onClick={() => setPendingDelete(s)} style={{ background: 'none', border: '1px solid #FEE2E2', borderRadius: 8, cursor: 'pointer', padding: '6px 8px', fontSize: 14 }}>🗑️</button>
                 </div>
               </div>
             );
@@ -184,6 +185,15 @@ export default function ExamManager({ userId, addToast }) {
             </div>
           </div>
         </div>
+      )}
+
+      {pendingDelete && (
+        <ConfirmModal
+          message={`Delete "${pendingDelete.name}"? All questions in this subject will also be deleted.`}
+          confirmLabel="Delete Subject"
+          onConfirm={() => { const s = pendingDelete; setPendingDelete(null); handleDelete(s); }}
+          onCancel={() => setPendingDelete(null)}
+        />
       )}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

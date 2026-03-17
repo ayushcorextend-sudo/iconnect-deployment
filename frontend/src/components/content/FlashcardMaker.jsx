@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { SPECIALITIES } from '../../data/constants';
+import ConfirmModal from '../ui/ConfirmModal';
 
 const statusCfg = {
   pending:  { label: 'Pending',  bg: '#FEF3C7', color: '#D97706' },
@@ -15,6 +16,7 @@ export default function FlashcardMaker({ userId, addToast }) {
   const [decks, setDecks]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
 
   const [deckTitle, setDeckTitle]         = useState('');
   const [deckSubject, setDeckSubject]     = useState('');
@@ -38,7 +40,6 @@ export default function FlashcardMaker({ userId, addToast }) {
   };
 
   const deleteDeck = async (id) => {
-    if (!confirm('Delete this deck?')) return;
     try {
       const { error } = await supabase.from('flashcard_decks').delete().eq('id', id);
       if (error) throw error;
@@ -114,7 +115,7 @@ export default function FlashcardMaker({ userId, addToast }) {
                   </div>
                   <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: sc.bg, color: sc.color }}>{sc.label}</span>
                   {d.status !== 'approved' && (
-                    <button onClick={() => deleteDeck(d.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
+                    <button onClick={() => setPendingDeleteId(d.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
                   )}
                 </div>
               );
@@ -184,6 +185,15 @@ export default function FlashcardMaker({ userId, addToast }) {
         </button>
         <button className="btn btn-s btn-sm" onClick={() => setView('list')}>Cancel</button>
       </div>
+
+      {pendingDeleteId && (
+        <ConfirmModal
+          message="Delete this flashcard deck? This cannot be undone."
+          confirmLabel="Delete Deck"
+          onConfirm={() => { const id = pendingDeleteId; setPendingDeleteId(null); deleteDeck(id); }}
+          onCancel={() => setPendingDeleteId(null)}
+        />
+      )}
     </div>
   );
 }

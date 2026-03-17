@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { SPECIALITIES } from '../../data/constants';
+import ConfirmModal from '../ui/ConfirmModal';
 
 const OPTION_KEYS = ['A', 'B', 'C', 'D'];
 
@@ -24,6 +25,7 @@ export default function QuizBuilder({ userId, addToast }) {
   const [timeLimitSec, setTimeLimitSec] = useState(600);
   const [questions, setQuestions]     = useState([blankQuestion()]);
   const [saving, setSaving]           = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const [editQuizId, setEditQuizId]   = useState(null);
 
   useEffect(() => { loadQuizzes(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -82,7 +84,6 @@ export default function QuizBuilder({ userId, addToast }) {
   };
 
   const deleteQuiz = async (id) => {
-    if (!confirm('Delete this quiz? This cannot be undone.')) return;
     try {
       const { error } = await supabase.from('quizzes').delete().eq('id', id);
       if (error) throw error;
@@ -214,7 +215,7 @@ export default function QuizBuilder({ userId, addToast }) {
                     <button onClick={() => openEdit(q)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>✏️</button>
                   )}
                   {q.status !== 'approved' && (
-                    <button onClick={() => deleteQuiz(q.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
+                    <button onClick={() => setPendingDeleteId(q.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
                   )}
                 </div>
               );
@@ -310,6 +311,15 @@ export default function QuizBuilder({ userId, addToast }) {
         </button>
         <button className="btn btn-s btn-sm" onClick={() => { resetForm(); setView('list'); }}>Cancel</button>
       </div>
+
+      {pendingDeleteId && (
+        <ConfirmModal
+          message="Delete this quiz? This cannot be undone."
+          confirmLabel="Delete Quiz"
+          onConfirm={() => { const id = pendingDeleteId; setPendingDeleteId(null); deleteQuiz(id); }}
+          onCancel={() => setPendingDeleteId(null)}
+        />
+      )}
     </div>
   );
 }

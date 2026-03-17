@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { supabase, fetchMyArtifacts, updateArtifact, deleteArtifact } from '../lib/supabase';
+import ConfirmModal from './ui/ConfirmModal';
 import { SPECIALITIES } from '../data/constants';
 import QuizBuilder from './quiz/QuizBuilder';
 import VideoManager from './content/VideoManager';
@@ -34,6 +35,7 @@ export default function ContentAdminDashboard({ userId, userName, role, setPage,
   const [editTarget, setEditTarget] = useState(null);
   const [editForm, setEditForm]     = useState({ title: '', subject: '', description: '' });
   const [saving, setSaving]         = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   // Load e-library on first visit to that tab
   const loadLibrary = async () => {
@@ -102,7 +104,6 @@ export default function ContentAdminDashboard({ userId, userName, role, setPage,
   const handleDelete = async (id) => {
     const item = (myArtifacts || []).find(a => a.id === id);
     if (item?.status === 'approved') { addToast('error', 'Cannot delete approved content. Ask Super Admin.'); return; }
-    if (!confirm(`Delete "${item?.title || 'this item'}"?`)) return;
     try {
       await deleteArtifact(id);
       setMyArtifacts(prev => (prev || []).filter(a => a.id !== id));
@@ -210,7 +211,7 @@ export default function ContentAdminDashboard({ userId, userName, role, setPage,
                         {(a.status === 'pending' || a.status === 'rejected') && (
                           <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                             <button onClick={() => openEdit(a)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>✏️</button>
-                            <button onClick={() => handleDelete(a.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
+                            <button onClick={() => setPendingDelete(a)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
                           </div>
                         )}
                       </div>
@@ -283,6 +284,15 @@ export default function ContentAdminDashboard({ userId, userName, role, setPage,
             </div>
           </div>
         </div>
+      )}
+
+      {pendingDelete && (
+        <ConfirmModal
+          message={`Delete "${pendingDelete.title || 'this item'}"? This cannot be undone.`}
+          confirmLabel="Delete"
+          onConfirm={() => { const id = pendingDelete.id; setPendingDelete(null); handleDelete(id); }}
+          onCancel={() => setPendingDelete(null)}
+        />
       )}
     </div>
   );

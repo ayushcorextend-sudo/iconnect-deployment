@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import ConfirmModal from '../ui/ConfirmModal';
 
 const EMPTY_Q = { question: '', option_a: '', option_b: '', option_c: '', option_d: '', correct: 'A', difficulty: 'medium', explanation: '', source: 'NEET-PG' };
 const DIFFICULTIES = ['easy', 'medium', 'hard'];
@@ -12,6 +13,7 @@ export default function QuestionEditor({ subject, onBack, addToast }) {
   const [form, setForm] = useState(EMPTY_Q);
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
+  const [pendingDelete, setPendingDelete] = useState(null);
   const PAGE_SIZE = 15;
 
   useEffect(() => { load(); }, [subject.id]);
@@ -63,7 +65,6 @@ export default function QuestionEditor({ subject, onBack, addToast }) {
   }
 
   async function handleDelete(q) {
-    if (!confirm(`Delete this question? This cannot be undone.`)) return;
     try {
       const { error } = await supabase.from('exam_questions').delete().eq('id', q.id);
       if (error) throw error;
@@ -118,7 +119,7 @@ export default function QuestionEditor({ subject, onBack, addToast }) {
                   </div>
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                     <button onClick={() => openEdit(q)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, padding: 4 }}>✏️</button>
-                    <button onClick={() => handleDelete(q)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, padding: 4 }}>🗑️</button>
+                    <button onClick={() => setPendingDelete(q)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, padding: 4 }}>🗑️</button>
                   </div>
                 </div>
               );
@@ -185,6 +186,15 @@ export default function QuestionEditor({ subject, onBack, addToast }) {
             </div>
           </div>
         </div>
+      )}
+
+      {pendingDelete && (
+        <ConfirmModal
+          message="Delete this question? This cannot be undone."
+          confirmLabel="Delete Question"
+          onConfirm={() => { const q = pendingDelete; setPendingDelete(null); handleDelete(q); }}
+          onCancel={() => setPendingDelete(null)}
+        />
       )}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

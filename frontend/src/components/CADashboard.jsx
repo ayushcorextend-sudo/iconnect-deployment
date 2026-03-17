@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { fetchMyArtifacts, updateArtifact, deleteArtifact } from '../lib/supabase';
 import { SPECIALITIES } from '../data/constants';
+import ConfirmModal from './ui/ConfirmModal';
 
 export default function CADashboard({ userId, userName, setPage, notifications = [], addToast }) {
   const [myArtifacts, setMyArtifacts] = useState([]);
@@ -9,6 +10,7 @@ export default function CADashboard({ userId, userName, setPage, notifications =
   const [editTarget, setEditTarget] = useState(null);
   const [editForm, setEditForm] = useState({ title: '', subject: '', description: '' });
   const [saving, setSaving] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -81,7 +83,6 @@ export default function CADashboard({ userId, userName, setPage, notifications =
   const handleDelete = async (id) => {
     const item = myArtifacts.find(a => a.id === id);
     if (item?.status === 'approved') { addToast('error', 'Cannot delete approved content. Ask Super Admin.'); return; }
-    if (!confirm(`Delete "${item?.title || 'this item'}"? This cannot be undone.`)) return;
     try {
       await deleteArtifact(id);
       setMyArtifacts(prev => prev.filter(a => a.id !== id));
@@ -206,7 +207,7 @@ export default function CADashboard({ userId, userName, setPage, notifications =
                 {canEdit && (
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                     <button onClick={() => openEdit(a)} title={a.status === 'rejected' ? 'Edit & Re-submit' : 'Edit'} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>✏️</button>
-                    <button onClick={() => handleDelete(a.id)} title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
+                    <button onClick={() => setPendingDeleteId(a.id)} title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
                   </div>
                 )}
               </div>
@@ -258,6 +259,15 @@ export default function CADashboard({ userId, userName, setPage, notifications =
             </div>
           </div>
         </div>
+      )}
+
+      {pendingDeleteId && (
+        <ConfirmModal
+          message={`Delete "${(myArtifacts.find(a => a.id === pendingDeleteId)?.title) || 'this item'}"? This cannot be undone.`}
+          confirmLabel="Delete"
+          onConfirm={() => { const id = pendingDeleteId; setPendingDeleteId(null); handleDelete(id); }}
+          onCancel={() => setPendingDeleteId(null)}
+        />
       )}
     </div>
   );

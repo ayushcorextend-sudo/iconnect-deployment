@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { SPECIALITIES } from '../../data/constants';
+import ConfirmModal from '../ui/ConfirmModal';
 
 const statusCfg = {
   pending:  { label: 'Pending',  bg: '#FEF3C7', color: '#D97706' },
@@ -12,6 +13,7 @@ export default function VideoManager({ userId, addToast }) {
   const [videos, setVideos]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', subject: '', description: '', video_url: '', thumbnail_url: '', duration_sec: '' });
 
@@ -64,7 +66,6 @@ export default function VideoManager({ userId, addToast }) {
   };
 
   const deleteVideo = async (id) => {
-    if (!confirm('Delete this video? Cannot be undone.')) return;
     try {
       const { error } = await supabase.from('video_lectures').delete().eq('id', id);
       if (error) throw error;
@@ -161,12 +162,21 @@ export default function VideoManager({ userId, addToast }) {
                 </div>
                 <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: sc.bg, color: sc.color, flexShrink: 0 }}>{sc.label}</span>
                 {v.status !== 'approved' && (
-                  <button onClick={() => deleteVideo(v.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
+                  <button onClick={() => setPendingDeleteId(v.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
                 )}
               </div>
             );
           })}
         </div>
+      )}
+
+      {pendingDeleteId && (
+        <ConfirmModal
+          message="Delete this video? This cannot be undone."
+          confirmLabel="Delete Video"
+          onConfirm={() => { const id = pendingDeleteId; setPendingDeleteId(null); deleteVideo(id); }}
+          onCancel={() => setPendingDeleteId(null)}
+        />
       )}
     </div>
   );

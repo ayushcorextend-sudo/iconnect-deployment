@@ -7,11 +7,14 @@ import SuperAdminApprovals from './SuperAdminApprovals';
 import UserManagement from './superadmin/UserManagement';
 import { getPredictiveAlerts, analyzeKnowledgeGap } from '../lib/aiService';
 import AIResponseBox from './AIResponseBox';
+import ConfirmModal from './ui/ConfirmModal';
 
 const EMOJIS = ['📗', '📘', '📙', '📕', '📚', '📋', '📄', '🗂️'];
 
 export default function SADashboard({ artifacts = [], setPage, addToast, onApprove, onReject, users = [], onApproveUser, onRejectUser, onLogout }) {
   const [tab, setTab] = useState('doctor-approvals');
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [pendingRevokeUser, setPendingRevokeUser] = useState(null);
   const [doctorSubTab, setDoctorSubTab] = useState('pending');
   const [reviewUser, setReviewUser] = useState(null);
   const [systemAlerts, setSystemAlerts] = useState([]);
@@ -186,7 +189,6 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this artifact? This action cannot be undone.')) return;
     setOpenMenu(null);
     // Immediate local removal
     setLocalArtifacts(prev => prev.filter(a => a.id !== id));
@@ -336,7 +338,6 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
   };
 
   const revokeAdminRole = async (userId, userName) => {
-    if (!confirm(`Remove admin access from ${userName}? They will become a regular doctor account.`)) return;
     try {
       await supabase.from('profiles').update({ role: 'doctor' }).eq('id', userId);
       addToast('success', `${userName}'s admin access removed.`);
@@ -529,7 +530,7 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
                           ✏️ Edit
                         </button>
                         <button
-                          onClick={() => handleDelete(a.id)}
+                          onClick={() => setPendingDeleteId(a.id)}
                           style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', borderRadius: 6 }}
                         >
                           🗑 Delete
@@ -850,7 +851,7 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
                 <button
                   className="btn btn-d btn-sm"
                   style={{ flexShrink: 0 }}
-                  onClick={() => revokeAdminRole(a.id, a.name || a.email)}
+                  onClick={() => setPendingRevokeUser({ id: a.id, name: a.name || a.email })}
                 >
                   Remove
                 </button>
@@ -1025,6 +1026,23 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
             </div>
           </div>
         </div>
+      )}
+
+      {pendingDeleteId && (
+        <ConfirmModal
+          message="Delete this artifact? This action cannot be undone."
+          confirmLabel="Delete"
+          onConfirm={() => { const id = pendingDeleteId; setPendingDeleteId(null); handleDelete(id); }}
+          onCancel={() => setPendingDeleteId(null)}
+        />
+      )}
+      {pendingRevokeUser && (
+        <ConfirmModal
+          message={`Remove admin access from ${pendingRevokeUser.name}? They will become a regular doctor account.`}
+          confirmLabel="Revoke Access"
+          onConfirm={() => { const u = pendingRevokeUser; setPendingRevokeUser(null); revokeAdminRole(u.id, u.name); }}
+          onCancel={() => setPendingRevokeUser(null)}
+        />
       )}
     </div>
   );

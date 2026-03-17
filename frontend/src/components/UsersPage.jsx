@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Avatar from './Avatar';
 import { STATES } from '../data/constants';
 import { supabase } from '../lib/supabase';
+import ConfirmModal from './ui/ConfirmModal';
 
 const PAGE_SIZE = 25;
 
@@ -29,6 +30,7 @@ export default function UsersPage({ addToast, role, userId }) {
   // Admin management
   const [admins, setAdmins] = useState([]);
   const [adminsLoading, setAdminsLoading] = useState(false);
+  const [pendingRevokeUser, setPendingRevokeUser] = useState(null);
   const [adminSearch, setAdminSearch] = useState('');
   const [adminSearchResult, setAdminSearchResult] = useState(null);
   const [adminSearching, setAdminSearching] = useState(false);
@@ -144,7 +146,6 @@ export default function UsersPage({ addToast, role, userId }) {
 
   const revokeAdminRole = async (adminId, adminName) => {
     if (adminId === userId) { addToast('error', 'Cannot revoke your own admin role.'); return; }
-    if (!confirm(`Remove admin role from ${adminName}? They will become a regular PG Aspirant.`)) return;
     const { error } = await supabase.from('profiles').update({ role: 'doctor' }).eq('id', adminId);
     if (error) { addToast('error', 'Failed: ' + error.message); return; }
     addToast('success', `${adminName} demoted to PG Aspirant.`);
@@ -363,7 +364,7 @@ export default function UsersPage({ addToast, role, userId }) {
                     {a.id !== userId && (
                       <button
                         className="btn btn-d btn-sm"
-                        onClick={() => revokeAdminRole(a.id, a.name || a.email)}
+                        onClick={() => setPendingRevokeUser({ id: a.id, name: a.name || a.email })}
                         title="Remove admin role"
                       >
                         Remove
@@ -458,6 +459,15 @@ export default function UsersPage({ addToast, role, userId }) {
             </div>
           </div>
         </div>
+      )}
+
+      {pendingRevokeUser && (
+        <ConfirmModal
+          message={`Remove admin role from ${pendingRevokeUser.name}? They will become a regular PG Aspirant.`}
+          confirmLabel="Revoke Role"
+          onConfirm={() => { const u = pendingRevokeUser; setPendingRevokeUser(null); revokeAdminRole(u.id, u.name); }}
+          onCancel={() => setPendingRevokeUser(null)}
+        />
       )}
     </div>
   );
