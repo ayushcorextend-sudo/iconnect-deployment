@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 /* ═══════════════════════════════════════════════════
@@ -21,6 +21,22 @@ function ContentAdminNotificationCenter({ userId, addToast, darkMode }) {
   const [sending, setSending]           = useState(false);
   const [targetCount, setTargetCount]   = useState(null);
 
+  const typeColors = {
+    info:    { bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
+    success: { bg: '#ECFDF5', color: '#059669', border: '#A7F3D0' },
+    warn:    { bg: '#FFFBEB', color: '#D97706', border: '#FDE68A' },
+    error:   { bg: '#FEF2F2', color: '#EF4444', border: '#FECACA' },
+  };
+
+  const relTime = (ts) => {
+    const d = new Date(ts), now = new Date();
+    const diff = now - d;
+    if (diff < 60000) return 'just now';
+    if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+    if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+    return Math.floor(diff / 86400000) + 'd ago';
+  };
+
   // Fetch this content admin's uploaded artifacts + their past sent notifications
   useEffect(() => {
     async function load() {
@@ -40,163 +56,110 @@ function ContentAdminNotificationCenter({ userId, addToast, darkMode }) {
           .from('profiles')
           .select('id', { count: 'exact', head: true })
           .eq('role', 'doctor')
-          .eq('status', 'approved');
-        setTargetCount(count || 0);
+          .eq('status', 'active');
+        setTargetCount(count ?? 0);
 
-        // Past notifications sent by this admin (via title matching — quick approximation)
-        const { data: notifsSent } = await supabase
+        // Past sent notifications by this CA
+        const { data: sent } = await supabase
           .from('notifications')
           .select('id, title, body, type, created_at')
           .eq('sender_id', userId)
           .order('created_at', { ascending: false })
-          .limit(10);
-        setSentNotifs(notifsSent || []);
-      } catch (_) {}
-      setLoadingContent(false);
+          .limit(20);
+        setSentNotifs(sent || []);
+      } catch (err) {
+        console.error('[CANotifCenter] Load failed:', err);
+      } finally {
+        setLoadingContent(false);
+      }
     }
     load();
   }, [userId]);
 
   const handleSend = async () => {
-    if (!form.title.trim() || !form.body.trim()) {
-      addToast('warn', 'Please fill in the title and message.');
-      return;
-    }
+    if (!form.title.trim()) { addToast?.('error', 'Title is required.'); return; }
+    if (!form.body.trim())  { addToast?.('error', 'Message is required.'); return; }
     setSending(true);
     try {
-      // Fetch all approved doctor IDs
+      // Fetch all active doctor IDs
       const { data: doctors } = await supabase
         .from('profiles')
         .select('id')
         .eq('role', 'doctor')
-        .eq('status', 'approved');
+        .eq('status', 'active');
 
-      if (!doctors?.length) { addToast('warn', 'No verified users found.'); setSending(false); return; }
+      const typeConf = typeColors[form.type] || typeColors.info;
+      const iconMap  = { info: 'ℹ️', success: '✅', warn: '⚠️', error: '🚨' };
 
-      // Batch insert notifications
-      const rows = doctors.map(d => ({
+      const payloads = (doctors || []).map(d => ({
         user_id:   d.id,
         sender_id: userId,
         title:     form.title.trim(),
         body:      form.body.trim(),
         type:      form.type,
-        icon:      form.type === 'success' ? '✅' : form.type === 'warn' ? '⚠️' : form.type === 'error' ? '🚨' : 'ℹ️',
+        icon:      iconMap[form.type] || 'ℹ️',
         is_read:   false,
       }));
 
-      const { error } = await supabase.from('notifications').insert(rows);
+      const { error } = await supabase.from('notifications').insert(payloads);
       if (error) throw error;
 
-      addToast('success', `Notification sent to ${doctors.length} users!`);
+      addToast?.('success', `📣 Sent to ${payloads.length} doctors!`);
+      setSentNotifs(prev => [{
+        id: Date.now(), title: form.title.trim(), body: form.body.trim(),
+        type: form.type, created_at: new Date().toISOString(),
+      }, ...prev].slice(0, 20));
       setForm({ title: '', body: '', type: 'info', contentId: '' });
-
-      // Refresh sent list
-      const { data: refreshed } = await supabase
-        .from('notifications')
-        .select('id, title, body, type, created_at')
-        .eq('sender_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      setSentNotifs(refreshed || []);
-    } catch (e) {
-      addToast('error', 'Failed to send: ' + (e.message || 'Try again'));
+    } catch (err) {
+      addToast?.('error', 'Send failed: ' + (err.message || 'Try again'));
+    } finally {
+      setSending(false);
     }
-    setSending(false);
-  };
-
-  const typeColors = {
-    info:    { bg: '#EFF6FF', color: '#2563EB', label: 'Info' },
-    success: { bg: '#ECFDF5', color: '#059669', label: 'Success' },
-    warn:    { bg: '#FFFBEB', color: '#D97706', label: 'Warning' },
-    error:   { bg: '#FEF2F2', color: '#DC2626', label: 'Alert' },
-  };
-
-  const relTime = (ts) => {
-    const s = Math.floor((Date.now() - new Date(ts)) / 1000);
-    if (s < 60) return 'just now';
-    if (s < 3600) return Math.floor(s / 60) + 'm ago';
-    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
-    return Math.floor(s / 86400) + 'd ago';
   };
 
   return (
-    <div className="page" style={{ background: bg, minHeight: '100vh' }}>
-      {/* Page header */}
-      <div className="ph">
-        <div className="pt">📣 Notification Center</div>
-        <div className="ps">Send announcements to all verified users about your content</div>
-      </div>
+    <div style={{ background: bg, minHeight: '100vh', padding: 24 }}>
+      <div style={{ maxWidth: 900, margin: '0 auto' }}>
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: textP }}>📣 Notification Center</div>
+          <div style={{ fontSize: 13, color: textS, marginTop: 4 }}>Send notifications about your content to all active doctors</div>
+        </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
-
-        {/* LEFT: Compose */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* Stats strip */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            {[
-              { label: 'My Uploads', value: myContent.length, icon: '📚', color: '#4F46E5', bg: '#EEF2FF' },
-              { label: 'Target Users', value: targetCount ?? '…', icon: '👥', color: '#059669', bg: '#ECFDF5' },
-            ].map(s => (
-              <div key={s.label} style={{ background: dm ? cardBg : s.bg, border: `1px solid ${border}`, borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 22 }}>{s.icon}</span>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: textS }}>{s.label}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Compose card */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          {/* LEFT: Compose Form */}
           <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 16, padding: 20 }}>
-            <div style={{ fontWeight: 700, fontSize: 15, color: textP, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-              ✍️ Compose Notification
-            </div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: textP, marginBottom: 16 }}>✍️ Compose Notification</div>
 
             {/* Type selector */}
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: textS, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Type</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 6 }}>
                 {Object.entries(typeColors).map(([k, v]) => (
-                  <button
-                    key={k}
-                    onClick={() => setForm(f => ({ ...f, type: k }))}
+                  <button key={k} onClick={() => setForm(f => ({ ...f, type: k }))}
                     style={{
-                      padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                      background: form.type === k ? v.bg : dm ? '#334155' : '#F9FAFB',
+                      flex: 1, padding: '7px 4px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                      fontSize: 11, fontWeight: 600, textTransform: 'capitalize',
+                      background: form.type === k ? v.bg : (dm ? '#334155' : '#F9FAFB'),
                       color: form.type === k ? v.color : textS,
-                      border: `1.5px solid ${form.type === k ? v.color : border}`,
-                      transition: 'all .15s',
-                    }}
-                  >
-                    {v.label}
+                      outline: form.type === k ? `2px solid ${v.color}` : `1px solid ${border}`,
+                    }}>
+                    {k}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Link to content (optional) */}
+            {/* Content reference */}
             {myContent.length > 0 && (
               <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: textS, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Link to your content (optional)</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: textS, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Reference Content (optional)</div>
                 <select
                   value={form.contentId}
-                  onChange={e => {
-                    const art = myContent.find(a => String(a.id) === e.target.value);
-                    setForm(f => ({
-                      ...f,
-                      contentId: e.target.value,
-                      title: art ? `New Content: ${art.title}` : f.title,
-                      body: art ? `"${art.title}" (${art.subject}) is now available in the E-Book Library. Start reading to earn points!` : f.body,
-                    }));
-                  }}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${border}`, background: dm ? '#334155' : '#fff', color: textP, fontSize: 13, outline: 'none' }}
+                  onChange={e => setForm(f => ({ ...f, contentId: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1px solid ${border}`, background: dm ? '#334155' : '#fff', color: textP, fontSize: 12 }}
                 >
-                  <option value="">— Select content to auto-fill —</option>
-                  {myContent.map(a => (
-                    <option key={a.id} value={String(a.id)}>{a.emoji} {a.title} · {a.status === 'approved' ? '✅' : '⏳'}</option>
-                  ))}
+                  <option value="">None</option>
+                  {myContent.map(a => <option key={a.id} value={a.id}>{a.emoji || '📚'} {a.title}</option>)}
                 </select>
               </div>
             )}
@@ -240,63 +203,63 @@ function ContentAdminNotificationCenter({ userId, addToast, darkMode }) {
               {sending ? '⏳ Sending…' : `📣 Send to ${targetCount ?? '…'} users`}
             </button>
           </div>
-        </div>
 
-        {/* RIGHT: My Uploads + Sent History */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* RIGHT: My Uploads + Sent History */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {/* My Uploads */}
-          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 16, padding: 20 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: textP, marginBottom: 14 }}>📚 My Uploads</div>
-            {loadingContent ? (
-              [1,2,3].map(i => <div key={i} style={{ height: 40, background: dm ? '#334155' : '#F3F4F6', borderRadius: 8, marginBottom: 8 }} />)
-            ) : myContent.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '20px 0', color: textS, fontSize: 13 }}>No uploads yet</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {myContent.map(a => (
-                  <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: dm ? '#334155' : '#F9FAFB', border: `1px solid ${border}` }}>
-                    <span style={{ fontSize: 18, flexShrink: 0 }}>{a.emoji || '📚'}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: textP, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</div>
-                      <div style={{ fontSize: 11, color: textS }}>{a.subject} · ⬇️ {a.downloads || 0}</div>
-                    </div>
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-                      background: a.status === 'approved' ? '#ECFDF5' : '#FFFBEB',
-                      color: a.status === 'approved' ? '#059669' : '#D97706',
-                    }}>
-                      {a.status === 'approved' ? '✅ Live' : '⏳ Pending'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Sent History */}
-          <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 16, padding: 20 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: textP, marginBottom: 14 }}>📬 Recent Sends</div>
-            {sentNotifs.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '16px 0', color: textS, fontSize: 13 }}>
-                No notifications sent yet
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {sentNotifs.map(n => {
-                  const tc = typeColors[n.type] || typeColors.info;
-                  return (
-                    <div key={n.id} style={{ padding: '10px 12px', borderRadius: 10, background: dm ? '#334155' : tc.bg, border: `1px solid ${border}` }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: dm ? '#E2E8F0' : tc.color, flex: 1 }}>{n.title}</div>
-                        <div style={{ fontSize: 10, color: textS, flexShrink: 0 }}>{relTime(n.created_at)}</div>
+            {/* My Uploads */}
+            <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 16, padding: 20 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: textP, marginBottom: 14 }}>📚 My Uploads</div>
+              {loadingContent ? (
+                [1,2,3].map(i => <div key={i} style={{ height: 40, background: dm ? '#334155' : '#F3F4F6', borderRadius: 8, marginBottom: 8 }} />)
+              ) : myContent.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '20px 0', color: textS, fontSize: 13 }}>No uploads yet</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {myContent.map(a => (
+                    <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: dm ? '#334155' : '#F9FAFB', border: `1px solid ${border}` }}>
+                      <span style={{ fontSize: 18, flexShrink: 0 }}>{a.emoji || '📚'}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: textP, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</div>
+                        <div style={{ fontSize: 11, color: textS }}>{a.subject} · ⬇️ {a.downloads || 0}</div>
                       </div>
-                      <div style={{ fontSize: 11, color: textS, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
+                        background: a.status === 'approved' ? '#ECFDF5' : '#FFFBEB',
+                        color: a.status === 'approved' ? '#059669' : '#D97706',
+                      }}>
+                        {a.status === 'approved' ? '✅ Live' : '⏳ Pending'}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Sent History */}
+            <div style={{ background: cardBg, border: `1px solid ${border}`, borderRadius: 16, padding: 20 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: textP, marginBottom: 14 }}>📬 Recent Sends</div>
+              {sentNotifs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '16px 0', color: textS, fontSize: 13 }}>
+                  No notifications sent yet
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {sentNotifs.map(n => {
+                    const tc = typeColors[n.type] || typeColors.info;
+                    return (
+                      <div key={n.id} style={{ padding: '10px 12px', borderRadius: 10, background: dm ? '#334155' : tc.bg, border: `1px solid ${border}` }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: dm ? '#E2E8F0' : tc.color, flex: 1 }}>{n.title}</div>
+                          <div style={{ fontSize: 10, color: textS, flexShrink: 0 }}>{relTime(n.created_at)}</div>
+                        </div>
+                        <div style={{ fontSize: 11, color: textS, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -305,7 +268,7 @@ function ContentAdminNotificationCenter({ userId, addToast, darkMode }) {
 }
 
 /* ═══════════════════════════════════════════════════
-   TYPE CONFIG — maps notification types to visual styles
+   TYPE CONFIG
    ═══════════════════════════════════════════════════ */
 const TYPE_CONFIG = {
   info:    { label: 'Info',    icon: 'ℹ️',  color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
@@ -314,8 +277,15 @@ const TYPE_CONFIG = {
   error:   { label: 'Alert',   icon: '🚨', color: '#EF4444', bg: '#FEF2F2', border: '#FECACA' },
 };
 
+const SA_TYPE_LABELS = {
+  info:    { label: 'Information',       icon: 'ℹ️'  },
+  success: { label: '🎉 Congratulations!', icon: '🎉' },
+  warn:    { label: '⚠️ Warning',          icon: '⚠️'  },
+  error:   { label: '🚨 Important Alert',  icon: '🚨' },
+};
+
 /* ═══════════════════════════════════════════════════
-   SCORE BUCKETS — for the performance filter
+   SCORE BUCKETS
    ═══════════════════════════════════════════════════ */
 const SCORE_BUCKETS = [
   { key: 'zero',   label: '0 points (At-Risk)',  icon: '⚠️',  check: s => s === 0 },
@@ -325,16 +295,1672 @@ const SCORE_BUCKETS = [
 ];
 
 /* ═══════════════════════════════════════════════════
+   SA MESSAGE BOX — exported, used in dashboards
+   Appears as a pulsing floating icon when superadmin
+   has broadcast a message. Opens as a letter modal.
+   ═══════════════════════════════════════════════════ */
+export function SAMessageBox({ userId, darkMode }) {
+  const [messages, setMessages]     = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [isOpen, setIsOpen]         = useState(false);
+  const [isPulsing, setIsPulsing]   = useState(true);
+  const dm = darkMode;
+
+  useEffect(() => {
+    if (!userId) return;
+    loadSAMessages();
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stop pulse animation after 8s
+  useEffect(() => {
+    if (messages.length > 0) {
+      const t = setTimeout(() => setIsPulsing(false), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [messages.length]);
+
+  const loadSAMessages = async () => {
+    setLoading(true);
+    try {
+      const { data: notifs } = await supabase
+        .from('notifications')
+        .select('id, title, body, type, icon, created_at, sender_id')
+        .eq('user_id', userId)
+        .eq('is_read', false)
+        .not('sender_id', 'is', null)
+        .order('created_at', { ascending: false });
+
+      if (!notifs?.length) { setMessages([]); setLoading(false); return; }
+
+      const senderIds = [...new Set(notifs.map(n => n.sender_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, role')
+        .in('id', senderIds);
+
+      const profileMap = {};
+      (profiles || []).forEach(p => { profileMap[p.id] = p; });
+
+      const saMessages = notifs
+        .filter(n => profileMap[n.sender_id]?.role === 'superadmin')
+        .map(n => ({
+          ...n,
+          senderName: profileMap[n.sender_id]?.name || 'Super Admin',
+        }));
+
+      setMessages(saMessages);
+    } catch (err) {
+      console.error('[SAMessageBox] Load failed:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await supabase.from('notifications').delete().eq('id', id);
+      setMessages(prev => prev.filter(m => m.id !== id));
+    } catch (err) {
+      console.error('[SAMessageBox] Delete failed:', err);
+    }
+  };
+
+  if (!loading && messages.length === 0) return null;
+
+  return (
+    <>
+      <style>{`
+        @keyframes sa-ring-pulse {
+          0%   { box-shadow: 0 0 0 0 rgba(239,68,68,0.7), 0 4px 20px rgba(239,68,68,0.4); transform: scale(1); }
+          50%  { box-shadow: 0 0 0 14px rgba(239,68,68,0), 0 4px 20px rgba(239,68,68,0.4); transform: scale(1.08); }
+          100% { box-shadow: 0 0 0 0 rgba(239,68,68,0), 0 4px 20px rgba(239,68,68,0.4); transform: scale(1); }
+        }
+        @keyframes sa-float {
+          0%, 100% { transform: translateY(0px); }
+          50%       { transform: translateY(-5px); }
+        }
+        .sa-pulse-anim { animation: sa-ring-pulse 1.4s ease-in-out infinite; }
+        .sa-float-anim { animation: sa-float 3s ease-in-out infinite; }
+        @keyframes sa-letter-in {
+          from { opacity: 0; transform: scale(0.92) translateY(16px); }
+          to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .sa-letter-modal { animation: sa-letter-in 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+      `}</style>
+
+      {/* ── Floating trigger ── */}
+      <div
+        title="You have a message from the Super Admin"
+        onClick={() => { setIsOpen(true); setIsPulsing(false); }}
+        className={isPulsing ? 'sa-pulse-anim' : 'sa-float-anim'}
+        style={{
+          position: 'fixed',
+          top: 88,
+          right: 22,
+          zIndex: 999,
+          cursor: 'pointer',
+          width: 54,
+          height: 54,
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #EF4444, #DC2626)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 22,
+          userSelect: 'none',
+        }}
+      >
+        💌
+        {/* Badge */}
+        {messages.length > 0 && (
+          <div style={{
+            position: 'absolute',
+            top: -5, right: -5,
+            width: 22, height: 22,
+            borderRadius: '50%',
+            background: '#FCD34D',
+            color: '#92400E',
+            fontSize: 11, fontWeight: 900,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: '2px solid #fff',
+            boxShadow: '0 1px 6px rgba(0,0,0,0.25)',
+          }}>
+            {messages.length}
+          </div>
+        )}
+      </div>
+      {/* Label below */}
+      <div style={{
+        position: 'fixed',
+        top: 144, right: 10, zIndex: 999,
+        fontSize: 9, fontWeight: 800, color: '#EF4444',
+        textAlign: 'center', letterSpacing: '0.5px',
+        textTransform: 'uppercase', whiteSpace: 'nowrap',
+        textShadow: dm ? '0 1px 4px rgba(0,0,0,0.8)' : '0 1px 3px rgba(255,255,255,0.9)',
+      }}>
+        SA Message
+      </div>
+
+      {/* ── Modal ── */}
+      {isOpen && (
+        <div
+          onClick={() => setIsOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1200,
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '20px',
+          }}
+        >
+          <div
+            className="sa-letter-modal"
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 580,
+              maxHeight: '82vh',
+              background: dm ? '#1E293B' : '#fff',
+              borderRadius: 24,
+              overflow: 'hidden',
+              display: 'flex', flexDirection: 'column',
+              boxShadow: '0 30px 80px rgba(0,0,0,0.45)',
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '20px 24px',
+              background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #1E1B4B 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: '#fff', letterSpacing: '-0.3px' }}>
+                  💌 Super Admin Messages
+                </div>
+                <div style={{ fontSize: 12, color: '#A5B4FC', marginTop: 3 }}>
+                  {messages.length} message{messages.length !== 1 ? 's' : ''} · Delete all to dismiss
+                </div>
+              </div>
+              <button
+                onClick={() => setIsOpen(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.1)', border: 'none', color: '#E0E7FF',
+                  cursor: 'pointer', borderRadius: 10, padding: '8px 12px', fontSize: 16,
+                  fontWeight: 700,
+                }}
+              >✕</button>
+            </div>
+
+            {/* Messages */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {messages.map(msg => {
+                const tc  = TYPE_CONFIG[msg.type] || TYPE_CONFIG.info;
+                const tl  = SA_TYPE_LABELS[msg.type] || SA_TYPE_LABELS.info;
+                const dateStr = new Date(msg.created_at).toLocaleDateString('en-US', {
+                  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                });
+                return (
+                  <div key={msg.id} style={{
+                    border: `2px solid ${dm ? '#334155' : '#E5E7EB'}`,
+                    borderRadius: 18,
+                    overflow: 'hidden',
+                    background: dm ? '#0F172A' : '#FAFAFA',
+                  }}>
+                    {/* Letter header */}
+                    <div style={{
+                      padding: '14px 18px',
+                      borderBottom: `1px solid ${dm ? '#334155' : '#E5E7EB'}`,
+                      background: dm ? '#1E293B' : tc.bg,
+                      display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10,
+                    }}>
+                      <div>
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          padding: '4px 12px', borderRadius: 99,
+                          background: dm ? tc.color + '22' : '#fff',
+                          color: tc.color, fontSize: 12, fontWeight: 700,
+                          border: `1px solid ${dm ? tc.color + '44' : tc.border}`,
+                          marginBottom: 8,
+                        }}>
+                          {tl.icon} {tl.label}
+                        </span>
+                        <div style={{ fontSize: 13, color: dm ? '#CBD5E1' : '#374151' }}>
+                          From: <strong style={{ color: dm ? '#F1F5F9' : '#111827' }}>
+                            {msg.senderName}
+                          </strong> <span style={{ fontSize: 11, color: dm ? '#64748B' : '#9CA3AF' }}>· Super Administrator</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: dm ? '#64748B' : '#9CA3AF', marginTop: 2 }}>
+                          📅 {dateStr}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDelete(msg.id)}
+                        style={{
+                          background: '#FEE2E2', border: 'none', color: '#DC2626',
+                          cursor: 'pointer', borderRadius: 10, padding: '8px 12px',
+                          fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
+                        }}
+                      >
+                        🗑 Delete
+                      </button>
+                    </div>
+
+                    {/* Letter body */}
+                    <div style={{ padding: '18px 20px' }}>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: dm ? '#F1F5F9' : '#111827', marginBottom: 10, lineHeight: 1.4 }}>
+                        {msg.icon} {msg.title}
+                      </div>
+                      <div style={{
+                        fontSize: 14, lineHeight: 1.75, color: dm ? '#CBD5E1' : '#374151',
+                        whiteSpace: 'pre-wrap',
+                      }}>
+                        {msg.body}
+                      </div>
+                      <div style={{
+                        marginTop: 18, paddingTop: 14,
+                        borderTop: `1px dashed ${dm ? '#334155' : '#E5E7EB'}`,
+                        fontSize: 12, color: dm ? '#64748B' : '#9CA3AF',
+                        fontStyle: 'italic',
+                      }}>
+                        — {msg.senderName}, Super Administrator · iConnect Medical Platform
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   ENGAGE LANDING — cool two-card CTA screen
+   ═══════════════════════════════════════════════════ */
+function EngageLanding({ onSelectDoctors, onSelectCAs, darkMode }) {
+  const dm = darkMode;
+  const [hovered, setHovered] = useState(null);
+  const [stats, setStats]     = useState({ doctors: null, cas: null });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const [docRes, caRes] = await Promise.all([
+          supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'doctor').eq('status', 'active'),
+          supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'contentadmin'),
+        ]);
+        setStats({ doctors: docRes.count ?? 0, cas: caRes.count ?? 0 });
+      } catch (_) {
+        setStats({ doctors: 0, cas: 0 });
+      }
+    };
+    fetchStats();
+  }, []);
+
+  return (
+    <>
+      <style>{`
+        @keyframes engage-float-1 { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+        @keyframes engage-float-2 { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+        @keyframes engage-glow    { 0%,100%{opacity:0.5} 50%{opacity:1} }
+        .engage-float-1 { animation: engage-float-1 4s ease-in-out infinite; }
+        .engage-float-2 { animation: engage-float-2 4.5s ease-in-out 0.5s infinite; }
+      `}</style>
+      <div style={{
+        minHeight: 'calc(100vh - 80px)',
+        background: dm
+          ? 'radial-gradient(ellipse at 30% 40%, #1E3A5F 0%, #0F172A 60%)'
+          : 'radial-gradient(ellipse at 30% 40%, #DBEAFE 0%, #F8FAFC 60%)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: 40,
+        position: 'relative', overflow: 'hidden',
+      }}>
+        {/* Background orbs */}
+        <div style={{
+          position: 'absolute', width: 400, height: 400, borderRadius: '50%', top: -100, right: -100,
+          background: dm
+            ? 'radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 70%)'
+            : 'radial-gradient(circle, rgba(124,58,237,0.08) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }} />
+        <div style={{
+          position: 'absolute', width: 300, height: 300, borderRadius: '50%', bottom: -50, left: -50,
+          background: dm
+            ? 'radial-gradient(circle, rgba(37,99,235,0.15) 0%, transparent 70%)'
+            : 'radial-gradient(circle, rgba(37,99,235,0.08) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }} />
+
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: 56, position: 'relative', zIndex: 1 }}>
+          <div className="engage-float-1" style={{ fontSize: 56, marginBottom: 18, display: 'inline-block' }}>⚡</div>
+          <div style={{
+            fontSize: 42, fontWeight: 900, letterSpacing: '-1px',
+            background: 'linear-gradient(135deg, #2563EB 0%, #7C3AED 100%)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            marginBottom: 14, lineHeight: 1.1,
+          }}>
+            Engage Engine
+          </div>
+          <div style={{
+            fontSize: 16, color: dm ? '#94A3B8' : '#6B7280',
+            maxWidth: 460, lineHeight: 1.65, margin: '0 auto',
+          }}>
+            Send targeted broadcasts, push calendar events, and engage your community with surgical precision.
+          </div>
+        </div>
+
+        {/* Cards */}
+        <div style={{
+          display: 'flex', gap: 28, flexWrap: 'wrap', justifyContent: 'center',
+          maxWidth: 820, width: '100%', position: 'relative', zIndex: 1,
+        }}>
+
+          {/* DOCTORS card */}
+          <div
+            onClick={onSelectDoctors}
+            onMouseEnter={() => setHovered('doctors')}
+            onMouseLeave={() => setHovered(null)}
+            style={{
+              width: 360, padding: 36, borderRadius: 28, cursor: 'pointer',
+              background: hovered === 'doctors'
+                ? 'linear-gradient(145deg, #1D4ED8, #2563EB, #1E40AF)'
+                : (dm ? 'linear-gradient(145deg, #1E293B, #1E3A5F)' : 'linear-gradient(145deg, #EFF6FF, #DBEAFE)'),
+              border: `2px solid ${hovered === 'doctors' ? '#3B82F6' : (dm ? '#1E3A5F' : '#BFDBFE')}`,
+              transform: hovered === 'doctors' ? 'translateY(-8px) scale(1.01)' : 'translateY(0) scale(1)',
+              transition: 'all 0.35s cubic-bezier(0.34,1.56,0.64,1)',
+              boxShadow: hovered === 'doctors'
+                ? '0 24px 60px rgba(37,99,235,0.45)'
+                : (dm ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(37,99,235,0.1)'),
+            }}
+          >
+            <div className="engage-float-1" style={{ fontSize: 56, marginBottom: 18, display: 'inline-block' }}>👨‍⚕️</div>
+            <div style={{
+              fontSize: 24, fontWeight: 900, marginBottom: 10, lineHeight: 1.2,
+              color: hovered === 'doctors' ? '#fff' : (dm ? '#F1F5F9' : '#1E40AF'),
+            }}>
+              Engage with Doctors
+            </div>
+            <div style={{
+              fontSize: 14, lineHeight: 1.7, marginBottom: 24,
+              color: hovered === 'doctors' ? 'rgba(255,255,255,0.82)' : (dm ? '#94A3B8' : '#3B82F6'),
+            }}>
+              Target doctors by speciality, college, state, zone, or performance. Push calendar events and send precision broadcasts.
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{
+                padding: '8px 16px', borderRadius: 99, fontWeight: 700, fontSize: 13,
+                background: hovered === 'doctors' ? 'rgba(255,255,255,0.2)' : (dm ? '#1E3A5F' : '#DBEAFE'),
+                color: hovered === 'doctors' ? '#fff' : (dm ? '#93C5FD' : '#2563EB'),
+              }}>
+                👨‍⚕️ {stats.doctors !== null ? stats.doctors : '…'} active doctors
+              </div>
+              <div style={{
+                width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: hovered === 'doctors' ? 'rgba(255,255,255,0.2)' : (dm ? '#1E3A5F' : '#DBEAFE'),
+                color: hovered === 'doctors' ? '#fff' : (dm ? '#93C5FD' : '#2563EB'),
+                fontSize: 16, fontWeight: 700,
+                transform: hovered === 'doctors' ? 'translateX(4px)' : 'none',
+                transition: 'transform 0.3s ease',
+              }}>→</div>
+            </div>
+          </div>
+
+          {/* CONTENT ADMINS card */}
+          <div
+            onClick={onSelectCAs}
+            onMouseEnter={() => setHovered('cas')}
+            onMouseLeave={() => setHovered(null)}
+            style={{
+              width: 360, padding: 36, borderRadius: 28, cursor: 'pointer',
+              background: hovered === 'cas'
+                ? 'linear-gradient(145deg, #6D28D9, #7C3AED, #5B21B6)'
+                : (dm ? 'linear-gradient(145deg, #1E293B, #1A0F2E)' : 'linear-gradient(145deg, #F5F3FF, #EDE9FE)'),
+              border: `2px solid ${hovered === 'cas' ? '#8B5CF6' : (dm ? '#2E1065' : '#C4B5FD')}`,
+              transform: hovered === 'cas' ? 'translateY(-8px) scale(1.01)' : 'translateY(0) scale(1)',
+              transition: 'all 0.35s cubic-bezier(0.34,1.56,0.64,1)',
+              boxShadow: hovered === 'cas'
+                ? '0 24px 60px rgba(124,58,237,0.45)'
+                : (dm ? '0 4px 20px rgba(0,0,0,0.3)' : '0 4px 20px rgba(124,58,237,0.1)'),
+            }}
+          >
+            <div className="engage-float-2" style={{ fontSize: 56, marginBottom: 18, display: 'inline-block' }}>🎓</div>
+            <div style={{
+              fontSize: 24, fontWeight: 900, marginBottom: 10, lineHeight: 1.2,
+              color: hovered === 'cas' ? '#fff' : (dm ? '#F1F5F9' : '#5B21B6'),
+            }}>
+              Engage with Content Admins
+            </div>
+            <div style={{
+              fontSize: 14, lineHeight: 1.7, marginBottom: 24,
+              color: hovered === 'cas' ? 'rgba(255,255,255,0.82)' : (dm ? '#94A3B8' : '#7C3AED'),
+            }}>
+              Reach your content creators. Filter by upload volume, approval status, and activity level. Keep the team aligned.
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{
+                padding: '8px 16px', borderRadius: 99, fontWeight: 700, fontSize: 13,
+                background: hovered === 'cas' ? 'rgba(255,255,255,0.2)' : (dm ? '#2E1065' : '#EDE9FE'),
+                color: hovered === 'cas' ? '#fff' : (dm ? '#C4B5FD' : '#7C3AED'),
+              }}>
+                🎓 {stats.cas !== null ? stats.cas : '…'} content admins
+              </div>
+              <div style={{
+                width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: hovered === 'cas' ? 'rgba(255,255,255,0.2)' : (dm ? '#2E1065' : '#EDE9FE'),
+                color: hovered === 'cas' ? '#fff' : (dm ? '#C4B5FD' : '#7C3AED'),
+                fontSize: 16, fontWeight: 700,
+                transform: hovered === 'cas' ? 'translateX(4px)' : 'none',
+                transition: 'transform 0.3s ease',
+              }}>→</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 44, fontSize: 12, color: dm ? '#475569' : '#9CA3AF', textAlign: 'center', position: 'relative', zIndex: 1 }}>
+          💡 Select a target group to begin composing your broadcast
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   DROPDOWN FILTER PILL — for top filter bar
+   ═══════════════════════════════════════════════════ */
+function FilterDropdown({ id, label, icon, options, selected, onToggle, activeId, setActiveId, dm, border, textP, textS, accent, countFor }) {
+  const isOpen = activeId === id;
+  const hasActive = selected.length > 0;
+  const btnRef = useRef(null);
+  const panelRef = useRef(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e) => {
+      if (btnRef.current?.contains(e.target) || panelRef.current?.contains(e.target)) return;
+      setActiveId(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isOpen, setActiveId]);
+
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <button
+        ref={btnRef}
+        onClick={() => setActiveId(isOpen ? null : id)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '7px 14px', borderRadius: 99, border: 'none', cursor: 'pointer',
+          fontSize: 12, fontWeight: hasActive ? 700 : 600, whiteSpace: 'nowrap',
+          background: hasActive
+            ? (dm ? accent + '22' : '#DBEAFE')
+            : (dm ? '#1E293B' : '#F3F4F6'),
+          color: hasActive ? accent : textS,
+          outline: hasActive ? `2px solid ${accent}` : `1px solid ${border}`,
+          transition: 'all 0.2s',
+        }}
+      >
+        {icon} {label}
+        {hasActive && (
+          <span style={{
+            background: accent, color: '#fff',
+            borderRadius: '50%', width: 18, height: 18,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 10, fontWeight: 800,
+          }}>
+            {selected.length}
+          </span>
+        )}
+        <span style={{ fontSize: 9, opacity: 0.7, marginLeft: 2 }}>{isOpen ? '▲' : '▼'}</span>
+      </button>
+
+      {isOpen && (
+        <div
+          ref={panelRef}
+          style={{
+            position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 200,
+            minWidth: 220, maxWidth: 280, maxHeight: 280, overflowY: 'auto',
+            background: dm ? '#1E293B' : '#fff',
+            border: `1px solid ${border}`,
+            borderRadius: 14,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+            padding: '8px 0',
+          }}
+        >
+          {options.length === 0 ? (
+            <div style={{ padding: '10px 16px', fontSize: 12, color: textS }}>No options</div>
+          ) : options.map(val => {
+            const isChecked = selected.includes(val);
+            const cnt = countFor ? countFor(val) : null;
+            return (
+              <label
+                key={val}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 16px', cursor: 'pointer',
+                  background: isChecked ? (dm ? accent + '18' : '#EFF6FF') : 'transparent',
+                  transition: 'background 0.15s',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => onToggle(val)}
+                  style={{ width: 15, height: 15, accentColor: accent, cursor: 'pointer' }}
+                />
+                <span style={{
+                  flex: 1, fontSize: 12, fontWeight: isChecked ? 700 : 400,
+                  color: isChecked ? (dm ? '#93C5FD' : accent) : textP,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {val}
+                </span>
+                {cnt !== null && (
+                  <span style={{
+                    fontSize: 10, color: textS,
+                    background: dm ? '#334155' : '#F3F4F6',
+                    padding: '1px 7px', borderRadius: 8, flexShrink: 0,
+                  }}>
+                    {cnt}
+                  </span>
+                )}
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   DOCTOR ENGAGE VIEW — full doctor broadcast UI
+   with top horizontal filters (no sidebar)
+   ═══════════════════════════════════════════════════ */
+function DoctorEngageView({ userId, addToast, darkMode, onBack }) {
+  const dm      = darkMode;
+  const bg      = dm ? '#0F172A' : '#F8FAFC';
+  const cardBg  = dm ? '#1E293B' : '#fff';
+  const border  = dm ? '#334155' : '#E5E7EB';
+  const borderL = dm ? '#1E293B' : '#F3F4F6';
+  const textP   = dm ? '#F1F5F9' : '#111827';
+  const textS   = dm ? '#94A3B8' : '#6B7280';
+  const accent  = '#2563EB';
+
+  const [localDoctors, setLocalDoctors] = useState([]);
+  const [loading, setLoading]           = useState(true);
+
+  const [filters, setFilters] = useState({
+    colleges: [], specialities: [], states: [], zones: [], programs: [], scoreRanges: [],
+  });
+  const [searchQuery, setSearchQuery]       = useState('');
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [selectedIds, setSelectedIds]       = useState(new Set());
+  const scoreDropRef = useRef(null);
+
+  const [form, setForm]           = useState({ title: '', body: '', type: 'info' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [rightTab, setRightTab]   = useState('broadcast');
+  const [confirmPending, setConfirmPending] = useState(false);
+  const confirmTimerRef = useRef(null);
+
+  // Event form
+  const [eventForm, setEventForm]     = useState({ title: '', date: '', description: '', color: '#EF4444' });
+  const [eventSubmitting, setEventSubmitting] = useState(false);
+  const [recentEvents, setRecentEvents]       = useState([]);
+  const [eventsLoading, setEventsLoading]     = useState(false);
+
+  // Fetch doctors + scores
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [profilesRes, scoresRes] = await Promise.all([
+          supabase.from('profiles')
+            .select('id, name, email, role, status, speciality, college, state, zone, program, mci_number, created_at')
+            .eq('role', 'doctor').eq('status', 'active'),
+          supabase.from('user_scores').select('user_id, total_score'),
+        ]);
+        const profiles = profilesRes.data || [];
+        const scores   = scoresRes.data  || [];
+        const scoreMap = {};
+        scores.forEach(s => { scoreMap[s.user_id] = s.total_score || 0; });
+        const merged = profiles.map(p => ({
+          ...p,
+          score: scoreMap[p.id] || 0,
+          _college:    p.college    || 'Unspecified',
+          _speciality: p.speciality || 'Unspecified',
+          _state:      p.state      || 'Unspecified',
+          _zone:       p.zone       || 'Unspecified',
+          _program:    p.program    || 'Unspecified',
+        }));
+        setLocalDoctors(merged);
+      } catch (err) {
+        console.error('[DoctorEngageView] Fetch failed:', err);
+        addToast?.('error', 'Failed to load doctor data.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch recent events
+  useEffect(() => {
+    const load = async () => {
+      setEventsLoading(true);
+      try {
+        const { data } = await supabase.from('admin_calendar_events')
+          .select('*').order('date', { ascending: true }).limit(10);
+        setRecentEvents(data || []);
+      } catch (_) {}
+      setEventsLoading(false);
+    };
+    load();
+  }, []);
+
+  // Close score dropdown on outside click
+  useEffect(() => {
+    if (activeDropdown !== 'score') return;
+    const handler = (e) => {
+      if (scoreDropRef.current && !scoreDropRef.current.contains(e.target)) {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [activeDropdown]);
+
+  // Filter options
+  const filterOptions = useMemo(() => {
+    const unique = arr => [...new Set(arr)].sort((a, b) => {
+      if (a === 'Unspecified') return 1;
+      if (b === 'Unspecified') return -1;
+      return a.localeCompare(b);
+    });
+    return {
+      colleges:     unique(localDoctors.map(d => d._college)),
+      specialities: unique(localDoctors.map(d => d._speciality)),
+      states:       unique(localDoctors.map(d => d._state)),
+      zones:        unique(localDoctors.map(d => d._zone)),
+      programs:     unique(localDoctors.map(d => d._program)),
+    };
+  }, [localDoctors]);
+
+  const toggleFilter = useCallback((category, value) => {
+    setFilters(prev => {
+      const arr    = prev[category] || [];
+      const exists = arr.includes(value);
+      return { ...prev, [category]: exists ? arr.filter(v => v !== value) : [...arr, value] };
+    });
+  }, []);
+
+  const clearAllFilters = useCallback(() => {
+    setFilters({ colleges: [], specialities: [], states: [], zones: [], programs: [], scoreRanges: [] });
+    setSearchQuery('');
+  }, []);
+
+  const activeFilterCount = useMemo(
+    () => Object.values(filters).reduce((s, a) => s + a.length, 0) + (searchQuery ? 1 : 0),
+    [filters, searchQuery]
+  );
+
+  // Filtered doctors
+  const filteredUsers = useMemo(() => localDoctors.filter(d => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase().trim();
+      const hay = `${d.name || ''} ${d.email || ''} ${d.mci_number || ''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (filters.colleges.length    > 0 && !filters.colleges.includes(d._college))       return false;
+    if (filters.specialities.length > 0 && !filters.specialities.includes(d._speciality)) return false;
+    if (filters.states.length      > 0 && !filters.states.includes(d._state))           return false;
+    if (filters.zones.length       > 0 && !filters.zones.includes(d._zone))             return false;
+    if (filters.programs.length    > 0 && !filters.programs.includes(d._program))       return false;
+    if (filters.scoreRanges.length > 0) {
+      const match = filters.scoreRanges.some(k => {
+        const b = SCORE_BUCKETS.find(b => b.key === k);
+        return b ? b.check(d.score) : false;
+      });
+      if (!match) return false;
+    }
+    return true;
+  }), [localDoctors, searchQuery, filters]);
+
+  // Selection
+  useEffect(() => { setSelectedIds(new Set()); }, [filters, searchQuery]);
+
+  const toggleUser = useCallback(id => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    const ids = new Set(filteredUsers.map(u => u.id));
+    const allSel = filteredUsers.length > 0 && filteredUsers.every(u => selectedIds.has(u.id));
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (allSel) ids.forEach(id => next.delete(id));
+      else ids.forEach(id => next.add(id));
+      return next;
+    });
+  }, [filteredUsers, selectedIds]);
+
+  const allFilteredSelected = filteredUsers.length > 0 && filteredUsers.every(u => selectedIds.has(u.id));
+
+  // Dispatch — 2-step confirmation (no confirm() dialog)
+  const handleDispatch = async () => {
+    if (selectedIds.size === 0) return;
+    if (!form.title.trim()) { addToast?.('error', 'Title is required.'); return; }
+    if (!form.body.trim())  { addToast?.('error', 'Message body is required.'); return; }
+    if (!confirmPending) {
+      setConfirmPending(true);
+      clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = setTimeout(() => setConfirmPending(false), 5000);
+      return;
+    }
+    clearTimeout(confirmTimerRef.current);
+    setConfirmPending(false);
+    setIsSubmitting(true);
+    try {
+      const tc = TYPE_CONFIG[form.type] || TYPE_CONFIG.info;
+      const payloads = [...selectedIds].map(uid => ({
+        user_id: uid,
+        sender_id: userId,
+        title: form.title.trim(), body: form.body.trim(),
+        type: form.type, icon: tc.icon, is_read: false,
+      }));
+      const { error } = await supabase.from('notifications').insert(payloads);
+      if (error) throw error;
+      addToast?.('success', `✅ Broadcast sent to ${selectedIds.size} doctor(s)!`);
+      setSelectedIds(new Set());
+      setForm({ title: '', body: '', type: 'info' });
+    } catch (err) {
+      addToast?.('error', 'Dispatch failed: ' + (err.message || 'Try again'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Push event
+  const handleEventDispatch = async () => {
+    if (!eventForm.title.trim()) { addToast?.('error', 'Event title is required.'); return; }
+    if (!eventForm.date)         { addToast?.('error', 'Event date is required.'); return; }
+    setEventSubmitting(true);
+    try {
+      const { data: inserted, error } = await supabase
+        .from('admin_calendar_events')
+        .insert([{ title: eventForm.title.trim(), date: eventForm.date, description: eventForm.description.trim() || null, color: eventForm.color, is_compulsory: true, created_by: userId || null }])
+        .select().single();
+      if (error) throw error;
+      addToast?.('success', `📅 Event "${eventForm.title}" pushed to all doctor calendars!`);
+      setEventForm({ title: '', date: '', description: '', color: '#EF4444' });
+      setRecentEvents(prev => [inserted, ...prev].slice(0, 10));
+    } catch (err) {
+      addToast?.('error', 'Failed to push event: ' + (err.message || 'Check admin_calendar_events table'));
+    } finally {
+      setEventSubmitting(false);
+    }
+  };
+
+  const handleDeleteEvent = async id => {
+    const { error } = await supabase.from('admin_calendar_events').delete().eq('id', id);
+    if (!error) {
+      setRecentEvents(prev => prev.filter(e => e.id !== id));
+      addToast?.('success', 'Event removed.');
+    } else {
+      addToast?.('error', 'Delete failed: ' + error.message);
+    }
+  };
+
+  const countFor = (field, val) => localDoctors.filter(d => d[field] === val).length;
+  const typeConf = TYPE_CONFIG[form.type] || TYPE_CONFIG.info;
+
+  // Active filter chips (for display below filter bar)
+  const activeChips = useMemo(() => {
+    const chips = [];
+    const pushChips = (arr, cat, field) => arr.forEach(v => chips.push({ key: `${cat}:${v}`, label: v, remove: () => toggleFilter(cat, v) }));
+    pushChips(filters.specialities, 'specialities', '_speciality');
+    pushChips(filters.colleges,     'colleges',     '_college');
+    pushChips(filters.states,       'states',       '_state');
+    pushChips(filters.zones,        'zones',        '_zone');
+    pushChips(filters.programs,     'programs',     '_program');
+    filters.scoreRanges.forEach(k => {
+      const b = SCORE_BUCKETS.find(b => b.key === k);
+      if (b) chips.push({ key: `score:${k}`, label: `${b.icon} ${b.label}`, remove: () => toggleFilter('scoreRanges', k) });
+    });
+    return chips;
+  }, [filters, toggleFilter]);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', overflow: 'hidden', background: bg }}>
+
+      {/* ── TOP BAR: Back + Title + Filters ── overflow:visible so dropdown panels show below */}
+      <div style={{
+        background: cardBg, borderBottom: `1px solid ${border}`,
+        flexShrink: 0, overflow: 'visible', position: 'relative', zIndex: 10,
+      }}>
+        {/* Row 1: back + title + search */}
+        <div style={{
+          padding: '10px 16px',
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+        }}>
+          <button
+            onClick={onBack}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
+              borderRadius: 99, border: `1px solid ${border}`, background: 'transparent',
+              color: textS, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            ← Back
+          </button>
+
+          <div style={{ fontSize: 15, fontWeight: 900, color: textP, flexShrink: 0 }}>
+            👨‍⚕️ Doctor's Database
+            <span style={{ fontWeight: 400, color: textS, fontSize: 12, marginLeft: 8 }}>
+              ({filteredUsers.length} of {localDoctors.length})
+            </span>
+          </div>
+
+          {/* Search */}
+          <div style={{ flex: 1, minWidth: 180, maxWidth: 320 }}>
+            <input
+              type="text"
+              placeholder="🔍 Search name, email, MCI..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%', padding: '8px 14px', borderRadius: 99,
+                border: `1px solid ${border}`, fontSize: 12,
+                background: dm ? '#0F172A' : '#F9FAFB', color: textP,
+                boxSizing: 'border-box', outline: 'none',
+              }}
+            />
+          </div>
+
+          {selectedIds.size > 0 && (
+            <div style={{
+              padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 700,
+              background: '#DBEAFE', color: accent, flexShrink: 0,
+            }}>
+              ✓ {selectedIds.size} selected
+            </div>
+          )}
+        </div>
+
+        {/* Row 2: filter pills — overflow:visible is critical so dropdown panels aren't clipped */}
+        <div style={{
+          padding: '0 16px 10px',
+          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', overflow: 'visible',
+          position: 'relative', zIndex: 10,
+        }}>
+          <FilterDropdown
+            id="speciality" label="Speciality" icon="🩺"
+            options={filterOptions.specialities} selected={filters.specialities}
+            onToggle={v => toggleFilter('specialities', v)}
+            activeId={activeDropdown} setActiveId={setActiveDropdown}
+            dm={dm} border={border} textP={textP} textS={textS} accent={accent}
+            countFor={v => countFor('_speciality', v)}
+          />
+          <FilterDropdown
+            id="college" label="College" icon="🏥"
+            options={filterOptions.colleges} selected={filters.colleges}
+            onToggle={v => toggleFilter('colleges', v)}
+            activeId={activeDropdown} setActiveId={setActiveDropdown}
+            dm={dm} border={border} textP={textP} textS={textS} accent={accent}
+            countFor={v => countFor('_college', v)}
+          />
+          <FilterDropdown
+            id="state" label="State" icon="📍"
+            options={filterOptions.states} selected={filters.states}
+            onToggle={v => toggleFilter('states', v)}
+            activeId={activeDropdown} setActiveId={setActiveDropdown}
+            dm={dm} border={border} textP={textP} textS={textS} accent={accent}
+            countFor={v => countFor('_state', v)}
+          />
+          <FilterDropdown
+            id="zone" label="Zone" icon="🗺️"
+            options={filterOptions.zones} selected={filters.zones}
+            onToggle={v => toggleFilter('zones', v)}
+            activeId={activeDropdown} setActiveId={setActiveDropdown}
+            dm={dm} border={border} textP={textP} textS={textS} accent={accent}
+            countFor={v => countFor('_zone', v)}
+          />
+          <FilterDropdown
+            id="program" label="Program" icon="🎓"
+            options={filterOptions.programs} selected={filters.programs}
+            onToggle={v => toggleFilter('programs', v)}
+            activeId={activeDropdown} setActiveId={setActiveDropdown}
+            dm={dm} border={border} textP={textP} textS={textS} accent={accent}
+            countFor={v => countFor('_program', v)}
+          />
+          {/* Score buckets */}
+          <div ref={scoreDropRef} style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              onClick={() => setActiveDropdown(activeDropdown === 'score' ? null : 'score')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 14px', borderRadius: 99, border: 'none', cursor: 'pointer',
+                fontSize: 12, fontWeight: filters.scoreRanges.length > 0 ? 700 : 600,
+                background: filters.scoreRanges.length > 0 ? (dm ? accent + '22' : '#DBEAFE') : (dm ? '#1E293B' : '#F3F4F6'),
+                color: filters.scoreRanges.length > 0 ? accent : textS,
+                outline: filters.scoreRanges.length > 0 ? `2px solid ${accent}` : `1px solid ${border}`,
+              }}
+            >
+              📊 Performance
+              {filters.scoreRanges.length > 0 && (
+                <span style={{ background: accent, color: '#fff', borderRadius: '50%', width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800 }}>
+                  {filters.scoreRanges.length}
+                </span>
+              )}
+              <span style={{ fontSize: 9, opacity: 0.7 }}>{activeDropdown === 'score' ? '▲' : '▼'}</span>
+            </button>
+            {activeDropdown === 'score' && (
+              <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 200, minWidth: 220, background: dm ? '#1E293B' : '#fff', border: `1px solid ${border}`, borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', padding: '8px 0' }}>
+                {SCORE_BUCKETS.map(b => (
+                  <label key={b.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', cursor: 'pointer', background: filters.scoreRanges.includes(b.key) ? (dm ? accent + '18' : '#EFF6FF') : 'transparent' }}>
+                    <input type="checkbox" checked={filters.scoreRanges.includes(b.key)} onChange={() => toggleFilter('scoreRanges', b.key)} style={{ width: 15, height: 15, accentColor: accent, cursor: 'pointer' }} />
+                    <span style={{ flex: 1, fontSize: 12, fontWeight: filters.scoreRanges.includes(b.key) ? 700 : 400, color: filters.scoreRanges.includes(b.key) ? (dm ? '#93C5FD' : accent) : textP }}>
+                      {b.icon} {b.label}
+                    </span>
+                    <span style={{ fontSize: 10, color: textS, background: dm ? '#334155' : '#F3F4F6', padding: '1px 7px', borderRadius: 8 }}>
+                      {localDoctors.filter(d => b.check(d.score)).length}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {activeFilterCount > 0 && (
+            <button
+              onClick={clearAllFilters}
+              style={{
+                padding: '7px 14px', borderRadius: 99, border: 'none', cursor: 'pointer',
+                fontSize: 12, fontWeight: 700, color: '#EF4444',
+                background: dm ? '#450A0A' : '#FEF2F2',
+              }}
+            >
+              ✕ Clear ({activeFilterCount})
+            </button>
+          )}
+        </div>
+
+        {/* Row 3: active chips */}
+        {activeChips.length > 0 && (
+          <div style={{ padding: '0 16px 10px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {activeChips.map(chip => (
+              <span key={chip.key} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 600,
+                background: dm ? '#1E3A5F' : '#EFF6FF', color: accent,
+                border: `1px solid ${dm ? '#1E40AF' : '#BFDBFE'}`,
+              }}>
+                {chip.label}
+                <button onClick={e => { e.stopPropagation(); chip.remove(); }} style={{ background: 'none', border: 'none', color: accent, cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 }}>×</button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── BODY: Doctor Table + Right Panel ── */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+
+        {/* Doctor Table */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: `1px solid ${border}` }}>
+          {/* Column headers */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: '36px 1.5fr 1fr 1fr 70px',
+            padding: '8px 16px', borderBottom: `1px solid ${borderL}`, background: cardBg,
+            fontSize: 10, fontWeight: 700, color: textS, textTransform: 'uppercase', letterSpacing: '0.06em',
+          }}>
+            <div>
+              <input type="checkbox" checked={allFilteredSelected} onChange={handleSelectAll}
+                disabled={filteredUsers.length === 0}
+                style={{ cursor: 'pointer', width: 15, height: 15 }}
+                title={`Select all ${filteredUsers.length} filtered`} />
+            </div>
+            <div>Doctor</div>
+            <div>College</div>
+            <div>Speciality</div>
+            <div style={{ textAlign: 'right' }}>Score</div>
+          </div>
+
+          {/* Rows */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {loading ? (
+              <div style={{ padding: 40, textAlign: 'center', color: textS }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>Loading doctors...
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: textS }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>No doctors match</div>
+                <div style={{ fontSize: 12 }}>Try removing some filters</div>
+                {activeFilterCount > 0 && (
+                  <button onClick={clearAllFilters} style={{ marginTop: 12, padding: '6px 14px', borderRadius: 8, border: `1px solid ${border}`, background: 'transparent', color: accent, fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
+                    Clear all filters
+                  </button>
+                )}
+              </div>
+            ) : filteredUsers.map(doc => {
+              const isSel = selectedIds.has(doc.id);
+              return (
+                <div
+                  key={doc.id}
+                  onClick={() => toggleUser(doc.id)}
+                  style={{
+                    display: 'grid', gridTemplateColumns: '36px 1.5fr 1fr 1fr 70px',
+                    padding: '9px 16px', borderBottom: `1px solid ${borderL}`,
+                    cursor: 'pointer', transition: 'background 0.1s', alignItems: 'center',
+                    background: isSel ? (dm ? '#1E3A5F' : '#EFF6FF') : 'transparent',
+                  }}
+                  onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = dm ? '#1E293B' : '#F9FAFB'; }}
+                  onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <div onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" checked={isSel} onChange={() => toggleUser(doc.id)} style={{ cursor: 'pointer', width: 15, height: 15 }} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                      background: isSel ? accent : (dm ? '#334155' : '#E5E7EB'),
+                      color: isSel ? '#fff' : textS,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontWeight: 700, fontSize: 11,
+                    }}>
+                      {(doc.name || doc.email || '?')[0].toUpperCase()}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: textP, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.name || '—'}</div>
+                      <div style={{ fontSize: 10, color: textS, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.email}</div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: textS, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.college || '—'}</div>
+                  <div style={{ fontSize: 11, color: textS, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.speciality || '—'}</div>
+                  <div style={{ textAlign: 'right', fontWeight: 700, fontSize: 12, color: doc.score > 500 ? '#10B981' : doc.score > 0 ? textP : (dm ? '#64748B' : '#D1D5DB') }}>
+                    {doc.score}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right Panel */}
+        <div style={{ flexShrink: 0, width: 340, display: 'flex', flexDirection: 'column', background: cardBg, overflow: 'hidden' }}>
+          {/* Tab header */}
+          <div style={{ padding: '14px 16px 0', borderBottom: `1px solid ${border}` }}>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[{ key: 'broadcast', icon: '📢', label: 'Broadcast' }, { key: 'event', icon: '📅', label: 'Push Event' }].map(tab => (
+                <button key={tab.key} onClick={() => setRightTab(tab.key)} style={{
+                  padding: '8px 14px', background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 12, fontWeight: 700,
+                  color: rightTab === tab.key ? accent : textS,
+                  borderBottom: rightTab === tab.key ? `2px solid ${accent}` : '2px solid transparent',
+                  borderRadius: 0, transition: 'all 0.15s',
+                }}>{tab.icon} {tab.label}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Sub-header */}
+          <div style={{ padding: '10px 16px', borderBottom: `1px solid ${border}` }}>
+            {rightTab === 'broadcast' ? (
+              <p style={{ fontSize: 12, margin: 0, fontWeight: 600, color: selectedIds.size > 0 ? accent : textS }}>
+                {selectedIds.size > 0 ? `Targeting ${selectedIds.size} doctor${selectedIds.size > 1 ? 's' : ''}` : 'Select doctors from the table'}
+              </p>
+            ) : (
+              <p style={{ fontSize: 12, margin: 0, fontWeight: 600, color: '#059669' }}>
+                📅 Push a compulsory event to every doctor's calendar
+              </p>
+            )}
+          </div>
+
+          {/* Broadcast form */}
+          {rightTab === 'broadcast' && (
+            <div style={{ flex: 1, padding: 16, overflowY: 'auto', opacity: selectedIds.size === 0 ? 0.35 : 1, pointerEvents: selectedIds.size === 0 ? 'none' : 'auto', transition: 'opacity 0.25s' }}>
+              {/* Type selector */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: textS, display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                  {Object.entries(TYPE_CONFIG).map(([key, conf]) => (
+                    <button key={key} onClick={() => setForm(f => ({ ...f, type: key }))} style={{
+                      padding: '8px 4px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                      fontSize: 11, fontWeight: 600, textAlign: 'center',
+                      background: form.type === key ? conf.bg : 'transparent',
+                      color: form.type === key ? conf.color : textS,
+                      outline: form.type === key ? `2px solid ${conf.color}` : `1px solid ${border}`,
+                    }}>
+                      <div style={{ fontSize: 16, marginBottom: 2 }}>{conf.icon}</div>
+                      {conf.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Title */}
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: textS, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Title *</label>
+                <input type="text" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g., Important NEET-PG Update" maxLength={100}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1px solid ${border}`, fontSize: 13, background: dm ? '#0F172A' : '#fff', color: textP, boxSizing: 'border-box' }} />
+              </div>
+              {/* Body */}
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: textS, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Message *</label>
+                <textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} rows={4} maxLength={500}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, resize: 'vertical', border: `1px solid ${border}`, fontSize: 13, background: dm ? '#0F172A' : '#fff', color: textP, minHeight: 90, maxHeight: 180, boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                <div style={{ textAlign: 'right', fontSize: 10, color: textS, marginTop: 2 }}>{form.body.length}/500</div>
+              </div>
+              {/* Preview */}
+              <div style={{ marginBottom: 16, padding: 12, borderRadius: 10, background: dm ? '#0F172A' : typeConf.bg, border: `1px solid ${dm ? typeConf.color + '33' : typeConf.border}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 15 }}>{typeConf.icon}</span>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: textP }}>{form.title || 'Notification Title'}</span>
+                </div>
+                <div style={{ fontSize: 11, color: textS }}>{form.body || 'Preview will appear here...'}</div>
+              </div>
+              {/* Dispatch — 2-step confirm */}
+              {confirmPending && (
+                <div style={{ marginBottom: 8, padding: '8px 12px', borderRadius: 8, background: '#FEF3C7', border: '1px solid #FDE68A', fontSize: 12, color: '#92400E', fontWeight: 600 }}>
+                  ⚠️ Click again to confirm sending to {selectedIds.size} doctor{selectedIds.size !== 1 ? 's' : ''}
+                </div>
+              )}
+              <button onClick={handleDispatch} disabled={isSubmitting || selectedIds.size === 0 || !form.title.trim() || !form.body.trim()} style={{
+                width: '100%', padding: '13px 20px', borderRadius: 12, border: 'none', fontSize: 14, fontWeight: 800, cursor: 'pointer',
+                background: isSubmitting ? (dm ? '#334155' : '#E5E7EB')
+                  : confirmPending ? 'linear-gradient(135deg, #D97706, #B45309)'
+                  : (!form.title.trim() || !form.body.trim()) ? (dm ? '#334155' : '#E5E7EB')
+                  : 'linear-gradient(135deg, #2563EB, #1D4ED8)',
+                color: (isSubmitting || (!form.title.trim() && !confirmPending) || !form.body.trim()) ? textS : '#fff',
+                boxShadow: confirmPending ? '0 4px 16px rgba(217,119,6,0.4)' : (form.title.trim() && form.body.trim() && !isSubmitting) ? '0 4px 16px rgba(37,99,235,0.35)' : 'none',
+              }}>
+                {isSubmitting ? '⏳ Dispatching...' : confirmPending ? `⚠️ Confirm — Send to ${selectedIds.size}?` : `🚀 Dispatch to ${selectedIds.size} Doctor${selectedIds.size !== 1 ? 's' : ''}`}
+              </button>
+            </div>
+          )}
+
+          {/* Event form */}
+          {rightTab === 'event' && (
+            <div style={{ flex: 1, padding: 16, overflowY: 'auto' }}>
+              {/* Color presets */}
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: textS, display: 'block', marginBottom: 7, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Event Type</label>
+                <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                  {[{ color: '#EF4444', label: '🔴 Deadline' }, { color: '#F59E0B', label: '🟡 Exam' }, { color: '#10B981', label: '🟢 Session' }, { color: '#3B82F6', label: '🔵 Webinar' }, { color: '#8B5CF6', label: '🟣 Event' }].map(opt => (
+                    <button key={opt.color} onClick={() => setEventForm(f => ({ ...f, color: opt.color }))} style={{
+                      padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                      background: eventForm.color === opt.color ? opt.color + '22' : (dm ? '#1E293B' : '#F9FAFB'),
+                      color: eventForm.color === opt.color ? opt.color : textS,
+                      outline: eventForm.color === opt.color ? `2px solid ${opt.color}` : `1px solid ${border}`,
+                    }}>{opt.label}</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: textS, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Event Title *</label>
+                <input type="text" value={eventForm.title} onChange={e => setEventForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g., NEET-PG Result Declaration" maxLength={100}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1px solid ${border}`, fontSize: 13, background: dm ? '#0F172A' : '#fff', color: textP, boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: textS, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date *</label>
+                <input type="date" value={eventForm.date} onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1px solid ${border}`, fontSize: 13, background: dm ? '#0F172A' : '#fff', color: textP, boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: textS, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description (optional)</label>
+                <textarea value={eventForm.description} onChange={e => setEventForm(f => ({ ...f, description: e.target.value }))} rows={3} maxLength={300}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: 8, resize: 'vertical', border: `1px solid ${border}`, fontSize: 12, background: dm ? '#0F172A' : '#fff', color: textP, boxSizing: 'border-box', fontFamily: 'inherit' }} />
+              </div>
+              <button onClick={handleEventDispatch} disabled={eventSubmitting || !eventForm.title.trim() || !eventForm.date} style={{
+                width: '100%', padding: '13px', borderRadius: 12, border: 'none', fontSize: 14, fontWeight: 800, cursor: 'pointer',
+                background: (eventSubmitting || !eventForm.title.trim() || !eventForm.date) ? (dm ? '#334155' : '#E5E7EB') : 'linear-gradient(135deg, #059669, #047857)',
+                color: (eventSubmitting || !eventForm.title.trim() || !eventForm.date) ? textS : '#fff',
+                boxShadow: (eventForm.title.trim() && eventForm.date && !eventSubmitting) ? '0 4px 16px rgba(5,150,105,0.35)' : 'none',
+              }}>
+                {eventSubmitting ? '⏳ Pushing…' : '📅 Push to All Doctor Calendars'}
+              </button>
+              {recentEvents.length > 0 && (
+                <div style={{ marginTop: 20 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: textS, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Recent Events</div>
+                  {recentEvents.map(ev => (
+                    <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', borderRadius: 8, marginBottom: 5, background: dm ? '#1E293B' : '#F9FAFB', border: `1px solid ${border}` }}>
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: ev.color || '#3B82F6', flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: textP, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</div>
+                        <div style={{ fontSize: 10, color: textS }}>{ev.date}</div>
+                      </div>
+                      <button onClick={() => handleDeleteEvent(ev.id)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: 14 }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
+   CONTENT ADMIN ENGAGE VIEW — new superadmin tool
+   Filter and broadcast to content admins
+   ═══════════════════════════════════════════════════ */
+function ContentAdminEngageView({ userId, addToast, darkMode, onBack }) {
+  const dm     = darkMode;
+  const bg     = dm ? '#0F172A' : '#F8FAFC';
+  const cardBg = dm ? '#1E293B' : '#fff';
+  const border = dm ? '#334155' : '#E5E7EB';
+  const borderL= dm ? '#1E293B' : '#F3F4F6';
+  const textP  = dm ? '#F1F5F9' : '#111827';
+  const textS  = dm ? '#94A3B8' : '#6B7280';
+  const accent = '#7C3AED';
+
+  const [allCAs, setAllCAs]         = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeDropdown, setActiveDropdown] = useState(null);
+
+  // Filters
+  const [filterVolume, setFilterVolume]   = useState('all');  // all|none|low|active
+  const [filterStatus, setFilterStatus]   = useState('all');  // all|has_approved|has_pending|has_rejected
+  const [filterActivity, setFilterActivity] = useState('all'); // all|recent|inactive
+
+  const [selectedIds, setSelectedIds]     = useState(new Set());
+  const [form, setForm]                   = useState({ title: '', body: '', type: 'info' });
+  const [isSubmitting, setIsSubmitting]   = useState(false);
+  const [confirmPending, setConfirmPending] = useState(false);
+  const confirmTimerRef = useRef(null);
+  const caFilterRowRef = useRef(null);
+
+  // Fetch content admins + their artifact stats
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const { data: cas } = await supabase
+          .from('profiles')
+          .select('id, name, email, created_at, status')
+          .eq('role', 'contentadmin');
+
+        if (!cas?.length) { setAllCAs([]); setLoading(false); return; }
+
+        const caIds = cas.map(c => c.id);
+        const { data: arts } = await supabase
+          .from('artifacts')
+          .select('id, status, uploaded_by_id, created_at')
+          .in('uploaded_by_id', caIds);
+
+        // Build per-CA stats
+        const statsMap = {};
+        cas.forEach(c => { statsMap[c.id] = { total: 0, pending: 0, approved: 0, rejected: 0, lastUpload: null }; });
+        (arts || []).forEach(a => {
+          const s = statsMap[a.uploaded_by_id];
+          if (!s) return;
+          s.total++;
+          if (a.status === 'pending')  s.pending++;
+          if (a.status === 'approved') s.approved++;
+          if (a.status === 'rejected') s.rejected++;
+          const d = new Date(a.created_at);
+          if (!s.lastUpload || d > new Date(s.lastUpload)) s.lastUpload = a.created_at;
+        });
+
+        const merged = cas.map(c => ({ ...c, ...statsMap[c.id] }));
+        setAllCAs(merged);
+      } catch (err) {
+        console.error('[ContentAdminEngageView] Fetch failed:', err);
+        addToast?.('error', 'Failed to load content admin data.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Close CA filter dropdowns on outside click
+  useEffect(() => {
+    if (!activeDropdown) return;
+    const handler = (e) => {
+      if (caFilterRowRef.current && !caFilterRowRef.current.contains(e.target)) {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [activeDropdown]);
+
+  // Filtering
+  const filteredCAs = useMemo(() => {
+    return allCAs.filter(ca => {
+      // Search
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase().trim();
+        if (!`${ca.name || ''} ${ca.email || ''}`.toLowerCase().includes(q)) return false;
+      }
+      // Upload volume
+      if (filterVolume === 'none'   && ca.total !== 0) return false;
+      if (filterVolume === 'low'    && (ca.total < 1 || ca.total > 5)) return false;
+      if (filterVolume === 'active' && ca.total <= 5) return false;
+      // Content status
+      if (filterStatus === 'has_approved' && ca.approved === 0) return false;
+      if (filterStatus === 'has_pending'  && ca.pending  === 0) return false;
+      if (filterStatus === 'has_rejected' && ca.rejected === 0) return false;
+      // Activity
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      if (filterActivity === 'recent'   && (!ca.lastUpload || new Date(ca.lastUpload) < thirtyDaysAgo)) return false;
+      if (filterActivity === 'inactive' && ca.lastUpload && new Date(ca.lastUpload) >= thirtyDaysAgo) return false;
+      return true;
+    });
+  }, [allCAs, searchQuery, filterVolume, filterStatus, filterActivity]);
+
+  useEffect(() => { setSelectedIds(new Set()); }, [searchQuery, filterVolume, filterStatus, filterActivity]);
+
+  const toggleCA = useCallback(id => {
+    setSelectedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }, []);
+
+  const allFiltered = filteredCAs.length > 0 && filteredCAs.every(c => selectedIds.has(c.id));
+  const handleSelectAll = () => {
+    const ids = new Set(filteredCAs.map(c => c.id));
+    const all = filteredCAs.every(c => selectedIds.has(c.id));
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      if (all) ids.forEach(id => n.delete(id)); else ids.forEach(id => n.add(id));
+      return n;
+    });
+  };
+
+  const hasActiveFilters = filterVolume !== 'all' || filterStatus !== 'all' || filterActivity !== 'all' || searchQuery;
+
+  const handleDispatch = async () => {
+    if (selectedIds.size === 0) return;
+    if (!form.title.trim()) { addToast?.('error', 'Title is required.'); return; }
+    if (!form.body.trim())  { addToast?.('error', 'Message required.'); return; }
+    if (!confirmPending) {
+      setConfirmPending(true);
+      clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = setTimeout(() => setConfirmPending(false), 5000);
+      return;
+    }
+    clearTimeout(confirmTimerRef.current);
+    setConfirmPending(false);
+    setIsSubmitting(true);
+    try {
+      const tc = TYPE_CONFIG[form.type] || TYPE_CONFIG.info;
+      const payloads = [...selectedIds].map(uid => ({
+        user_id: uid,
+        sender_id: userId,
+        title: form.title.trim(), body: form.body.trim(),
+        type: form.type, icon: tc.icon, is_read: false,
+      }));
+      const { error } = await supabase.from('notifications').insert(payloads);
+      if (error) throw error;
+      addToast?.('success', `✅ Broadcast sent to ${selectedIds.size} content admin(s)!`);
+      setSelectedIds(new Set());
+      setForm({ title: '', body: '', type: 'info' });
+    } catch (err) {
+      addToast?.('error', 'Dispatch failed: ' + (err.message || 'Try again'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const typeConf = TYPE_CONFIG[form.type] || TYPE_CONFIG.info;
+
+  const VOLUME_OPTIONS  = [{ v: 'all', l: '📦 All Volumes' }, { v: 'none', l: '🚫 No Uploads' }, { v: 'low', l: '📉 Low (1–5)' }, { v: 'active', l: '📈 Active (6+)' }];
+  const STATUS_OPTIONS  = [{ v: 'all', l: '🏷 All Statuses' }, { v: 'has_approved', l: '✅ Has Approved' }, { v: 'has_pending', l: '⏳ Has Pending' }, { v: 'has_rejected', l: '❌ Has Rejected' }];
+  const ACTIVITY_OPTIONS= [{ v: 'all', l: '🕐 All Activity' }, { v: 'recent', l: '🟢 Active (30d)' }, { v: 'inactive', l: '🔴 Inactive (30d+)' }];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', overflow: 'hidden', background: bg }}>
+
+      {/* TOP BAR — overflow:visible so filter dropdowns show below */}
+      <div style={{ background: cardBg, borderBottom: `1px solid ${border}`, flexShrink: 0, overflow: 'visible', position: 'relative', zIndex: 10 }}>
+        <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button
+            onClick={onBack}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 99, border: `1px solid ${border}`, background: 'transparent', color: textS, fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
+          >
+            ← Back
+          </button>
+
+          <div style={{ fontSize: 15, fontWeight: 900, color: textP, flexShrink: 0 }}>
+            🎓 Content Admin Reach
+            <span style={{ fontWeight: 400, color: textS, fontSize: 12, marginLeft: 8 }}>
+              ({filteredCAs.length} of {allCAs.length})
+            </span>
+          </div>
+
+          {/* Search */}
+          <div style={{ flex: 1, minWidth: 180, maxWidth: 320 }}>
+            <input
+              type="text"
+              placeholder="🔍 Search by name or email..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{ width: '100%', padding: '8px 14px', borderRadius: 99, border: `1px solid ${border}`, fontSize: 12, background: dm ? '#0F172A' : '#F9FAFB', color: textP, boxSizing: 'border-box', outline: 'none' }}
+            />
+          </div>
+
+          {selectedIds.size > 0 && (
+            <div style={{ padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 700, background: '#F5F3FF', color: accent, flexShrink: 0 }}>
+              ✓ {selectedIds.size} selected
+            </div>
+          )}
+        </div>
+
+        {/* Filter row — overflow:visible so dropdowns aren't clipped */}
+        <div ref={caFilterRowRef} style={{ padding: '0 16px 10px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', overflow: 'visible', position: 'relative', zIndex: 5 }}>
+          {/* Upload volume dropdown */}
+          {[
+            { id: 'volume', label: VOLUME_OPTIONS.find(o => o.v === filterVolume)?.l || '📦 Upload Volume', opts: VOLUME_OPTIONS, val: filterVolume, set: setFilterVolume, isActive: filterVolume !== 'all' },
+            { id: 'status', label: STATUS_OPTIONS.find(o => o.v === filterStatus)?.l || '🏷 Content Status', opts: STATUS_OPTIONS, val: filterStatus, set: setFilterStatus, isActive: filterStatus !== 'all' },
+            { id: 'activity', label: ACTIVITY_OPTIONS.find(o => o.v === filterActivity)?.l || '🕐 Activity', opts: ACTIVITY_OPTIONS, val: filterActivity, set: setFilterActivity, isActive: filterActivity !== 'all' },
+          ].map(({ id, label, opts, val, set, isActive }) => (
+            <div key={id} style={{ position: 'relative', flexShrink: 0 }}>
+              <button
+                onClick={() => setActiveDropdown(activeDropdown === id ? null : id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
+                  borderRadius: 99, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: isActive ? 700 : 600,
+                  background: isActive ? (dm ? accent + '22' : '#F5F3FF') : (dm ? '#1E293B' : '#F3F4F6'),
+                  color: isActive ? accent : textS,
+                  outline: isActive ? `2px solid ${accent}` : `1px solid ${border}`,
+                }}
+              >
+                {label} <span style={{ fontSize: 9, opacity: 0.7 }}>{activeDropdown === id ? '▲' : '▼'}</span>
+              </button>
+              {activeDropdown === id && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 200, minWidth: 200, background: dm ? '#1E293B' : '#fff', border: `1px solid ${border}`, borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', padding: '8px 0' }}>
+                  {opts.map(opt => (
+                    <button key={opt.v} onClick={() => { set(opt.v); setActiveDropdown(null); }}
+                      style={{ display: 'block', width: '100%', padding: '9px 16px', border: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 12, fontWeight: val === opt.v ? 700 : 400, background: val === opt.v ? (dm ? accent + '22' : '#F5F3FF') : 'transparent', color: val === opt.v ? accent : textP }}>
+                      {opt.l}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {hasActiveFilters && (
+            <button
+              onClick={() => { setSearchQuery(''); setFilterVolume('all'); setFilterStatus('all'); setFilterActivity('all'); }}
+              style={{ padding: '7px 14px', borderRadius: 99, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#EF4444', background: dm ? '#450A0A' : '#FEF2F2' }}
+            >
+              ✕ Clear filters
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* BODY */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* CA Table */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRight: `1px solid ${border}` }}>
+          {/* Column headers */}
+          <div style={{ display: 'grid', gridTemplateColumns: '36px 1.6fr 70px 70px 70px 80px', padding: '8px 16px', borderBottom: `1px solid ${borderL}`, background: cardBg, fontSize: 10, fontWeight: 700, color: textS, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <div>
+              <input type="checkbox" checked={allFiltered} onChange={handleSelectAll} disabled={filteredCAs.length === 0} style={{ cursor: 'pointer', width: 15, height: 15 }} />
+            </div>
+            <div>Content Admin</div>
+            <div style={{ textAlign: 'center' }}>Total</div>
+            <div style={{ textAlign: 'center' }}>✅ Live</div>
+            <div style={{ textAlign: 'center' }}>⏳ Pend</div>
+            <div style={{ textAlign: 'right' }}>Last Upload</div>
+          </div>
+
+          {/* Rows */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {loading ? (
+              <div style={{ padding: 40, textAlign: 'center', color: textS }}>
+                <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>Loading content admins...
+              </div>
+            ) : filteredCAs.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: textS }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>No content admins match</div>
+                <div style={{ fontSize: 12 }}>Try adjusting the filters</div>
+              </div>
+            ) : filteredCAs.map(ca => {
+              const isSel = selectedIds.has(ca.id);
+              const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+              const isRecent = ca.lastUpload && new Date(ca.lastUpload) >= thirtyDaysAgo;
+              const lastUpStr = ca.lastUpload
+                ? new Date(ca.lastUpload).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : '—';
+              return (
+                <div
+                  key={ca.id}
+                  onClick={() => toggleCA(ca.id)}
+                  style={{
+                    display: 'grid', gridTemplateColumns: '36px 1.6fr 70px 70px 70px 80px',
+                    padding: '9px 16px', borderBottom: `1px solid ${borderL}`,
+                    cursor: 'pointer', alignItems: 'center',
+                    background: isSel ? (dm ? '#2E1065' : '#F5F3FF') : 'transparent',
+                  }}
+                  onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = dm ? '#1E293B' : '#F9FAFB'; }}
+                  onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <div onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" checked={isSel} onChange={() => toggleCA(ca.id)} style={{ cursor: 'pointer', width: 15, height: 15 }} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <div style={{
+                      width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+                      background: isSel ? accent : (dm ? '#334155' : '#EDE9FE'),
+                      color: isSel ? '#fff' : (dm ? '#C4B5FD' : accent),
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontWeight: 700, fontSize: 12,
+                    }}>
+                      {(ca.name || ca.email || '?')[0].toUpperCase()}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: textP, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ca.name || '—'}</div>
+                      <div style={{ fontSize: 10, color: textS, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ca.email}</div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center', fontWeight: 700, fontSize: 13, color: ca.total > 0 ? textP : textS }}>{ca.total}</div>
+                  <div style={{ textAlign: 'center', fontWeight: 700, fontSize: 12, color: ca.approved > 0 ? '#059669' : textS }}>{ca.approved}</div>
+                  <div style={{ textAlign: 'center', fontWeight: 700, fontSize: 12, color: ca.pending > 0 ? '#D97706' : textS }}>{ca.pending}</div>
+                  <div style={{ textAlign: 'right', fontSize: 11, color: isRecent ? '#059669' : textS, fontWeight: isRecent ? 600 : 400 }}>
+                    {isRecent && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10B981', display: 'inline-block', marginRight: 4 }} />}
+                    {lastUpStr}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right panel – Broadcast */}
+        <div style={{ flexShrink: 0, width: 340, display: 'flex', flexDirection: 'column', background: cardBg, overflow: 'hidden' }}>
+          <div style={{ padding: '16px', borderBottom: `1px solid ${border}` }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: textP }}>📢 Broadcast to Content Admins</div>
+            <div style={{ fontSize: 12, color: selectedIds.size > 0 ? accent : textS, marginTop: 4, fontWeight: 600 }}>
+              {selectedIds.size > 0 ? `Targeting ${selectedIds.size} content admin${selectedIds.size > 1 ? 's' : ''}` : 'Select content admins from the list'}
+            </div>
+          </div>
+          <div style={{ flex: 1, padding: 16, overflowY: 'auto', opacity: selectedIds.size === 0 ? 0.35 : 1, pointerEvents: selectedIds.size === 0 ? 'none' : 'auto', transition: 'opacity 0.25s' }}>
+            {/* Type selector */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: textS, display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                {Object.entries(TYPE_CONFIG).map(([key, conf]) => (
+                  <button key={key} onClick={() => setForm(f => ({ ...f, type: key }))} style={{
+                    padding: '8px 4px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, textAlign: 'center',
+                    background: form.type === key ? conf.bg : 'transparent',
+                    color: form.type === key ? conf.color : textS,
+                    outline: form.type === key ? `2px solid ${conf.color}` : `1px solid ${border}`,
+                  }}>
+                    <div style={{ fontSize: 16, marginBottom: 2 }}>{conf.icon}</div>
+                    {conf.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: textS, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Title *</label>
+              <input type="text" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g., Content Policy Update" maxLength={100}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: `1px solid ${border}`, fontSize: 13, background: dm ? '#0F172A' : '#fff', color: textP, boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: textS, display: 'block', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Message *</label>
+              <textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} rows={4} maxLength={500}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, resize: 'vertical', border: `1px solid ${border}`, fontSize: 13, background: dm ? '#0F172A' : '#fff', color: textP, minHeight: 90, boxSizing: 'border-box', fontFamily: 'inherit' }} />
+              <div style={{ textAlign: 'right', fontSize: 10, color: textS, marginTop: 2 }}>{form.body.length}/500</div>
+            </div>
+            {/* Preview */}
+            <div style={{ marginBottom: 16, padding: 12, borderRadius: 10, background: dm ? '#0F172A' : typeConf.bg, border: `1px solid ${dm ? typeConf.color + '33' : typeConf.border}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 15 }}>{typeConf.icon}</span>
+                <span style={{ fontWeight: 700, fontSize: 13, color: textP }}>{form.title || 'Notification Title'}</span>
+              </div>
+              <div style={{ fontSize: 11, color: textS }}>{form.body || 'Preview here...'}</div>
+            </div>
+            {confirmPending && (
+              <div style={{ marginBottom: 8, padding: '8px 12px', borderRadius: 8, background: '#FEF3C7', border: '1px solid #FDE68A', fontSize: 12, color: '#92400E', fontWeight: 600 }}>
+                ⚠️ Click again to confirm sending to {selectedIds.size} admin{selectedIds.size !== 1 ? 's' : ''}
+              </div>
+            )}
+            <button onClick={handleDispatch} disabled={isSubmitting || selectedIds.size === 0 || !form.title.trim() || !form.body.trim()} style={{
+              width: '100%', padding: '13px', borderRadius: 12, border: 'none', fontSize: 14, fontWeight: 800, cursor: 'pointer',
+              background: isSubmitting ? (dm ? '#334155' : '#E5E7EB')
+                : confirmPending ? 'linear-gradient(135deg, #D97706, #B45309)'
+                : (!form.title.trim() || !form.body.trim()) ? (dm ? '#334155' : '#E5E7EB')
+                : 'linear-gradient(135deg, #7C3AED, #6D28D9)',
+              color: (isSubmitting || (!confirmPending && (!form.title.trim() || !form.body.trim()))) ? textS : '#fff',
+              boxShadow: confirmPending ? '0 4px 16px rgba(217,119,6,0.4)' : (form.title.trim() && form.body.trim() && !isSubmitting) ? '0 4px 16px rgba(124,58,237,0.35)' : 'none',
+            }}>
+              {isSubmitting ? '⏳ Sending...' : confirmPending ? `⚠️ Confirm — Send to ${selectedIds.size}?` : `🚀 Send to ${selectedIds.size} Admin${selectedIds.size !== 1 ? 's' : ''}`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
    MAIN COMPONENT
    ═══════════════════════════════════════════════════ */
 export default function BroadcastPage({ role, userId, darkMode, addToast }) {
 
-  // ─── GATE: Superadmin only ───
-  // ── Content Admin: Notification Center view ──────────────────────────────
+  // Gate: Content Admin → their own notification center
   if (role === 'contentadmin') {
     return <ContentAdminNotificationCenter userId={userId} addToast={addToast} darkMode={darkMode} />;
   }
 
+  // Gate: Not superadmin → access denied
   if (role !== 'superadmin') {
     return (
       <div style={{ padding: 60, textAlign: 'center', color: '#9CA3AF' }}>
@@ -345,739 +1971,37 @@ export default function BroadcastPage({ role, userId, darkMode, addToast }) {
     );
   }
 
-  // ═══════════════════════════════════════════════
-  // STATE
-  // ═══════════════════════════════════════════════
+  // Superadmin view — which sub-view to show
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const [engageView, setEngageView] = useState(null); // null | 'doctors' | 'contentadmins'
 
-  // Independent data (NOT from commonProps — fetched fresh)
-  const [localDoctors, setLocalDoctors] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  // Multi-select filter state (arrays — supports multiple selections per category)
-  const [filters, setFilters] = useState({
-    colleges: [],
-    specialities: [],
-    states: [],
-    zones: [],
-    programs: [],
-    scoreRanges: [],
-  });
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Sidebar section collapse state
-  const [collapsed, setCollapsed] = useState({});
-
-  // Selection
-  const [selectedIds, setSelectedIds] = useState(new Set());
-
-  // Compose form
-  const [form, setForm] = useState({ title: '', body: '', type: 'info' });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Theme
-  const dm = darkMode;
-  const bg = dm ? '#0F172A' : '#F8FAFC';
-  const cardBg = dm ? '#1E293B' : '#fff';
-  const sidebarBg = dm ? '#0F172A' : '#FAFAFA';
-  const border = dm ? '#334155' : '#E5E7EB';
-  const borderLight = dm ? '#1E293B' : '#F3F4F6';
-  const textP = dm ? '#F1F5F9' : '#111827';
-  const textS = dm ? '#94A3B8' : '#6B7280';
-  const accent = '#2563EB';
-
-  // ═══════════════════════════════════════════════
-  // DATA FETCHING (independent — profiles + scores)
-  // ═══════════════════════════════════════════════
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // Fetch profiles and scores in parallel
-        const [profilesRes, scoresRes] = await Promise.all([
-          supabase
-            .from('profiles')
-            .select('id, name, email, role, status, speciality, college, state, zone, program, mci_number, phone, created_at')
-            .eq('role', 'doctor')
-            .eq('status', 'active'),
-          supabase
-            .from('user_scores')
-            .select('user_id, total_score'),
-        ]);
-
-        const profiles = profilesRes.data || [];
-        const scores = scoresRes.data || [];
-
-        // Build score lookup map
-        const scoreMap = {};
-        scores.forEach(s => { scoreMap[s.user_id] = s.total_score || 0; });
-
-        // Merge into enriched doctor objects
-        const merged = profiles.map(p => ({
-          ...p,
-          score: scoreMap[p.id] || 0,
-          // Normalize nulls to 'Unspecified' for filter grouping
-          _college:    p.college    || 'Unspecified',
-          _speciality: p.speciality || 'Unspecified',
-          _state:      p.state      || 'Unspecified',
-          _zone:       p.zone       || 'Unspecified',
-          _program:    p.program    || 'Unspecified',
-        }));
-
-        setLocalDoctors(merged);
-      } catch (err) {
-        console.error('[BroadcastPage] Fetch failed:', err);
-        addToast?.('error', 'Failed to load doctor data.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  // ═══════════════════════════════════════════════
-  // DYNAMIC FILTER OPTIONS (derived from actual data)
-  // ═══════════════════════════════════════════════
-
-  const filterOptions = useMemo(() => {
-    const unique = (arr) => [...new Set(arr)].sort((a, b) => {
-      if (a === 'Unspecified') return 1;
-      if (b === 'Unspecified') return -1;
-      return a.localeCompare(b);
-    });
-
-    return {
-      colleges:    unique(localDoctors.map(d => d._college)),
-      specialities:unique(localDoctors.map(d => d._speciality)),
-      states:      unique(localDoctors.map(d => d._state)),
-      zones:       unique(localDoctors.map(d => d._zone)),
-      programs:    unique(localDoctors.map(d => d._program)),
-    };
-  }, [localDoctors]);
-
-  // ═══════════════════════════════════════════════
-  // FILTER TOGGLE FUNCTION
-  // ═══════════════════════════════════════════════
-
-  const toggleFilter = useCallback((category, value) => {
-    setFilters(prev => {
-      const arr = prev[category] || [];
-      const exists = arr.includes(value);
-      return {
-        ...prev,
-        [category]: exists ? arr.filter(v => v !== value) : [...arr, value],
-      };
-    });
-  }, []);
-
-  const clearAllFilters = useCallback(() => {
-    setFilters({ colleges: [], specialities: [], states: [], zones: [], programs: [], scoreRanges: [] });
-    setSearchQuery('');
-  }, []);
-
-  const activeFilterCount = useMemo(() => {
-    return Object.values(filters).reduce((sum, arr) => sum + arr.length, 0) + (searchQuery ? 1 : 0);
-  }, [filters, searchQuery]);
-
-  // ═══════════════════════════════════════════════
-  // THE MULTI-DIMENSIONAL INTERSECTION ENGINE
-  // (AND across categories, OR within each category)
-  // ═══════════════════════════════════════════════
-
-  const filteredUsers = useMemo(() => {
-    return localDoctors.filter(d => {
-
-      // 1. Text search (name, email, or MCI number)
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase().trim();
-        const haystack = `${d.name || ''} ${d.email || ''} ${d.mci_number || ''}`.toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-
-      // 2. College filter (OR within category)
-      if (filters.colleges.length > 0) {
-        if (!filters.colleges.includes(d._college)) return false;
-      }
-
-      // 3. Speciality filter
-      if (filters.specialities.length > 0) {
-        if (!filters.specialities.includes(d._speciality)) return false;
-      }
-
-      // 4. State filter
-      if (filters.states.length > 0) {
-        if (!filters.states.includes(d._state)) return false;
-      }
-
-      // 5. Zone filter
-      if (filters.zones.length > 0) {
-        if (!filters.zones.includes(d._zone)) return false;
-      }
-
-      // 6. Program filter
-      if (filters.programs.length > 0) {
-        if (!filters.programs.includes(d._program)) return false;
-      }
-
-      // 7. Score range filter (OR within — doctor matches ANY selected bucket)
-      if (filters.scoreRanges.length > 0) {
-        const matchesBucket = filters.scoreRanges.some(bucketKey => {
-          const bucket = SCORE_BUCKETS.find(b => b.key === bucketKey);
-          return bucket ? bucket.check(d.score) : false;
-        });
-        if (!matchesBucket) return false;
-      }
-
-      return true;
-    });
-  }, [localDoctors, searchQuery, filters]);
-
-  // ═══════════════════════════════════════════════
-  // SELECTION LOGIC
-  // ═══════════════════════════════════════════════
-
-  // Clear selection when filters change
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [filters, searchQuery]);
-
-  const toggleUser = useCallback((id) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  // SMART SELECT ALL: operates on filteredUsers only
-  const handleSelectAll = useCallback(() => {
-    const filteredIdSet = new Set(filteredUsers.map(u => u.id));
-    const allSelected = filteredUsers.length > 0 && filteredUsers.every(u => selectedIds.has(u.id));
-
-    if (allSelected) {
-      setSelectedIds(prev => {
-        const next = new Set(prev);
-        filteredIdSet.forEach(id => next.delete(id));
-        return next;
-      });
-    } else {
-      setSelectedIds(prev => {
-        const next = new Set(prev);
-        filteredIdSet.forEach(id => next.add(id));
-        return next;
-      });
-    }
-  }, [filteredUsers, selectedIds]);
-
-  const allFilteredSelected = filteredUsers.length > 0 &&
-    filteredUsers.every(u => selectedIds.has(u.id));
-
-  // ═══════════════════════════════════════════════
-  // DISPATCH — Bulk insert into notifications
-  // ═══════════════════════════════════════════════
-
-  const handleDispatch = async () => {
-    if (selectedIds.size === 0) return;
-    if (!form.title.trim()) { addToast?.('error', 'Title is required.'); return; }
-    if (!form.body.trim())  { addToast?.('error', 'Message body is required.'); return; }
-    if (!confirm(`Dispatch this broadcast to ${selectedIds.size} doctor(s)?`)) return;
-
-    setIsSubmitting(true);
-    try {
-      const typeConf = TYPE_CONFIG[form.type] || TYPE_CONFIG.info;
-
-      const payloads = [...selectedIds].map(uid => ({
-        user_id: uid,
-        title:   form.title.trim(),
-        body:    form.body.trim(),
-        type:    form.type,
-        icon:    typeConf.icon,
-        channel: 'in_app',
-        unread:  true,
-      }));
-
-      const { error } = await supabase.from('notifications').insert(payloads);
-      if (error) throw error;
-
-      addToast?.('success', `✅ Broadcast sent to ${selectedIds.size} doctor(s)!`);
-      setSelectedIds(new Set());
-      setForm({ title: '', body: '', type: 'info' });
-    } catch (err) {
-      console.error('[BroadcastPage] Dispatch failed:', err);
-      addToast?.('error', 'Dispatch failed: ' + (err.message || 'Try again'));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // ═══════════════════════════════════════════════
-  // HELPER: Filter Section Component (reusable)
-  // ═══════════════════════════════════════════════
-
-  const FilterSection = ({ id, title, icon, children }) => {
-    const isOpen = collapsed[id] !== true; // default open
+  if (engageView === null) {
     return (
-      <div style={{ borderBottom: `1px solid ${borderLight}` }}>
-        <button
-          onClick={() => setCollapsed(prev => ({ ...prev, [id]: !prev[id] }))}
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: 12, fontWeight: 700, color: textP, textTransform: 'uppercase',
-            letterSpacing: '0.04em',
-          }}
-        >
-          <span>{icon} {title}</span>
-          <span style={{ fontSize: 10, color: textS, transition: 'transform 0.2s', transform: isOpen ? 'rotate(0)' : 'rotate(-90deg)' }}>▼</span>
-        </button>
-        {isOpen && (
-          <div style={{ padding: '0 14px 10px', maxHeight: 200, overflowY: 'auto' }}>
-            {children}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const CheckboxItem = ({ checked, label, count, onChange }) => (
-    <label style={{
-      display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0',
-      cursor: 'pointer', fontSize: 12, color: checked ? textP : textS,
-      fontWeight: checked ? 600 : 400,
-    }}>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        style={{ width: 14, height: 14, cursor: 'pointer', accentColor: accent, flexShrink: 0 }}
+      <EngageLanding
+        darkMode={darkMode}
+        onSelectDoctors={() => setEngageView('doctors')}
+        onSelectCAs={() => setEngageView('contentadmins')}
       />
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-      {count !== undefined && (
-        <span style={{ fontSize: 10, color: textS, background: dm ? '#334155' : '#F3F4F6', padding: '1px 6px', borderRadius: 8, flexShrink: 0 }}>
-          {count}
-        </span>
-      )}
-    </label>
-  );
+    );
+  }
 
-  // Count helpers
-  const countFor = (field, value) => localDoctors.filter(d => d[field] === value).length;
-
-  const typeConf = TYPE_CONFIG[form.type] || TYPE_CONFIG.info;
-
-  // ═══════════════════════════════════════════════
-  // RENDER
-  // ═══════════════════════════════════════════════
+  if (engageView === 'contentadmins') {
+    return (
+      <ContentAdminEngageView
+        userId={userId}
+        addToast={addToast}
+        darkMode={darkMode}
+        onBack={() => setEngageView(null)}
+      />
+    );
+  }
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 80px)', overflow: 'hidden', background: bg }}>
-
-      {/* ═════════════════════════════════════════════
-          LEFT PANEL: AUDIENCE BUILDER (65%)
-          Layout: [Filter Sidebar 240px] [User Table flex:1]
-          ═════════════════════════════════════════════ */}
-      <div style={{ flex: '0 0 65%', display: 'flex', overflow: 'hidden', borderRight: `1px solid ${border}` }}>
-
-        {/* ── FILTER SIDEBAR (240px) ── */}
-        <div style={{
-          width: 240, flexShrink: 0, borderRight: `1px solid ${borderLight}`,
-          background: sidebarBg, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        }}>
-          {/* Sidebar Header */}
-          <div style={{
-            padding: '12px 14px', borderBottom: `1px solid ${borderLight}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: textP }}>🔍 Filters</span>
-            {activeFilterCount > 0 && (
-              <button onClick={clearAllFilters} style={{
-                fontSize: 10, color: '#EF4444', background: 'none', border: 'none',
-                cursor: 'pointer', fontWeight: 700, padding: '2px 6px',
-              }}>
-                Clear all ({activeFilterCount})
-              </button>
-            )}
-          </div>
-
-          {/* Scrollable filter sections */}
-          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-
-            {/* ── SEARCH ── */}
-            <div style={{ padding: '10px 14px', borderBottom: `1px solid ${borderLight}` }}>
-              <input
-                type="text"
-                placeholder="Name, email, or MCI..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%', padding: '7px 10px', borderRadius: 6,
-                  border: `1px solid ${border}`, fontSize: 12,
-                  background: dm ? '#1E293B' : '#fff', color: textP,
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-
-            {/* ── PERFORMANCE (Score Buckets) ── */}
-            <FilterSection id="score" title="Performance" icon="📊">
-              {SCORE_BUCKETS.map(bucket => (
-                <CheckboxItem
-                  key={bucket.key}
-                  checked={filters.scoreRanges.includes(bucket.key)}
-                  label={`${bucket.icon} ${bucket.label}`}
-                  count={localDoctors.filter(d => bucket.check(d.score)).length}
-                  onChange={() => toggleFilter('scoreRanges', bucket.key)}
-                />
-              ))}
-            </FilterSection>
-
-            {/* ── SPECIALITY ── */}
-            <FilterSection id="speciality" title="Speciality" icon="🩺">
-              {filterOptions.specialities.map(val => (
-                <CheckboxItem
-                  key={val}
-                  checked={filters.specialities.includes(val)}
-                  label={val}
-                  count={countFor('_speciality', val)}
-                  onChange={() => toggleFilter('specialities', val)}
-                />
-              ))}
-            </FilterSection>
-
-            {/* ── PROGRAM ── */}
-            <FilterSection id="program" title="Program" icon="🎓">
-              {filterOptions.programs.map(val => (
-                <CheckboxItem
-                  key={val}
-                  checked={filters.programs.includes(val)}
-                  label={val}
-                  count={countFor('_program', val)}
-                  onChange={() => toggleFilter('programs', val)}
-                />
-              ))}
-            </FilterSection>
-
-            {/* ── COLLEGE ── */}
-            <FilterSection id="college" title="College" icon="🏥">
-              {filterOptions.colleges.map(val => (
-                <CheckboxItem
-                  key={val}
-                  checked={filters.colleges.includes(val)}
-                  label={val}
-                  count={countFor('_college', val)}
-                  onChange={() => toggleFilter('colleges', val)}
-                />
-              ))}
-            </FilterSection>
-
-            {/* ── STATE ── */}
-            <FilterSection id="state" title="State" icon="📍">
-              {filterOptions.states.map(val => (
-                <CheckboxItem
-                  key={val}
-                  checked={filters.states.includes(val)}
-                  label={val}
-                  count={countFor('_state', val)}
-                  onChange={() => toggleFilter('states', val)}
-                />
-              ))}
-            </FilterSection>
-
-            {/* ── ZONE ── */}
-            <FilterSection id="zone" title="Zone" icon="🗺️">
-              {filterOptions.zones.map(val => (
-                <CheckboxItem
-                  key={val}
-                  checked={filters.zones.includes(val)}
-                  label={val}
-                  count={countFor('_zone', val)}
-                  onChange={() => toggleFilter('zones', val)}
-                />
-              ))}
-            </FilterSection>
-
-          </div>
-
-          {/* Sidebar Footer — match summary */}
-          <div style={{
-            padding: '10px 14px', borderTop: `1px solid ${borderLight}`,
-            fontSize: 12, fontWeight: 700, color: accent, background: cardBg,
-          }}>
-            {filteredUsers.length} of {localDoctors.length} doctors
-          </div>
-        </div>
-
-        {/* ── USER TABLE (flex: 1) ── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-          {/* Table Header Bar */}
-          <div style={{
-            padding: '10px 16px', borderBottom: `1px solid ${border}`, background: cardBg,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: textP }}>
-              📡 Audience <span style={{ fontWeight: 400, color: textS, fontSize: 12 }}>({filteredUsers.length} matched)</span>
-            </div>
-            {selectedIds.size > 0 && (
-              <div style={{
-                padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700,
-                background: '#DBEAFE', color: '#2563EB',
-              }}>
-                {selectedIds.size} selected
-              </div>
-            )}
-          </div>
-
-          {/* Column Headers */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: '36px 1.4fr 1fr 1fr 70px',
-            padding: '6px 16px', borderBottom: `1px solid ${borderLight}`, background: cardBg,
-            fontSize: 10, fontWeight: 700, color: textS, textTransform: 'uppercase', letterSpacing: '0.06em',
-          }}>
-            <div>
-              <input
-                type="checkbox"
-                checked={allFilteredSelected}
-                onChange={handleSelectAll}
-                disabled={filteredUsers.length === 0}
-                style={{ cursor: 'pointer', width: 15, height: 15 }}
-                title={`Select all ${filteredUsers.length} filtered`}
-              />
-            </div>
-            <div>Doctor</div>
-            <div>College</div>
-            <div>Speciality</div>
-            <div style={{ textAlign: 'right' }}>Score</div>
-          </div>
-
-          {/* Rows (scrollable) */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {loading ? (
-              <div style={{ padding: 40, textAlign: 'center', color: textS }}>
-                <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>
-                Loading doctors...
-              </div>
-            ) : filteredUsers.length === 0 ? (
-              <div style={{ padding: 40, textAlign: 'center', color: textS }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>No doctors match these filters</div>
-                <div style={{ fontSize: 12 }}>Try removing some filter criteria</div>
-                {activeFilterCount > 0 && (
-                  <button onClick={clearAllFilters} style={{
-                    marginTop: 12, padding: '6px 14px', borderRadius: 8, border: `1px solid ${border}`,
-                    background: 'transparent', color: accent, fontWeight: 600, fontSize: 12, cursor: 'pointer',
-                  }}>
-                    Clear all filters
-                  </button>
-                )}
-              </div>
-            ) : (
-              filteredUsers.map(doc => {
-                const isSelected = selectedIds.has(doc.id);
-                return (
-                  <div
-                    key={doc.id}
-                    onClick={() => toggleUser(doc.id)}
-                    style={{
-                      display: 'grid', gridTemplateColumns: '36px 1.4fr 1fr 1fr 70px',
-                      padding: '9px 16px', borderBottom: `1px solid ${borderLight}`,
-                      cursor: 'pointer', transition: 'background 0.1s', alignItems: 'center',
-                      background: isSelected ? (dm ? '#1E3A5F' : '#EFF6FF') : 'transparent',
-                    }}
-                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = dm ? '#1E293B' : '#F9FAFB'; }}
-                    onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    <div onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" checked={isSelected} onChange={() => toggleUser(doc.id)}
-                        style={{ cursor: 'pointer', width: 15, height: 15 }} />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                      <div style={{
-                        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-                        background: isSelected ? accent : (dm ? '#334155' : '#E5E7EB'),
-                        color: isSelected ? '#fff' : textS,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontWeight: 700, fontSize: 11,
-                      }}>
-                        {(doc.name || doc.email || '?')[0].toUpperCase()}
-                      </div>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: textP, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {doc.name || '—'}
-                        </div>
-                        <div style={{ fontSize: 10, color: textS, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {doc.email}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 11, color: textS, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {doc.college || '—'}
-                    </div>
-                    <div style={{ fontSize: 11, color: textS, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {doc.speciality || '—'}
-                    </div>
-                    <div style={{
-                      textAlign: 'right', fontWeight: 700, fontSize: 12,
-                      color: doc.score > 500 ? '#10B981' : doc.score > 0 ? textP : (dm ? '#64748B' : '#D1D5DB'),
-                    }}>
-                      {doc.score}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </div>
-
-
-      {/* ═════════════════════════════════════════════
-          RIGHT PANEL: COMPOSE CONSOLE (35%)
-          ═════════════════════════════════════════════ */}
-      <div style={{ flex: '0 0 35%', display: 'flex', flexDirection: 'column', background: cardBg, overflow: 'hidden' }}>
-
-        {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${border}` }}>
-          <h2 style={{ fontSize: 15, fontWeight: 800, color: textP, margin: 0 }}>✍️ Compose Broadcast</h2>
-          <p style={{
-            fontSize: 12, margin: '4px 0 0', fontWeight: 600,
-            color: selectedIds.size > 0 ? accent : textS,
-          }}>
-            {selectedIds.size > 0
-              ? `Targeting ${selectedIds.size} doctor${selectedIds.size > 1 ? 's' : ''}`
-              : 'Select doctors from the table to begin'}
-          </p>
-        </div>
-
-        {/* Form */}
-        <div style={{
-          flex: 1, padding: 20, overflowY: 'auto',
-          opacity: selectedIds.size === 0 ? 0.35 : 1,
-          pointerEvents: selectedIds.size === 0 ? 'none' : 'auto',
-          transition: 'opacity 0.25s',
-        }}>
-
-          {/* Type Selector */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: textS, display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Notification Type
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-              {Object.entries(TYPE_CONFIG).map(([key, conf]) => (
-                <button key={key} onClick={() => setForm(f => ({ ...f, type: key }))}
-                  style={{
-                    padding: '8px 4px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                    fontSize: 11, fontWeight: 600, textAlign: 'center',
-                    background: form.type === key ? conf.bg : 'transparent',
-                    color: form.type === key ? conf.color : textS,
-                    outline: form.type === key ? `2px solid ${conf.color}` : `1px solid ${border}`,
-                    transition: 'all 0.15s',
-                  }}>
-                  <div style={{ fontSize: 16, marginBottom: 2 }}>{conf.icon}</div>
-                  {conf.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Title */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: textS, display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Title *
-            </label>
-            <input
-              type="text"
-              value={form.title}
-              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              placeholder="e.g., Important NEET-PG Update"
-              maxLength={100}
-              style={{
-                width: '100%', padding: '9px 12px', borderRadius: 8,
-                border: `1px solid ${border}`, fontSize: 14, fontWeight: 500,
-                background: dm ? '#0F172A' : '#fff', color: textP,
-                boxSizing: 'border-box',
-              }}
-            />
-          </div>
-
-          {/* Body */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: textS, display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Message *
-            </label>
-            <textarea
-              value={form.body}
-              onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
-              placeholder="Write your notification message..."
-              rows={4}
-              maxLength={500}
-              style={{
-                width: '100%', padding: '9px 12px', borderRadius: 8, resize: 'vertical',
-                border: `1px solid ${border}`, fontSize: 13, lineHeight: 1.6,
-                background: dm ? '#0F172A' : '#fff', color: textP,
-                minHeight: 90, maxHeight: 180, boxSizing: 'border-box', fontFamily: 'inherit',
-              }}
-            />
-            <div style={{ textAlign: 'right', fontSize: 10, color: textS, marginTop: 2 }}>
-              {form.body.length}/500
-            </div>
-          </div>
-
-          {/* Live Preview */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: textS, display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Preview
-            </label>
-            <div style={{
-              padding: 14, borderRadius: 10,
-              background: dm ? '#0F172A' : typeConf.bg,
-              border: `1px solid ${dm ? typeConf.color + '33' : typeConf.border}`,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 16 }}>{typeConf.icon}</span>
-                <span style={{ fontWeight: 700, fontSize: 13, color: textP }}>
-                  {form.title || 'Notification Title'}
-                </span>
-              </div>
-              <div style={{ fontSize: 12, color: textS, lineHeight: 1.5 }}>
-                {form.body || 'Your message preview will appear here...'}
-              </div>
-              <div style={{ fontSize: 9, color: textS, marginTop: 6, opacity: 0.5 }}>
-                Just now · via iConnect
-              </div>
-            </div>
-          </div>
-
-          {/* Dispatch Button */}
-          <button
-            onClick={handleDispatch}
-            disabled={isSubmitting || selectedIds.size === 0 || !form.title.trim() || !form.body.trim()}
-            style={{
-              width: '100%', padding: '14px 20px', borderRadius: 12, border: 'none',
-              fontSize: 15, fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
-              background: (isSubmitting || selectedIds.size === 0 || !form.title.trim() || !form.body.trim())
-                ? (dm ? '#334155' : '#E5E7EB')
-                : 'linear-gradient(135deg, #2563EB, #1D4ED8)',
-              color: (isSubmitting || selectedIds.size === 0 || !form.title.trim() || !form.body.trim())
-                ? textS : '#fff',
-              boxShadow: (selectedIds.size > 0 && form.title.trim() && form.body.trim() && !isSubmitting)
-                ? '0 4px 16px rgba(37, 99, 235, 0.35)' : 'none',
-            }}
-          >
-            {isSubmitting
-              ? '⏳ Dispatching...'
-              : `🚀 Dispatch to ${selectedIds.size} Doctor${selectedIds.size !== 1 ? 's' : ''}`}
-          </button>
-
-          {selectedIds.size > 0 && form.title.trim() && form.body.trim() && (
-            <p style={{ fontSize: 10, color: textS, textAlign: 'center', marginTop: 6 }}>
-              Delivered instantly via Supabase Realtime
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
+    <DoctorEngageView
+      userId={userId}
+      addToast={addToast}
+      darkMode={darkMode}
+      onBack={() => setEngageView(null)}
+    />
   );
 }

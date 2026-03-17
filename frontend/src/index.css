@@ -61,12 +61,44 @@ h1, h2, h3, h4, h5 { font-family: 'Inter', -apple-system, sans-serif; letter-spa
 .si { animation: scaleIn .25s ease both; }
 
 /* ── LOGIN ─────────────────────────────── */
-.login-bg { min-height: 100vh; background: var(--surf); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
-.login-logo-wrap { display: flex; flex-direction: column; align-items: center; margin-bottom: 32px; }
-.logo-icon { width: 56px; height: 56px; border-radius: 14px; background: linear-gradient(135deg, var(--blue), var(--blue-d)); display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; color: white; margin-bottom: 12px; box-shadow: 0 4px 14px rgba(79,70,229,0.3); }
-.logo-text { font-size: 22px; font-weight: 700; color: var(--text); }
-.logo-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
-.login-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 32px; width: 420px; box-shadow: var(--shadow-lg); }
+.login-bg {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #EEF2FF 0%, #F8FAFC 45%, #F5F3FF 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px;
+  position: relative; overflow: hidden;
+}
+/* Decorative background orbs */
+.login-bg::before {
+  content: ''; position: absolute; width: 500px; height: 500px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(79,70,229,0.08) 0%, transparent 70%);
+  top: -150px; right: -100px; pointer-events: none;
+}
+.login-bg::after {
+  content: ''; position: absolute; width: 400px; height: 400px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(124,58,237,0.07) 0%, transparent 70%);
+  bottom: -100px; left: -80px; pointer-events: none;
+}
+.login-logo-wrap { display: flex; flex-direction: column; align-items: center; margin-bottom: 28px; position: relative; z-index: 1; }
+.logo-icon {
+  width: 60px; height: 60px; border-radius: 16px;
+  background: linear-gradient(135deg, #4F46E5, #7C3AED);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; font-weight: 800; color: white; margin-bottom: 12px;
+  box-shadow: 0 8px 24px rgba(79,70,229,0.35);
+}
+.logo-text { font-size: 24px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; }
+.logo-sub { font-size: 13px; color: var(--muted); margin-top: 3px; }
+.login-card {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: var(--r-xl);
+  padding: 32px;
+  width: 420px;
+  box-shadow: 0 20px 60px rgba(79,70,229,0.12), 0 4px 16px rgba(0,0,0,0.06);
+  position: relative; z-index: 1;
+}
 .login-card h2 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
 .login-card p { font-size: 14px; color: var(--muted); margin-bottom: 20px; }
 .login-field { margin-bottom: 14px; }

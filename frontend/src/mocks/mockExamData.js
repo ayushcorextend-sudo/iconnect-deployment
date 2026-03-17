@@ -1,0 +1,61 @@
+// Sample exam questions for ExamPlayer development
+export const mockExamSets = [
+  {
+    id: 'mock-set-1',
+    title: 'NEET-PG Pharmacology — Mock Test 1',
+    description: 'Covers receptor pharmacology, autonomic drugs, and clinical pharmacokinetics.',
+    subject_id: 1,
+    subject_name: 'Pharmacology',
+    question_count: 5,
+    time_limit_mins: 10,
+    difficulty: 'medium',
+    is_published: true,
+  },
+  {
+    id: 'mock-set-2',
+    title: 'Internal Medicine — Cardiology MCQs',
+    description: 'ECG interpretation, heart failure, and valvular disease MCQs.',
+    subject_id: 2,
+    subject_name: 'Internal Medicine',
+    question_count: 5,
+    time_limit_mins: 10,
+    difficulty: 'hard',
+    is_published: true,
+  },
+];
+
+export const mockQuestions = [
+  {
+    id: 'mock-q-1',
+    set_id: 'mock-set-1',
+    question: 'Which receptor subtype mediates bronchodilation when stimulated by adrenergic agonists?',
+    option_a: 'Alpha-1',
+    option_b: 'Alpha-2',
+    option_c: 'Beta-1',
+    option_d: 'Beta-2',
+    correct: 'D',
+    explanation: 'Beta-2 receptors are found in bronchial smooth muscle. Their stimulation leads to bronchodilation via increased cAMP, relaxing smooth muscle. This is the mechanism of action of salbutamol and other beta-2 agonists used in asthma.',
+  },
+  {
+    id: 'mock-q-2',
+    set_id: 'mock-set-1',
+    question: 'A patient on warfarin starts taking rifampicin. The expected effect is:',
+    option_a: 'Increased warfarin effect (more anticoagulation)',
+    option_b: 'Decreased warfarin effect (less anticoagulation)',
+    option_c: 'No change in warfarin effect',
+    option_d: 'Unpredictable change in warfarin effect',
+    correct: 'B',
+    explanation: 'Rifampicin is a potent inducer of CYP450 enzymes (especially CYP2C9), which metabolizes warfarin. Enzyme induction increases warfarin clearance, reducing its plasma concentration and anticoagulant effect. INR monitoring and dose adjustment are required.',
+  },
+  {
+    id: 'mock-q-3',
+    set_id: 'mock-set-1',
+    question: 'The mechanism of action of metformin in type 2 diabetes primarily involves:',
+    option_a: 'Stimulation of insulin secretion from beta cells',
+    option_b: 'Activation of AMPK leading to reduced hepatic gluconeogenesis',
+    option_c: 'Inhibition of DPP-4 enzyme',
+    option_d: 'Blocking glucose reabsorption in the renal tubules',
+    correct: 'B',
+    explanation: 'Metformin activates AMP-activated protein kinase (AMPK), which inhibits hepatic gluconeogenesis and improves peripheral insulin sensitivity. It does not stimulate insulin secretion and hence does not cause hypoglycemia when used alone.',
+  },
+];

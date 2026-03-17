@@ -21,6 +21,25 @@ function Spinner() {
   );
 }
 
+// All required fields per step (used for completion % + inline validation)
+const REQUIRED_FIELDS = {
+  email: 'Email Address',
+  password: 'Password',
+  confirmPassword: 'Confirm Password',
+  name: 'Full Name',
+  phone: 'Phone Number',
+  homeState: 'Home State',
+  district: 'District',
+  hometown: 'Hometown',
+  speciality: 'Speciality',
+  college: 'College',
+  place_of_study: 'Place of Study',
+  joining: 'Year of Joining',
+  mciNumber: 'MCI / NMC Number',
+};
+
+const TOTAL_REQUIRED = Object.keys(REQUIRED_FIELDS).length;
+
 export default function RegistrationPage({ addToast, setPage, onRegisterSuccess }) {
   const now = new Date().getFullYear();
   const [step, setStep] = useState(1);
@@ -31,6 +50,8 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
   const [showPw, setShowPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [certFile, setCertFile] = useState(null); // File object for certificate
+  // touched tracks which fields have been blurred — only show inline errors after touch
+  const [touched, setTouched] = useState({});
   const [form, setForm] = useState({
     // Step 1
     email: '', password: '', confirmPassword: '',
@@ -43,6 +64,26 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
   });
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const touch = (k) => setTouched(t => ({ ...t, [k]: true }));
+  const isErr = (k) => touched[k] && !form[k]?.trim();
+
+  // Real field-completion % based on required fields filled
+  const calcPct = () => {
+    const filled = Object.keys(REQUIRED_FIELDS).filter(k => form[k]?.toString().trim()).length;
+    return Math.round((filled / TOTAL_REQUIRED) * 100);
+  };
+
+  const fieldStyle = (k) => ({
+    width: '100%', padding: '10px 14px',
+    border: `1px solid ${isErr(k) ? '#EF4444' : '#E5E7EB'}`,
+    borderRadius: 8, fontSize: 14, fontFamily: 'inherit', outline: 'none',
+    background: '#fff', transition: 'border-color 0.15s',
+    boxShadow: isErr(k) ? '0 0 0 3px rgba(239,68,68,0.1)' : 'none',
+  });
+  const selectStyle = (k) => ({ ...fieldStyle(k), cursor: 'pointer' });
+  const InlineErr = ({ field }) => isErr(field)
+    ? <div style={{ fontSize: 11, color: '#EF4444', marginTop: 3 }}>⚠️ {REQUIRED_FIELDS[field]} is required</div>
+    : null;
 
   const duration = PROG_YEARS[form.program] || 3;
   const passoutYear = form.joining ? parseInt(form.joining) + duration : null;
@@ -176,14 +217,14 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
     />
   );
 
-  const pct = Math.round((step / STEPS.length) * 100);
+  const pct = calcPct();
 
   return (
     <div className="page">
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       <div className="ph">
         <div className="pt">📋 New Registration</div>
-        <div className="ps">PG Aspirant Onboarding — All fields marked * are mandatory</div>
+        <div className="ps">PG Aspirant Onboarding — All fields marked <span style={{ color: '#EF4444' }}>*</span> are mandatory</div>
       </div>
 
       {/* Progress indicator */}
@@ -192,10 +233,16 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
           <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>
             Step {step} of {STEPS.length} — {STEPS[step - 1]} Details
           </span>
-          <span style={{ fontSize: 12, color: '#6B7280' }}>Profile Completeness: {pct}%</span>
+          <span style={{ fontSize: 12, color: pct === 100 ? '#059669' : '#6B7280', fontWeight: pct === 100 ? 700 : 400 }}>
+            {pct === 100 ? '✅ ' : ''}Form Completion: {pct}%
+          </span>
         </div>
         <div style={{ height: 6, background: '#E5E7EB', borderRadius: 99, overflow: 'hidden', marginBottom: 16 }}>
-          <div style={{ height: '100%', width: `${pct}%`, background: '#2563EB', borderRadius: 99, transition: 'width .4s ease' }} />
+          <div style={{
+            height: '100%', width: `${pct}%`,
+            background: pct === 100 ? '#10B981' : '#2563EB',
+            borderRadius: 99, transition: 'width .4s ease',
+          }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0 }}>
           {STEPS.map((l, i) => (
@@ -229,33 +276,73 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
           <div className="card fi">
             <div className="ct" style={{ marginBottom: 16 }}>🔐 Account Details</div>
             <div className="fg">
-              <label className="fl">Email Address <span className="req">*</span></label>
-              <input className="fi-in" type="email" autoComplete="email" placeholder="you@hospital.in"
-                value={form.email} onChange={e => set('email', e.target.value)} />
+              <label className="fl">Email Address <span style={{ color: '#EF4444' }}>*</span></label>
+              <input
+                style={fieldStyle('email')} type="email" autoComplete="email" placeholder="you@hospital.in"
+                value={form.email}
+                onChange={e => set('email', e.target.value)}
+                onBlur={() => touch('email')}
+              />
+              <InlineErr field="email" />
             </div>
             <div className="fg">
-              <label className="fl">Password <span className="req">*</span></label>
+              <label className="fl">Password <span style={{ color: '#EF4444' }}>*</span></label>
               <div style={{ position: 'relative' }}>
-                <input className="fi-in" type={showPw ? 'text' : 'password'} autoComplete="new-password"
+                <input
+                  style={{ ...fieldStyle('password'), paddingRight: 40 }}
+                  type={showPw ? 'text' : 'password'} autoComplete="new-password"
                   placeholder="Min 8 chars, A-Z, 0-9, !@#$"
-                  value={form.password} onChange={e => set('password', e.target.value)} style={{ paddingRight: 40 }} />
+                  value={form.password}
+                  onChange={e => set('password', e.target.value)}
+                  onBlur={() => touch('password')}
+                />
                 <span onClick={() => setShowPw(s => !s)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#6B7280', fontSize: 14 }}>
                   {showPw ? '🙈' : '👁️'}
                 </span>
               </div>
+              {/* Password strength indicator */}
+              {form.password && (
+                <div style={{ marginTop: 6 }}>
+                  {(() => {
+                    const s = form.password;
+                    let score = 0;
+                    if (s.length >= 8) score++;
+                    if (/[A-Z]/.test(s)) score++;
+                    if (/[0-9]/.test(s)) score++;
+                    if (/[^a-zA-Z0-9]/.test(s)) score++;
+                    const labels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+                    const colors = ['', '#EF4444', '#F59E0B', '#3B82F6', '#10B981'];
+                    return (
+                      <>
+                        <div style={{ display: 'flex', gap: 3, marginBottom: 3 }}>
+                          {[1,2,3,4].map(i => (
+                            <div key={i} style={{ flex: 1, height: 3, borderRadius: 99, background: i <= score ? colors[score] : '#E5E7EB', transition: 'background 0.2s' }} />
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 11, color: colors[score], fontWeight: 600 }}>{labels[score]}</div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
               {pwError && <div style={{ fontSize: 11, color: '#DC2626', marginTop: 4 }}>⚠️ {pwError}</div>}
             </div>
             <div className="fg">
-              <label className="fl">Confirm Password <span className="req">*</span></label>
+              <label className="fl">Confirm Password <span style={{ color: '#EF4444' }}>*</span></label>
               <div style={{ position: 'relative' }}>
-                <input className="fi-in" type={showConfirmPw ? 'text' : 'password'} autoComplete="new-password"
+                <input
+                  style={{ ...fieldStyle('confirmPassword'), paddingRight: 40 }}
+                  type={showConfirmPw ? 'text' : 'password'} autoComplete="new-password"
                   placeholder="Re-enter password"
-                  value={form.confirmPassword} onChange={e => set('confirmPassword', e.target.value)} style={{ paddingRight: 40 }} />
+                  value={form.confirmPassword}
+                  onChange={e => set('confirmPassword', e.target.value)}
+                  onBlur={() => touch('confirmPassword')}
+                />
                 <span onClick={() => setShowConfirmPw(s => !s)} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: '#6B7280', fontSize: 14 }}>
                   {showConfirmPw ? '🙈' : '👁️'}
                 </span>
               </div>
-              {form.confirmPassword && form.password !== form.confirmPassword && (
+              {touched.confirmPassword && form.confirmPassword && form.password !== form.confirmPassword && (
                 <div style={{ fontSize: 11, color: '#DC2626', marginTop: 4 }}>⚠️ Passwords do not match</div>
               )}
             </div>
@@ -267,36 +354,66 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
           <div className="card fi">
             <div className="ct" style={{ marginBottom: 16 }}>👤 Personal Info</div>
             <div className="fg">
-              <label className="fl">Full Name (with title) <span className="req">*</span></label>
-              <input className="fi-in" placeholder="Dr. First Last" value={form.name} onChange={e => set('name', e.target.value)} />
+              <label className="fl">Full Name (with title) <span style={{ color: '#EF4444' }}>*</span></label>
+              <input
+                style={fieldStyle('name')} placeholder="Dr. First Last"
+                value={form.name}
+                onChange={e => set('name', e.target.value)}
+                onBlur={() => touch('name')}
+              />
+              <InlineErr field="name" />
             </div>
             <div className="fg">
-              <label className="fl">Phone Number <span className="req">*</span></label>
-              <input className="fi-in" type="tel" placeholder="+91 98765 43210" value={form.phone} onChange={e => set('phone', e.target.value)} />
+              <label className="fl">Phone Number <span style={{ color: '#EF4444' }}>*</span></label>
+              <input
+                style={fieldStyle('phone')} type="tel" placeholder="+91 98765 43210"
+                value={form.phone}
+                onChange={e => set('phone', e.target.value)}
+                onBlur={() => touch('phone')}
+              />
+              <InlineErr field="phone" />
             </div>
             <div className="fg2">
               <div className="fg">
-                <label className="fl">Home State <span className="req">*</span></label>
-                <select className="fi-sel" value={form.homeState} onChange={e => {
-                  const s = e.target.value;
-                  setForm(f => ({ ...f, homeState: s, district: '', zone: getZone(s) || '' }));
-                }}>
+                <label className="fl">Home State <span style={{ color: '#EF4444' }}>*</span></label>
+                <select
+                  style={selectStyle('homeState')}
+                  value={form.homeState}
+                  onChange={e => {
+                    const s = e.target.value;
+                    setForm(f => ({ ...f, homeState: s, district: '', zone: getZone(s) || '' }));
+                  }}
+                  onBlur={() => touch('homeState')}
+                >
                   <option value="">Select state…</option>
                   {STATES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
+                <InlineErr field="homeState" />
               </div>
               <div className="fg">
-                <label className="fl">Hometown <span className="req">*</span></label>
-                <input className="fi-in" placeholder="City / Town" value={form.hometown} onChange={e => set('hometown', e.target.value)} />
+                <label className="fl">Hometown <span style={{ color: '#EF4444' }}>*</span></label>
+                <input
+                  style={fieldStyle('hometown')} placeholder="City / Town"
+                  value={form.hometown}
+                  onChange={e => set('hometown', e.target.value)}
+                  onBlur={() => touch('hometown')}
+                />
+                <InlineErr field="hometown" />
               </div>
             </div>
             {form.homeState && (
               <div className="fg">
-                <label className="fl">District <span className="req">*</span></label>
-                <select className="fi-sel" value={form.district} onChange={e => set('district', e.target.value)}>
+                <label className="fl">District <span style={{ color: '#EF4444' }}>*</span></label>
+                <select
+                  style={selectStyle('district')}
+                  value={form.district}
+                  onChange={e => set('district', e.target.value)}
+                  onBlur={() => touch('district')}
+                >
                   <option value="">Select district…</option>
                   {(DISTRICTS_BY_STATE[form.homeState] || []).map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
+                <InlineErr field="district" />
               </div>
             )}
             {form.zone && (() => {
@@ -318,35 +435,59 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
             <div className="ct" style={{ marginBottom: 16 }}>🎓 Professional Info</div>
             <div className="fg2">
               <div className="fg">
-                <label className="fl">Program Type <span className="req">*</span></label>
-                <select className="fi-sel" value={form.program} onChange={e => { set('program', e.target.value); set('speciality', ''); }}>
+                <label className="fl">Program Type <span style={{ color: '#EF4444' }}>*</span></label>
+                <select style={selectStyle('program')} value={form.program} onChange={e => { set('program', e.target.value); set('speciality', ''); }}>
                   {Object.keys(SPECIALITIES).map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
               <div className="fg">
-                <label className="fl">Speciality <span className="req">*</span></label>
-                <select className="fi-sel" value={form.speciality} onChange={e => set('speciality', e.target.value)}>
+                <label className="fl">Speciality <span style={{ color: '#EF4444' }}>*</span></label>
+                <select
+                  style={selectStyle('speciality')}
+                  value={form.speciality}
+                  onChange={e => set('speciality', e.target.value)}
+                  onBlur={() => touch('speciality')}
+                >
                   <option value="">Select…</option>
                   {(SPECIALITIES[form.program] || []).map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
+                <InlineErr field="speciality" />
               </div>
             </div>
             <div className="fg">
-              <label className="fl">College / Institution <span className="req">*</span></label>
-              <input className="fi-in" placeholder="e.g. AIIMS Delhi" value={form.college} onChange={e => set('college', e.target.value)} />
+              <label className="fl">College / Institution <span style={{ color: '#EF4444' }}>*</span></label>
+              <input
+                style={fieldStyle('college')} placeholder="e.g. AIIMS Delhi"
+                value={form.college}
+                onChange={e => set('college', e.target.value)}
+                onBlur={() => touch('college')}
+              />
+              <InlineErr field="college" />
             </div>
             <div className="fg">
-              <label className="fl">Place of Study <span className="req">*</span></label>
-              <input className="fi-in" placeholder="e.g. AIIMS Delhi, CMC Vellore" value={form.place_of_study} onChange={e => set('place_of_study', e.target.value)} />
+              <label className="fl">Place of Study <span style={{ color: '#EF4444' }}>*</span></label>
+              <input
+                style={fieldStyle('place_of_study')} placeholder="e.g. AIIMS Delhi, CMC Vellore"
+                value={form.place_of_study}
+                onChange={e => set('place_of_study', e.target.value)}
+                onBlur={() => touch('place_of_study')}
+              />
+              <InlineErr field="place_of_study" />
             </div>
             <div className="fg">
-              <label className="fl">Year of Joining <span className="req">*</span></label>
-              <select className="fi-sel" value={form.joining} onChange={e => set('joining', e.target.value)}>
+              <label className="fl">Year of Joining <span style={{ color: '#EF4444' }}>*</span></label>
+              <select
+                style={selectStyle('joining')}
+                value={form.joining}
+                onChange={e => set('joining', e.target.value)}
+                onBlur={() => touch('joining')}
+              >
                 <option value="">Select year…</option>
                 {[2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028].map(y => (
                   <option key={y} value={y}>{y}</option>
                 ))}
               </select>
+              <InlineErr field="joining" />
             </div>
             {form.joining && (
               <div style={{ background: '#EFF6FF', borderRadius: 12, padding: 14, marginTop: 4 }}>
@@ -378,14 +519,16 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
             </div>
 
             <div className="fg">
-              <label className="fl">MCI / NMC Number <span className="req">*</span></label>
+              <label className="fl">MCI / NMC Number <span style={{ color: '#EF4444' }}>*</span></label>
               <input
-                className="fi-in"
+                style={fieldStyle('mciNumber')}
                 placeholder="e.g. MH-2024-123456"
                 value={form.mciNumber}
                 onChange={e => set('mciNumber', e.target.value.toUpperCase())}
+                onBlur={() => touch('mciNumber')}
               />
               <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>Format: STATE-YEAR-NUMBER (e.g. MH-2024-123456)</div>
+              <InlineErr field="mciNumber" />
             </div>
 
             {/* Certificate upload */}
@@ -460,10 +603,24 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
           }
           {step < STEPS.length
             ? <button className="btn btn-p" onClick={nextStep}>Continue →</button>
-            : <button className="btn btn-p" onClick={handleSubmit} disabled={loading}>
-                {loading && <Spinner />}
-                {loading ? 'Submitting…' : 'Submit Registration ✓'}
-              </button>
+            : (
+              <>
+                {pct < 100 && (
+                  <div style={{ fontSize: 11, color: '#F59E0B', fontWeight: 600, alignSelf: 'center' }}>
+                    ⚠️ Complete all required fields ({pct}%)
+                  </div>
+                )}
+                <button
+                  className="btn btn-p"
+                  onClick={handleSubmit}
+                  disabled={loading || pct < 100}
+                  style={pct < 100 ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                >
+                  {loading && <Spinner />}
+                  {loading ? 'Submitting…' : 'Submit Registration ✓'}
+                </button>
+              </>
+            )
           }
         </div>
       </div>

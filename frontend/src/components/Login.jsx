@@ -227,7 +227,7 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
 
       <div className="login-bg" style={{ paddingTop: pendingMessage ? 48 : 0 }}>
         <div className="login-logo-wrap">
-          <div className="logo-icon">🛡️</div>
+          <div className="logo-icon">🏥</div>
           <div className="logo-text">iConnect</div>
           <div className="logo-sub">Icon Lifescience Medical Education Platform</div>
         </div>
