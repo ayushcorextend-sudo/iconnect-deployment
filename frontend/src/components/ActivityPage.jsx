@@ -1,6 +1,19 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCached, setCached } from '../lib/dataCache';
+import ActivityHeatmapClickable from './Activity/ActivityHeatmapClickable';
+import DiaryPanel from './Activity/DiaryPanel';
+
+// ── Activity colour classification ────────────────────────────────────────
+const PRODUCTIVE = new Set(['quiz_passed','article_read','clinical_case_logged','study_plan_completed','spaced_rep_reviewed','exam_set_completed','quiz_complete']);
+const NEUTRAL    = new Set(['daily_login','note_viewed','document_downloaded','diary_entry','webinar_attended']);
+// anything else (quiz_attempted without pass, etc.) → unproductive
+
+function activityColor(type) {
+  if (PRODUCTIVE.has(type)) return { bg: '#F0FDF4', border: '#BBF7D0', text: '#15803D', dot: '#10B981' };
+  if (NEUTRAL.has(type))    return { bg: '#FFFBEB', border: '#FDE68A', text: '#92400E', dot: '#F59E0B' };
+  return                           { bg: '#FFF1F2', border: '#FECDD3', text: '#9F1239', dot: '#F43F5E' };
+}
 
 const ACTIVITY_LABELS = {
   quiz_attempted:      ['📝', 'Attempted a quiz'],
@@ -11,9 +24,29 @@ const ACTIVITY_LABELS = {
   document_downloaded: ['⬇️', 'Downloaded a document'],
   webinar_attended:    ['🎥', 'Attended a webinar'],
   daily_login:         ['🔑', 'Daily login'],
+  clinical_case_logged:['🏥', 'Logged clinical case'],
+  study_plan_completed:['🗓', 'Study task completed'],
+  spaced_rep_reviewed: ['🧠', 'Flashcard reviewed'],
+  exam_set_completed:  ['📝', 'Completed exam set'],
+  doubt_asked:         ['❓', 'Asked a doubt'],
+  diary_entry:         ['📒', 'Diary entry'],
 };
 
-const relTime = (d) => {
+function calculateStreak(map) {
+  let streak = 0;
+  const today = new Date();
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const iso = d.toISOString().split('T')[0];
+    if (map[iso]) streak++;
+    else if (i > 0) break;
+  }
+  return streak;
+}
+
+const pct = (a, t) => t > 0 ? Math.min(100, Math.round((a / t) * 100)) : 0;
+const relTime = d => {
   const s = Math.floor((Date.now() - new Date(d)) / 1000);
   if (s < 60) return 'just now';
   if (s < 3600) return Math.floor(s / 60) + 'm ago';
@@ -21,115 +54,7 @@ const relTime = (d) => {
   return Math.floor(s / 86400) + 'd ago';
 };
 
-// ── 90-day GitHub-style heatmap ────────────────────────────────────────────
-function ActivityHeatmap({ data }) {
-  // Build 90 days (oldest → newest), grouped into weeks (columns of 7)
-  const days = [];
-  const now = new Date();
-  for (let i = 89; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    const iso = d.toISOString().split('T')[0];
-    days.push({ iso, count: data[iso] || 0 });
-  }
-
-  // Pad to full week columns at the start
-  const firstDow = new Date(days[0].iso).getDay(); // 0=Sun
-  const padded = [...Array(firstDow).fill(null), ...days];
-  const weeks = [];
-  for (let i = 0; i < padded.length; i += 7) {
-    weeks.push(padded.slice(i, i + 7));
-  }
-
-  const getColor = (count) => {
-    if (!count || count === 0) return '#F3F4F6';
-    if (count === 1) return '#BBF7D0';
-    if (count <= 3) return '#4ADE80';
-    if (count <= 6) return '#22C55E';
-    return '#15803D';
-  };
-
-  const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const DAY_LABELS = ['S','M','T','W','T','F','S'];
-
-  return (
-    <div style={{ overflowX: 'auto' }}>
-      {/* Month label row */}
-      <div style={{ display: 'flex', gap: 3, marginBottom: 4, paddingLeft: 20 }}>
-        {weeks.map((week, wi) => {
-          // Show month label when first day of month appears in this week
-          const monthDay = week.find(d => d && d.iso.endsWith('-01'));
-          const label = monthDay
-            ? MONTH_LABELS[parseInt(monthDay.iso.split('-')[1], 10) - 1]
-            : '';
-          return (
-            <div key={wi} style={{ width: 12, fontSize: 8, color: '#9CA3AF', textAlign: 'center' }}>
-              {label}
-            </div>
-          );
-        })}
-      </div>
-
-      <div style={{ display: 'flex', gap: 3 }}>
-        {/* Day-of-week labels */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginRight: 2 }}>
-          {DAY_LABELS.map((d, i) => (
-            <div key={i} style={{ height: 12, fontSize: 8, color: '#9CA3AF', lineHeight: '12px', width: 12, textAlign: 'center' }}>
-              {i % 2 === 1 ? d : ''}
-            </div>
-          ))}
-        </div>
-
-        {/* Heatmap grid */}
-        {weeks.map((week, wi) => (
-          <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {week.map((day, di) => (
-              <div
-                key={di}
-                title={day ? `${day.iso}: ${day.count} activit${day.count !== 1 ? 'ies' : 'y'}` : ''}
-                style={{
-                  width: 12, height: 12, borderRadius: 2,
-                  background: day ? getColor(day.count) : 'transparent',
-                }}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-
-      {/* Legend */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 10, color: '#9CA3AF' }}>
-        <span>Less</span>
-        {['#F3F4F6','#BBF7D0','#4ADE80','#22C55E','#15803D'].map(c => (
-          <div key={c} style={{ width: 10, height: 10, borderRadius: 2, background: c }} />
-        ))}
-        <span>More</span>
-      </div>
-    </div>
-  );
-}
-
-// ── Streak calculation ────────────────────────────────────────────────────
-function calculateStreak(activityByDate) {
-  let streak = 0;
-  const today = new Date();
-  for (let i = 0; i < 365; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    const iso = d.toISOString().split('T')[0];
-    if (activityByDate[iso]) {
-      streak++;
-    } else if (i > 0) {
-      break; // gap found — streak ends
-    }
-  }
-  return streak;
-}
-
-const pct = (actual, target) => target > 0 ? Math.min(100, Math.round((actual / target) * 100)) : 0;
-
 export default function ActivityPage({ addToast }) {
-  // DB-driven state
   const [activityByDate, setActivityByDate] = useState({});
   const [weeklyHours, setWeeklyHours] = useState([0, 0, 0, 0, 0, 0, 0]);
   const [activityFeed, setActivityFeed] = useState([]);
@@ -138,16 +63,20 @@ export default function ActivityPage({ addToast }) {
   const [quizProgress, setQuizProgress] = useState(0);
   const [readProgress, setReadProgress] = useState(0);
   const [streak, setStreak] = useState(0);
+  const [uid, setUid] = useState(null);
+  // Diary state
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [diaryDates, setDiaryDates] = useState(new Set());
 
   useEffect(() => {
     async function loadAll() {
       try {
         const { data: authData } = await supabase.auth.getUser();
         if (!authData?.user) return;
-        const uid = authData.user.id;
+        const userId = authData.user.id;
+        setUid(userId);
 
-        // ── Restore from cache instantly to eliminate loading flash ─────────
-        const cached = getCached(`activity_${uid}`);
+        const cached = getCached(`activity_${userId}`);
         if (cached) {
           setActivityByDate(cached.activityByDate);
           setWeeklyHours(cached.weeklyHours);
@@ -155,94 +84,72 @@ export default function ActivityPage({ addToast }) {
           setStreak(cached.streak);
           setQuizProgress(cached.quizProgress);
           setReadProgress(cached.readProgress);
-          setQuizTarget(cached.quizTarget);
-          setReadTarget(cached.readTarget);
+          setQuizTarget(cached.quizTarget ?? 5);
+          setReadTarget(cached.readTarget ?? 7);
         }
 
-        // Activity logs — fetch last 90 days
         const since90 = new Date();
         since90.setDate(since90.getDate() - 89);
         since90.setHours(0, 0, 0, 0);
 
-        const { data: logs } = await supabase
-          .from('activity_logs')
-          .select('created_at, duration_minutes')
-          .eq('user_id', uid)
-          .gte('created_at', since90.toISOString());
+        const [logsRes, feedRes, targetsRes, quizRes, readRes, diaryRes] = await Promise.all([
+          supabase.from('activity_logs').select('created_at, duration_minutes').eq('user_id', userId).gte('created_at', since90.toISOString()),
+          supabase.from('activity_logs').select('activity_type, reference_id, score_delta, created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(30),
+          supabase.from('personal_targets').select('target_type, target_value').eq('user_id', userId),
+          null, null,
+          supabase.from('calendar_diary').select('date').eq('user_id', userId).gte('date', since90.toISOString().split('T')[0]),
+        ]);
 
-        // Group by date for heatmap
-        const map = (logs || []).reduce((acc, log) => {
+        const map = (logsRes.data || []).reduce((acc, log) => {
           const d = log.created_at.split('T')[0];
           acc[d] = (acc[d] || 0) + 1;
           return acc;
         }, {});
         setActivityByDate(map);
-        setStreak(calculateStreak(map));
+        const newStreak = calculateStreak(map);
+        setStreak(newStreak);
 
-        // Weekly hours (Mon=0 … Sun=6) for current week
         const now = new Date();
         const dow = now.getDay();
         const monday = new Date(now);
         monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
         monday.setHours(0, 0, 0, 0);
         const weekly = [0, 0, 0, 0, 0, 0, 0];
-        (logs || []).forEach(log => {
+        (logsRes.data || []).forEach(log => {
           const d = new Date(log.created_at);
           if (d >= monday) {
             const dayIdx = (d.getDay() + 6) % 7;
             weekly[dayIdx] += (log.duration_minutes || 30) / 60;
           }
         });
-        setWeeklyHours(weekly.map(h => Math.round(h * 10) / 10));
+        const roundedWeekly = weekly.map(h => Math.round(h * 10) / 10);
+        setWeeklyHours(roundedWeekly);
+        setActivityFeed(feedRes.data || []);
 
-        // Feed: last 20 activities
-        const { data: feedData } = await supabase
-          .from('activity_logs')
-          .select('activity_type, reference_id, score_delta, created_at')
-          .eq('user_id', uid)
-          .order('created_at', { ascending: false })
-          .limit(20);
-        setActivityFeed(feedData || []);
-
-        // Targets
-        const { data: targets } = await supabase
-          .from('personal_targets')
-          .select('target_type, target_value')
-          .eq('user_id', uid);
-        (targets || []).forEach(t => {
-          if (t.target_type === 'quizzes_per_week') setQuizTarget(t.target_value);
-          if (t.target_type === 'articles_per_week') setReadTarget(t.target_value);
+        let qTarget = 5, rTarget = 7;
+        (targetsRes.data || []).forEach(t => {
+          if (t.target_type === 'quizzes_per_week') { setQuizTarget(t.target_value); qTarget = t.target_value; }
+          if (t.target_type === 'articles_per_week') { setReadTarget(t.target_value); rTarget = t.target_value; }
         });
 
-        // This week's progress
         const mondayISO = monday.toISOString();
-        const { data: quizLogs } = await supabase
-          .from('activity_logs')
-          .select('id')
-          .eq('user_id', uid)
-          .in('activity_type', ['quiz_attempted', 'quiz_passed', 'quiz_complete'])
-          .gte('created_at', mondayISO);
-        setQuizProgress((quizLogs || []).length);
+        const [quizLogsRes, readLogsRes] = await Promise.all([
+          supabase.from('activity_logs').select('id').eq('user_id', userId).in('activity_type', ['quiz_attempted','quiz_passed','quiz_complete']).gte('created_at', mondayISO),
+          supabase.from('activity_logs').select('id').eq('user_id', userId).in('activity_type', ['article_read','note_viewed']).gte('created_at', mondayISO),
+        ]);
+        const qProg = (quizLogsRes.data || []).length;
+        const rProg = (readLogsRes.data || []).length;
+        setQuizProgress(qProg);
+        setReadProgress(rProg);
 
-        const { data: readLogs } = await supabase
-          .from('activity_logs')
-          .select('id')
-          .eq('user_id', uid)
-          .in('activity_type', ['article_read', 'note_viewed'])
-          .gte('created_at', mondayISO);
-        const readProg = (readLogs || []).length;
-        setReadProgress(readProg);
+        // Diary dots
+        const dDates = new Set((diaryRes.data || []).map(r => r.date));
+        setDiaryDates(dDates);
 
-        // ── Write fresh data to cache (90s TTL) ────────────────────────────
-        setCached(`activity_${uid}`, {
-          activityByDate: map,
-          weeklyHours: weekly.map(h => Math.round(h * 10) / 10),
-          activityFeed: feedData || [],
-          streak: calculateStreak(map),
-          quizProgress: (quizLogs || []).length,
-          readProgress: readProg,
-          quizTarget,
-          readTarget,
+        setCached(`activity_${userId}`, {
+          activityByDate: map, weeklyHours: roundedWeekly,
+          activityFeed: feedRes.data || [], streak: newStreak,
+          quizProgress: qProg, readProgress: rProg, quizTarget: qTarget, readTarget: rTarget,
         }, 90 * 1000);
 
       } catch (e) {
@@ -256,20 +163,22 @@ export default function ActivityPage({ addToast }) {
     try {
       const { data: authData } = await supabase.auth.getUser();
       if (!authData?.user) { addToast('warn', 'Sign in to save targets'); return; }
-      const uid = authData.user.id;
       await supabase.from('personal_targets').upsert([
-        { user_id: uid, target_type: 'quizzes_per_week', target_value: Number(quizTarget) },
-        { user_id: uid, target_type: 'articles_per_week', target_value: Number(readTarget) },
+        { user_id: authData.user.id, target_type: 'quizzes_per_week', target_value: Number(quizTarget) },
+        { user_id: authData.user.id, target_type: 'articles_per_week', target_value: Number(readTarget) },
       ], { onConflict: 'user_id,target_type' });
       addToast('success', 'Targets saved!');
-    } catch (_) {
-      addToast('error', 'Could not save targets');
-    }
+    } catch (_) { addToast('error', 'Could not save targets'); }
   };
 
   const activeDays = Object.keys(activityByDate).length;
   const booksRead = activityFeed.filter(a => a.activity_type === 'article_read').length;
   const quizzesDone = activityFeed.filter(a => a.activity_type?.startsWith('quiz')).length;
+
+  // Productivity summary for today
+  const todayIso = new Date().toISOString().split('T')[0];
+  const todayFeed = activityFeed.filter(a => a.created_at?.startsWith(todayIso));
+  const todayProductive = todayFeed.filter(a => PRODUCTIVE.has(a.activity_type)).length;
 
   return (
     <div className="page">
@@ -282,9 +191,9 @@ export default function ActivityPage({ addToast }) {
       <div className="sg4">
         {[
           { l: 'Active Days', v: activeDays || '—', i: '📅', c: 'teal' },
-          { l: 'Books Read', v: booksRead || '—', i: '📖', c: 'violet' },
-          { l: 'Quizzes Done', v: quizzesDone || '—', i: '📝', c: 'amber' },
-          { l: 'Current Streak', v: streak > 0 ? `${streak}d` : '—', i: '🔥', c: 'rose' },
+          { l: 'Books Read',  v: booksRead  || '—', i: '📖', c: 'violet' },
+          { l: 'Quizzes',    v: quizzesDone || '—', i: '📝', c: 'amber' },
+          { l: 'Streak',     v: streak > 0 ? `${streak}d` : '—', i: '🔥', c: 'rose' },
         ].map((s, i) => (
           <div key={i} className={`stat ${s.c} fu`} style={{ animationDelay: `${i * 0.07}s` }}>
             <div className="stat-ic">{s.i}</div>
@@ -299,14 +208,19 @@ export default function ActivityPage({ addToast }) {
         <div className="card">
           <div className="ct" style={{ marginBottom: 4 }}>🔥 90-Day Activity</div>
           <div className="cs" style={{ marginBottom: 14, color: streak > 0 ? '#15803D' : '#9CA3AF' }}>
-            {streak > 0 ? `${streak}-day streak — keep it up!` : 'Start studying to build your streak'}
+            {streak > 0 ? `${streak}-day streak — keep it up!` : 'Click any date to add a diary entry'}
           </div>
-          <ActivityHeatmap data={activityByDate} />
+          <ActivityHeatmapClickable
+            data={activityByDate}
+            diaryDates={diaryDates}
+            selectedDate={selectedDate}
+            onSelectDate={setSelectedDate}
+          />
         </div>
 
         <div className="card">
           <div className="ct" style={{ marginBottom: 14 }}>📊 Weekly Progress</div>
-          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d, i) => {
+          {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d, i) => {
             const hrs = weeklyHours[i];
             const maxHrs = Math.max(...weeklyHours, 1);
             return (
@@ -324,75 +238,77 @@ export default function ActivityPage({ addToast }) {
           <div className="divider" />
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 12, color: '#6B7280' }}>Total this week</span>
-            <span style={{ fontFamily: 'Inter,sans-serif', fontWeight: 700, color: '#2563EB' }}>
-              {weeklyHours.reduce((a, b) => a + b, 0).toFixed(1)} hours
-            </span>
+            <span style={{ fontWeight: 700, color: '#2563EB' }}>{weeklyHours.reduce((a, b) => a + b, 0).toFixed(1)}h</span>
           </div>
           <div className="divider" />
           <div className="ct" style={{ marginBottom: 10, marginTop: 4 }}>🎯 Learning Targets</div>
-
-          {/* Quiz target */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 500 }}>Quizzes per week</span>
-              <input
-                type="number" min="0" max="50"
-                value={quizTarget}
-                onChange={e => setQuizTarget(Number(e.target.value))}
-                style={{ width: 52, padding: '3px 6px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, textAlign: 'center' }}
-              />
+          {[
+            { label: 'Quizzes per week', prog: quizProgress, target: quizTarget, setT: setQuizTarget, color: '#4F46E5' },
+            { label: 'Articles / notes per week', prog: readProgress, target: readTarget, setT: setReadTarget, color: '#10B981' },
+          ].map(({ label, prog, target, setT, color }) => (
+            <div key={label} style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, alignItems: 'center' }}>
+                <span style={{ fontSize: 12, fontWeight: 500 }}>{label}</span>
+                <input type="number" min="0" max="50" value={target} onChange={e => setT(Number(e.target.value))}
+                  style={{ width: 52, padding: '3px 6px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, textAlign: 'center' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6B7280', marginBottom: 4 }}>
+                <span>{prog} / {target} this week</span><span>{pct(prog, target)}%</span>
+              </div>
+              <div style={{ background: '#E5E7EB', borderRadius: 99, height: 6 }}>
+                <div style={{ background: color, borderRadius: 99, height: 6, width: pct(prog, target) + '%', transition: 'width .4s' }} />
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6B7280', marginBottom: 4 }}>
-              <span>{quizProgress} / {quizTarget} this week</span>
-              <span>{pct(quizProgress, quizTarget)}%</span>
-            </div>
-            <div style={{ background: '#E5E7EB', borderRadius: 99, height: 6 }}>
-              <div style={{ background: '#4F46E5', borderRadius: 99, height: 6, width: pct(quizProgress, quizTarget) + '%', transition: 'width 0.4s' }} />
-            </div>
-          </div>
-
-          {/* Reading target */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 500 }}>Articles / notes per week</span>
-              <input
-                type="number" min="0" max="50"
-                value={readTarget}
-                onChange={e => setReadTarget(Number(e.target.value))}
-                style={{ width: 52, padding: '3px 6px', border: '1px solid #E5E7EB', borderRadius: 6, fontSize: 12, textAlign: 'center' }}
-              />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6B7280', marginBottom: 4 }}>
-              <span>{readProgress} / {readTarget} this week</span>
-              <span>{pct(readProgress, readTarget)}%</span>
-            </div>
-            <div style={{ background: '#E5E7EB', borderRadius: 99, height: 6 }}>
-              <div style={{ background: '#10B981', borderRadius: 99, height: 6, width: pct(readProgress, readTarget) + '%', transition: 'width 0.4s' }} />
-            </div>
-          </div>
-
-          <button className="btn btn-p btn-sm" onClick={saveTargets} style={{ width: '100%', justifyContent: 'center' }}>
-            💾 Save Targets
-          </button>
+          ))}
+          <button className="btn btn-p btn-sm" onClick={saveTargets} style={{ width: '100%', justifyContent: 'center' }}>💾 Save Targets</button>
         </div>
       </div>
 
-      {/* Recent activity feed */}
+      {/* Daily productivity summary */}
+      {todayFeed.length > 0 && (
+        <div style={{
+          background: todayProductive > 0 ? 'linear-gradient(135deg,#F0FDF4,#DCFCE7)' : 'linear-gradient(135deg,#FFF7ED,#FFEDD5)',
+          border: `1px solid ${todayProductive > 0 ? '#BBF7D0' : '#FED7AA'}`,
+          borderRadius: 12, padding: '12px 16px', marginBottom: 16,
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <span style={{ fontSize: 22 }}>{todayProductive > 0 ? '🟢' : '🟡'}</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Today's Summary</div>
+            <div style={{ fontSize: 12, color: '#6B7280' }}>
+              {todayFeed.length} activit{todayFeed.length !== 1 ? 'ies' : 'y'} · {todayProductive} productive · click any date to add diary notes
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Color-coded activity feed */}
       <div className="card mt4">
-        <div className="ch"><div className="ct">📚 Recent Activity</div></div>
+        <div className="ch">
+          <div className="ct">📚 Recent Activity</div>
+          <div style={{ display: 'flex', gap: 12, fontSize: 10, color: '#9CA3AF' }}>
+            <span>🟢 Productive</span><span>🟡 Neutral</span><span>🔴 Unproductive</span>
+          </div>
+        </div>
         {activityFeed.length === 0 ? (
           <div style={{ color: '#9CA3AF', textAlign: 'center', padding: 24, fontSize: 14 }}>
             No activity yet — start reading and taking quizzes!
           </div>
         ) : (
           activityFeed.map((item, i) => {
-            const [icon, label] = ACTIVITY_LABELS[item.activity_type] || ['📌', 'Did something'];
+            const [icon, label] = ACTIVITY_LABELS[item.activity_type] || ['📌', item.activity_type?.replace(/_/g, ' ') || 'Activity'];
+            const col = activityColor(item.activity_type);
             return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #F9FAFB' }}>
-                <span style={{ fontSize: 22 }}>{icon}</span>
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '9px 10px', marginBottom: 4, borderRadius: 9,
+                background: col.bg, border: `1px solid ${col.border}`,
+              }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: col.dot, flexShrink: 0 }} />
+                <span style={{ fontSize: 20 }}>{icon}</span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{label}</div>
-                  <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{relTime(item.created_at)}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: col.text }}>{label}</div>
+                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>{relTime(item.created_at)}</div>
                 </div>
                 {item.score_delta > 0 && (
                   <span className="bdg bg-g">+{item.score_delta} pts</span>
@@ -403,34 +319,16 @@ export default function ActivityPage({ addToast }) {
         )}
       </div>
 
-      {/* Study insights */}
-      {activityFeed.length > 0 && (() => {
-        const quizzes = activityFeed.filter(a => a.activity_type?.startsWith('quiz'));
-        const reads = activityFeed.filter(a => a.activity_type === 'article_read');
-        const lastActivity = activityFeed[0]?.created_at ? new Date(activityFeed[0].created_at) : null;
-        const daysSinceLast = lastActivity ? Math.floor((Date.now() - lastActivity) / 86400000) : null;
-        const insights = [];
-
-        if (reads.length === 0) insights.push({ icon: '📚', text: 'You haven\'t read any e-books yet. Start with a short article to build your streak!', color: '#EFF6FF', textColor: '#1D4ED8' });
-        if (quizzes.length === 0) insights.push({ icon: '📝', text: 'Try the Exam Prep section — practice MCQs are the best way to retain what you\'ve read.', color: '#F0FDF4', textColor: '#15803D' });
-        if (daysSinceLast !== null && daysSinceLast >= 3) insights.push({ icon: '🔥', text: `It's been ${daysSinceLast} days since your last activity. A 10-minute session today restarts your streak!`, color: '#FFFBEB', textColor: '#92400E' });
-        if (reads.length >= 5 && quizzes.length === 0) insights.push({ icon: '💡', text: 'Great reading habit! Combine it with quizzes to maximise retention.', color: '#EDE9FE', textColor: '#5B21B6' });
-
-        if (insights.length === 0) return null;
-        return (
-          <div className="card mt4" style={{ marginBottom: 20 }}>
-            <div className="ct" style={{ marginBottom: 12 }}>💡 Study Insights</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {insights.map((ins, i) => (
-                <div key={i} style={{ background: ins.color, borderRadius: 10, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: 18 }}>{ins.icon}</span>
-                  <span style={{ fontSize: 13, color: ins.textColor, lineHeight: 1.5 }}>{ins.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
+      {/* Diary panel */}
+      {selectedDate && uid && (
+        <DiaryPanel
+          date={selectedDate}
+          userId={uid}
+          onClose={() => setSelectedDate(null)}
+          addToast={addToast}
+          onDiarySaved={date => setDiaryDates(prev => new Set([...prev, date]))}
+        />
+      )}
     </div>
   );
 }
