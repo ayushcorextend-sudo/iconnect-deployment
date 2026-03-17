@@ -215,6 +215,89 @@ Respond ONLY with valid JSON (no markdown):
   }
 }
 
+// ── 11. Generate a contextual study plan from clinical logs + persona ─────────
+// Returns { plan: [{day, tasks:[{subject,activity,duration_mins}]}], error }
+export async function generateContextualPlan({ speciality, weakSubjects, strongSubjects, peakHours, weeklyGoalHours, recentCases = [], examDate }) {
+  const system = `You are a NEET-PG study planner. Build a personalised 7-day weekly plan.
+Respond ONLY with valid JSON — no markdown, no extra text:
+{"plan":[{"day":"Monday","tasks":[{"subject":"string","activity":"string","duration_mins":30}]}]}
+Rules: each day has 2-4 tasks; schedule heavy topics during peak hours; revise recent clinical cases; avoid strong subjects unless consolidation needed.`;
+  const daysToExam = examDate
+    ? Math.max(0, Math.floor((new Date(examDate) - Date.now()) / 86400000))
+    : null;
+  const msg = `Speciality: ${speciality || 'General Medicine'}
+Weak subjects: ${weakSubjects?.join(', ') || 'unknown'}
+Strong subjects: ${strongSubjects?.join(', ') || 'unknown'}
+Peak study hours: ${peakHours || 'morning'}
+Weekly goal: ${weeklyGoalHours || 20} hours
+Recent clinical cases: ${recentCases.slice(0, 5).join(', ') || 'none'}
+${daysToExam !== null ? `Days until exam: ${daysToExam}` : ''}
+Generate a focused 7-day plan.`;
+  const { text, error } = await callAI(system, msg, 900);
+  if (error) return { plan: null, error };
+  try {
+    const clean = text.replace(/```json|```/g, '').trim();
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No JSON found');
+    const parsed = JSON.parse(match[0]);
+    if (!Array.isArray(parsed.plan)) throw new Error('Invalid plan structure');
+    return { plan: parsed.plan, error: null };
+  } catch (_) {
+    return { plan: null, error: 'Could not parse study plan. Please try again.' };
+  }
+}
+
+// ── 12. Assess study fatigue level from activity patterns ─────────────────────
+// Returns { level: 'low'|'medium'|'high', message, tips[], error }
+export async function assessFatigueLevel({ dailyMinutes = [], streak = 0, avgSessionsPerDay = 0 }) {
+  const system = `You are a medical student wellbeing advisor.
+Assess cognitive fatigue from study pattern data and give concise feedback.
+Respond ONLY with valid JSON:
+{"level":"low|medium|high","message":"one sentence summary","tips":["tip1","tip2","tip3"]}`;
+  const recentAvg = dailyMinutes.length
+    ? Math.round(dailyMinutes.slice(-7).reduce((a, b) => a + b, 0) / Math.min(dailyMinutes.length, 7))
+    : 0;
+  const msg = `Study data:
+- Recent daily average: ${recentAvg} minutes
+- Current streak: ${streak} days
+- Avg sessions per day: ${avgSessionsPerDay}
+- Last 7 days (minutes): ${dailyMinutes.slice(-7).join(', ') || '0'}
+Assess fatigue and provide 3 short recovery/optimization tips.`;
+  const { text, error } = await callAI(system, msg, 300);
+  if (error) return { level: 'medium', message: null, tips: [], error };
+  try {
+    const clean = text.replace(/```json|```/g, '').trim();
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No JSON found');
+    const parsed = JSON.parse(match[0]);
+    return { level: parsed.level || 'medium', message: parsed.message || '', tips: parsed.tips || [], error: null };
+  } catch (_) {
+    return { level: 'medium', message: 'Unable to assess — keep studying consistently.', tips: [], error: null };
+  }
+}
+
+// ── 13. Generate active recall audio script for a topic ───────────────────────
+// Returns { script, keywords[], error }
+export async function generateActiveRecallAudio(topic, subject) {
+  const system = `You are a NEET-PG tutor creating a spoken active-recall drill.
+Generate a short verbal quiz script (6-8 Q&A pairs) for the given topic.
+Respond ONLY with valid JSON:
+{"script":"Full spoken script with Q&A","keywords":["key1","key2","key3","key4","key5"]}
+Keep the script under 250 words. Use clear spoken language — it will be read aloud.`;
+  const msg = `Topic: ${topic}\nSubject: ${subject || 'Medicine'}\nGenerate an active recall spoken script.`;
+  const { text, error } = await callAI(system, msg, 600);
+  if (error) return { script: null, keywords: [], error };
+  try {
+    const clean = text.replace(/```json|```/g, '').trim();
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No JSON found');
+    const parsed = JSON.parse(match[0]);
+    return { script: parsed.script || '', keywords: parsed.keywords || [], error: null };
+  } catch (_) {
+    return { script: null, keywords: [], error: 'Could not generate recall script.' };
+  }
+}
+
 // ── 10. Personalised "For You" suggestions on login ──────────────────────────
 // Returns { suggestions: [{icon, title, reason, tag, action}], error }
 // action is one of: 'ebooks' | 'exam' | 'learn' | 'arena-student' | 'calendar' | 'case-sim'

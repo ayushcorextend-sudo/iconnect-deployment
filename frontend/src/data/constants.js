@@ -115,4 +115,5 @@ export const titles = {
   'arena-student': '🏟️ Live Arena',
   calendar: '📅 Study Calendar',
   'case-sim': '🏥 Case Simulator',
+  'study-plan': '🗓 Study Plan Engine',
 };

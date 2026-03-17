@@ -1,44 +1,128 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Avatar from './Avatar';
 import { supabase, getUserContentStates, toggleBookmark } from '../lib/supabase';
 import { generateStudyPlan, getPersonalizedSuggestions } from '../lib/aiService';
+import { getCached, setCached, invalidate } from '../lib/dataCache';
+import { defaultSuggestions } from '../mocks';
 import AIResponseBox from './AIResponseBox';
+import { SAMessageBox } from './BroadcastPage';
 
-// ── 35-day GitHub-style heatmap ────────────────────────────────
-function ActivityHeatmap({ data }) {
-  const max = Math.max(...data, 1);
-  const COLORS = ['#F3F4F6', '#BFDBFE', '#93C5FD', '#3B82F6', '#1D4ED8'];
-  const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+// ── Monthly Activity Calendar ────────────────────────────────
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAY_LABELS_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+function MonthlyCalendar({ activityByDate = {} }) {
+  const [viewDate, setViewDate] = useState(() => new Date());
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startDow = (firstDay.getDay() + 6) % 7; // Mon=0
+
+  const cells = [];
+  for (let i = 0; i < startDow; i++) cells.push(null);
+  for (let d = 1; d <= lastDay.getDate(); d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const today = new Date();
+  const isThisMonth = today.getFullYear() === year && today.getMonth() === month;
+  const COLORS = ['transparent', '#BFDBFE', '#93C5FD', '#3B82F6', '#1D4ED8'];
+
+  const totalThisMonth = Object.entries(activityByDate)
+    .filter(([k]) => k.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`))
+    .reduce((sum, [, v]) => sum + v, 0);
+
   return (
     <div>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
-        {DAY_LABELS.map((d, i) => (
-          <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 9, color: '#9CA3AF', fontWeight: 600 }}>{d}</div>
+      {/* Nav */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <button
+          onClick={() => setViewDate(new Date(year, month - 1, 1))}
+          style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, width: 28, height: 28, cursor: 'pointer', fontSize: 13, color: '#6B7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >‹</button>
+        <div style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{MONTH_NAMES[month]} {year}</div>
+        <button
+          onClick={() => setViewDate(new Date(year, month + 1, 1))}
+          disabled={isThisMonth}
+          style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, width: 28, height: 28, cursor: isThisMonth ? 'not-allowed' : 'pointer', fontSize: 13, color: isThisMonth ? '#D1D5DB' : '#6B7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >›</button>
+      </div>
+
+      {/* Day labels */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 4 }}>
+        {DAY_LABELS_SHORT.map(d => (
+          <div key={d} style={{ textAlign: 'center', fontSize: 9, color: '#9CA3AF', fontWeight: 700, padding: '2px 0' }}>{d}</div>
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
-        {data.map((v, i) => {
-          const intensity = v === 0 ? 0 : Math.min(4, Math.ceil((v / max) * 4));
+
+      {/* Date cells */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
+        {cells.map((d, i) => {
+          if (d === null) return <div key={`e-${i}`} style={{ aspectRatio: '1' }} />;
+          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const count = activityByDate[dateStr] || 0;
+          const isToday = isThisMonth && d === today.getDate();
+          const intensity = count === 0 ? 0 : Math.min(4, Math.ceil(count / 1.5));
           return (
             <div
-              key={i}
-              title={`${v} activit${v !== 1 ? 'ies' : 'y'}`}
-              style={{ width: '100%', aspectRatio: '1', background: COLORS[intensity], borderRadius: 3 }}
-            />
+              key={d}
+              title={count > 0 ? `${count} activit${count !== 1 ? 'ies' : 'y'}` : dateStr}
+              style={{
+                aspectRatio: '1',
+                borderRadius: 5,
+                background: isToday ? '#2563EB' : count > 0 ? COLORS[intensity] : '#F9FAFB',
+                border: isToday ? '2px solid #1D4ED8' : count > 0 ? '1px solid rgba(37,99,235,0.15)' : '1px solid #F3F4F6',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, fontWeight: isToday ? 800 : 500,
+                color: isToday ? '#fff' : intensity >= 3 ? '#1E3A8A' : '#374151',
+                transition: 'transform .1s',
+                cursor: 'default',
+                position: 'relative',
+              }}
+            >
+              {d}
+              {count > 0 && !isToday && (
+                <div style={{
+                  position: 'absolute', bottom: 2, left: '50%', transform: 'translateX(-50%)',
+                  width: 4, height: 4, borderRadius: '50%', background: '#2563EB',
+                }} />
+              )}
+            </div>
           );
         })}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8, justifyContent: 'flex-end' }}>
-        <span style={{ fontSize: 9, color: '#9CA3AF' }}>Less</span>
-        {COLORS.map((c, i) => <div key={i} style={{ width: 10, height: 10, background: c, borderRadius: 2 }} />)}
-        <span style={{ fontSize: 9, color: '#9CA3AF' }}>More</span>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 9, color: '#9CA3AF' }}>Less</span>
+          {COLORS.slice(1).map((c, i) => <div key={i} style={{ width: 9, height: 9, background: c, borderRadius: 2, border: '1px solid rgba(37,99,235,0.15)' }} />)}
+          <span style={{ fontSize: 9, color: '#9CA3AF' }}>More</span>
+        </div>
+        <span style={{ fontSize: 10, color: '#9CA3AF' }}>{totalThisMonth} activities this month</span>
       </div>
     </div>
   );
 }
 
-// ── Weekly goal ring (SVG) ─────────────────────────────────────
-function GoalRing({ mins, targetMins = 300 }) {
+// ── Weekly goal ring (SVG) — editable target ──────────────────
+function GoalRing({ mins, userId }) {
+  const STORAGE_KEY = userId ? `weekly_target_${userId}` : 'weekly_target_mins';
+  const [targetMins, setTargetMins] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? parseInt(saved, 10) : 300;
+  });
+  const [editing, setEditing] = useState(false);
+  const [inputVal, setInputVal] = useState(String(Math.round(targetMins / 60)));
+
+  const saveTarget = () => {
+    const hours = parseFloat(inputVal) || 5;
+    const clamped = Math.max(0.5, Math.min(24, hours));
+    const newMins = Math.round(clamped * 60);
+    setTargetMins(newMins);
+    localStorage.setItem(STORAGE_KEY, String(newMins));
+    setEditing(false);
+  };
+
   const r = 38;
   const circ = 2 * Math.PI * r;
   const pct = Math.min(mins / Math.max(targetMins, 1), 1);
@@ -48,7 +132,7 @@ function GoalRing({ mins, targetMins = 300 }) {
   const label = hours > 0 ? `${hours}h${m > 0 ? ` ${m}m` : ''}` : `${mins}m`;
   const color = pct >= 1 ? '#059669' : pct >= 0.6 ? '#D97706' : '#2563EB';
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: '100%' }}>
       <svg width={96} height={96} viewBox="0 0 96 96">
         <circle cx={48} cy={48} r={r} fill="none" stroke="#F3F4F6" strokeWidth={8} />
         <circle
@@ -60,9 +144,42 @@ function GoalRing({ mins, targetMins = 300 }) {
         <text x={48} y={44} textAnchor="middle" fontSize={13} fontWeight="700" fill={color}>{Math.round(pct * 100)}%</text>
         <text x={48} y={58} textAnchor="middle" fontSize={9} fill="#6B7280">{label || '0m'}</text>
       </svg>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>Weekly Goal</div>
-      <div style={{ fontSize: 10, color: '#9CA3AF' }}>{Math.round(mins / 60 * 10) / 10}h of 5h target</div>
-      {pct >= 1 && <div style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>🎉 Goal achieved!</div>}
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>Weekly Learning Target</div>
+      {editing ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+          <input
+            type="number"
+            min="0.5" max="24" step="0.5"
+            value={inputVal}
+            onChange={e => setInputVal(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') saveTarget(); if (e.key === 'Escape') setEditing(false); }}
+            autoFocus
+            style={{
+              width: 54, padding: '4px 8px', borderRadius: 6, border: '1.5px solid #4F46E5',
+              fontSize: 12, fontWeight: 600, textAlign: 'center', outline: 'none',
+            }}
+          />
+          <span style={{ fontSize: 11, color: '#6B7280' }}>hrs</span>
+          <button
+            onClick={saveTarget}
+            style={{ background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+          >✓</button>
+          <button
+            onClick={() => setEditing(false)}
+            style={{ background: '#F3F4F6', color: '#6B7280', border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer' }}
+          >✕</button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 10, color: '#9CA3AF' }}>{Math.round(mins / 60 * 10) / 10}h of {Math.round(targetMins / 60 * 10) / 10}h target</div>
+          <button
+            onClick={() => { setInputVal(String(Math.round(targetMins / 60))); setEditing(true); }}
+            title="Edit weekly target"
+            style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 5, padding: '2px 7px', fontSize: 10, color: '#6B7280', cursor: 'pointer' }}
+          >✏ Edit</button>
+        </div>
+      )}
+      {pct >= 1 && !editing && <div style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>🎉 Goal achieved!</div>}
     </div>
   );
 }
@@ -112,7 +229,7 @@ function ActivityDots({ days }) {
   );
 }
 
-export default function DoctorDashboard({ artifacts = [], notifications = [], setPage, userName, openChatBotDoubt }) {
+export default function DoctorDashboard({ artifacts = [], notifications = [], setPage, userName, openChatBotDoubt, userId: userIdProp, darkMode }) {
   const approved = artifacts.filter(a => a.status === 'approved');
   // Latest 4 approved, most recently added first (higher id = newer)
   const latestContent = [...approved].sort((a, b) => b.id - a.id).slice(0, 4);
@@ -131,6 +248,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
   const [currentUserId, setCurrentUserId] = useState(null);
   const [dashLoading, setDashLoading] = useState(true);
   const [heatmapData, setHeatmapData] = useState(Array(35).fill(0));
+  const [activityByDate, setActivityByDate] = useState({});
   const [weeklyMins, setWeeklyMins] = useState(0);
   const [recentActivities, setRecentActivities] = useState([]);
   const [studyPlan, setStudyPlan] = useState({ loading: false, text: null, error: null });
@@ -218,13 +336,17 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
           });
           setWeekActivity(weekDays);
 
-          // 35-day heatmap
+          // 35-day heatmap (kept for count display)
           const heatmap = Array(35).fill(0);
+          const byDate = {};
           logs.forEach(l => {
             const diffDays = Math.floor((now - new Date(l.created_at)) / 86400000);
             if (diffDays < 35) heatmap[34 - diffDays]++;
+            const dateStr = new Date(l.created_at).toISOString().split('T')[0];
+            byDate[dateStr] = (byDate[dateStr] || 0) + 1;
           });
           setHeatmapData(heatmap);
+          setActivityByDate(byDate);
 
           setRecentActivities(logs.slice(0, 5));
 
@@ -257,17 +379,25 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
           (arts || []).filter(a => readIds.has(String(a.id))).map(a => a.subject).filter(Boolean)
         );
         const lastActivityLog = logs?.[0];
-        getPersonalizedSuggestions({
-          speciality: profileData?.speciality || '',
-          booksRead: logs ? logs.filter(l => l.activity_type === 'article_read').length : 0,
-          quizScore: 0, // will be updated after score fetch completes
-          totalScore: 0,
-          weeklyMins: 0,
-          lastActive: lastActivityLog?.created_at || null,
-          recentSubjects: Array.from(recentSubjectsSet).slice(0, 5),
-        }).then(({ suggestions, error }) => {
-          setAiForYou({ loading: false, items: suggestions || [], error: error || null });
-        });
+        const forYouCacheKey = `forYou_${uid}`;
+        const cached = getCached(forYouCacheKey);
+        if (cached) {
+          setAiForYou({ loading: false, items: cached, error: null });
+        } else {
+          getPersonalizedSuggestions({
+            speciality: profileData?.speciality || '',
+            booksRead: logs ? logs.filter(l => l.activity_type === 'article_read').length : 0,
+            quizScore: 0,
+            totalScore: 0,
+            weeklyMins: 0,
+            lastActive: lastActivityLog?.created_at || null,
+            recentSubjects: Array.from(recentSubjectsSet).slice(0, 5),
+          }).then(({ suggestions, error }) => {
+            const items = suggestions || defaultSuggestions;
+            setCached(forYouCacheKey, items, 10 * 60 * 1000); // 10-min TTL
+            setAiForYou({ loading: false, items, error: error || null });
+          });
+        }
 
         // ── Next Webinar ──────────────────────────────────
         const { data: wb } = await supabase
@@ -286,6 +416,20 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
     }
     load();
   }, []);
+
+  const refreshForYou = useCallback(async () => {
+    if (!currentUserId) return;
+    setAiForYou({ loading: true, items: [], error: null });
+    invalidate(`forYou_${currentUserId}`);
+    const { data: profileData } = await supabase.from('profiles').select('speciality').eq('id', currentUserId).maybeSingle();
+    const { suggestions, error } = await getPersonalizedSuggestions({
+      speciality: profileData?.speciality || '',
+      booksRead: 0, quizScore: 0, totalScore: 0, weeklyMins: 0, lastActive: null, recentSubjects: [],
+    });
+    const items = suggestions || defaultSuggestions;
+    setCached(`forYou_${currentUserId}`, items, 10 * 60 * 1000);
+    setAiForYou({ loading: false, items, error: error || null });
+  }, [currentUserId]);
 
   const handleBookmarkToggle = async (e, artifactId) => {
     e.stopPropagation();
@@ -334,8 +478,14 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
   const recentlyRead = approved.filter(a => (contentStates[String(a.id)]?.currentPage || 1) > 1).slice(0, 3);
   const bookmarked = approved.filter(a => contentStates[String(a.id)]?.isBookmarked).slice(0, 3);
 
+  // Resolve userId: prefer prop (passed from App), fallback to state
+  const resolvedUserId = userIdProp || currentUserId;
+
   return (
     <div className="page">
+      {/* SA Message Box — fixed floating, appears only when superadmin has broadcast */}
+      <SAMessageBox userId={resolvedUserId} darkMode={darkMode} />
+
       <div className="ph">
         <div className="pt">Welcome back, {userName || 'Doctor'}! 👋</div>
         <div className="ps">
@@ -514,21 +664,38 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>Personalised just for you · updates on every login</div>
             </div>
           </div>
-          <button
-            onClick={() => openChatBotDoubt ? openChatBotDoubt() : setPage('ebooks')}
-            style={{
-              background: 'rgba(255,255,255,0.15)', color: '#fff',
-              border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: 9, padding: '7px 16px', fontSize: 12,
-              fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(4px)',
-              display: 'flex', alignItems: 'center', gap: 6,
-              transition: 'background .2s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.25)'}
-            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
-          >
-            🤖 Ask AI
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={refreshForYou}
+              disabled={aiForYou.loading}
+              title="Refresh suggestions"
+              style={{
+                background: 'rgba(255,255,255,0.12)', color: '#fff',
+                border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 9, padding: '7px 10px', fontSize: 14,
+                cursor: aiForYou.loading ? 'not-allowed' : 'pointer',
+                opacity: aiForYou.loading ? 0.5 : 1,
+                transition: 'background .2s',
+              }}
+              onMouseEnter={e => { if (!aiForYou.loading) e.currentTarget.style.background = 'rgba(255,255,255,0.22)'; }}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
+            >🔄</button>
+            <button
+              onClick={() => { if (openChatBotDoubt) openChatBotDoubt(); }}
+              style={{
+                background: 'rgba(255,255,255,0.15)', color: '#fff',
+                border: '1px solid rgba(255,255,255,0.3)',
+                borderRadius: 9, padding: '7px 16px', fontSize: 12,
+                fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(4px)',
+                display: 'flex', alignItems: 'center', gap: 6,
+                transition: 'background .2s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.25)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+            >
+              🤖 Ask AI
+            </button>
+          </div>
         </div>
 
         {/* AI-generated personalised suggestions */}
@@ -607,13 +774,34 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
             })}
           </div>
         ) : (
-          /* Fallback: show Supabase recommendations if AI failed */
+          /* Fallback: mock default suggestions when AI fails */
           recommendations.length === 0 ? (
-            <div style={{
-              background: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: '16px',
-              textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.75)',
-            }}>
-              📚 Read more books to unlock personalised AI recommendations!
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {defaultSuggestions.map((s, i) => (
+                <div
+                  key={i}
+                  onClick={() => setPage(s.action || 'ebooks')}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    background: 'rgba(255,255,255,0.1)', borderRadius: 11, padding: '11px 14px',
+                    cursor: 'pointer', transition: 'background .2s',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                >
+                  <div style={{ width: 38, height: 38, borderRadius: 9, flexShrink: 0, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, border: '1px solid rgba(255,255,255,0.2)' }}>
+                    {s.icon || '📚'}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>{s.title}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.reason}</div>
+                  </div>
+                  <div style={{ padding: '3px 9px', borderRadius: 99, fontSize: 10, fontWeight: 700, background: 'rgba(255,255,255,0.12)', color: '#E2E8F0', border: '1px solid rgba(255,255,255,0.25)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    {s.tag || 'High Yield'}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -709,6 +897,14 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
           {!studyPlan.loading && !studyPlan.text && !studyPlan.error && (
             <div style={{ textAlign: 'center', padding: '16px 0', color: '#9CA3AF', fontSize: 13 }}>
               Click <strong>✨ Generate Plan</strong> to get a personalised 7-day study schedule from AI.
+              <div style={{ marginTop: 10 }}>
+                <button
+                  onClick={() => setPage('study-plan')}
+                  style={{ background: 'none', border: 'none', color: '#6366F1', fontSize: 12, cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
+                >
+                  📋 Open full Study Plan Engine →
+                </button>
+              </div>
             </div>
           )}
           <AIResponseBox
@@ -722,6 +918,16 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
               setStudyPlan({ loading: false, text, error });
             }}
           />
+          {studyPlan.text && (
+            <div style={{ marginTop: 12, textAlign: 'right' }}>
+              <button
+                onClick={() => setPage('study-plan')}
+                style={{ background: 'none', border: 'none', color: '#6366F1', fontSize: 12, cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
+              >
+                📋 Open full Study Plan Engine →
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -732,18 +938,15 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 20 }}>
           <div className="card" style={{ margin: 0 }}>
             <div className="ch" style={{ marginBottom: 12 }}>
-              <div className="ct">📅 35-Day Activity Calendar</div>
+              <div className="ct">📅 Activity Calendar</div>
             </div>
-            <ActivityHeatmap data={heatmapData} />
-            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 10, textAlign: 'center' }}>
-              {heatmapData.reduce((a, v) => a + v, 0)} total activities in the last 35 days
-            </div>
+            <MonthlyCalendar activityByDate={activityByDate} />
           </div>
           <div className="card" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
             <div className="ch" style={{ marginBottom: 12, width: '100%' }}>
               <div className="ct">🎯 Weekly Learning Target</div>
             </div>
-            <GoalRing mins={weeklyMins} />
+            <GoalRing mins={weeklyMins} userId={currentUserId} />
           </div>
         </div>
       )}
@@ -881,60 +1084,117 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
           )}
         </div>
 
-        {/* Leaderboard Rank */}
-        <div className="card" style={{ margin: 0 }}>
-          <div className="ch" style={{ marginBottom: 14 }}>
-            <div className="ct">🏆 Leaderboard Rank</div>
-            <button className="btn btn-s btn-sm" onClick={() => setPage('leaderboard')}>Full Board</button>
-          </div>
-
-          {/* My rank summary */}
+        {/* Leaderboard Rank — Flamboyant Edition */}
+        <div style={{
+          margin: 0, borderRadius: 16, overflow: 'hidden',
+          boxShadow: myRank === 1 ? '0 8px 32px rgba(234,179,8,0.35), 0 2px 8px rgba(0,0,0,0.1)' : '0 4px 20px rgba(79,70,229,0.18)',
+          border: myRank === 1 ? '1.5px solid rgba(234,179,8,0.4)' : '1.5px solid rgba(79,70,229,0.2)',
+        }}>
+          {/* Header banner */}
           <div style={{
-            background: myRank ? 'linear-gradient(135deg,#EFF6FF,#EDE9FE)' : '#F9FAFB',
-            borderRadius: 10, padding: '14px', marginBottom: 14, textAlign: 'center',
+            background: myRank === 1
+              ? 'linear-gradient(135deg, #78350F 0%, #D97706 40%, #FCD34D 70%, #F59E0B 100%)'
+              : myRank === 2
+              ? 'linear-gradient(135deg, #374151 0%, #6B7280 50%, #9CA3AF 100%)'
+              : myRank === 3
+              ? 'linear-gradient(135deg, #7C2D12 0%, #C2410C 50%, #FB923C 100%)'
+              : 'linear-gradient(135deg, #1E40AF 0%, #4F46E5 60%, #7C3AED 100%)',
+            padding: '18px 16px 14px', position: 'relative', overflow: 'hidden',
           }}>
-            <div style={{ fontSize: 36, fontWeight: 900, color: '#2563EB', lineHeight: 1 }}>
-              {myRank ? `#${myRank}` : '—'}
-            </div>
-            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>Your current rank</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#374151', marginTop: 6 }}>
-              {myScore.toLocaleString()} pts
-            </div>
-          </div>
-
-          {/* Mini top-3 */}
-          {miniLB.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '8px 0', color: '#9CA3AF', fontSize: 13 }}>
-              No rankings yet. Start earning points!
-            </div>
-          ) : (
-            miniLB.slice(0, 3).map((l, i) => (
-              <div key={l.id} style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: l.isMe ? '7px 8px' : '7px 0',
-                borderBottom: i < 2 ? '1px solid #F9FAFB' : 'none',
-                background: l.isMe ? 'rgba(37,99,235,0.04)' : 'transparent',
-                borderRadius: l.isMe ? 6 : 0,
-              }}>
-                <div style={{
-                  width: 22, fontSize: 12, fontWeight: 800, textAlign: 'center',
-                  color: ['#EAB308', '#9CA3AF', '#CD7F32'][i] || '#6B7280',
-                }}>
-                  {['🥇', '🥈', '🥉'][i]}
-                </div>
-                <Avatar name={l.name} size={24} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: l.isMe ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {l.name}{l.isMe ? ' 👈' : ''}
+            {/* Sparkle decorations */}
+            {myRank && myRank <= 3 && (
+              <>
+                <div style={{ position: 'absolute', top: 6, right: 12, fontSize: 22, opacity: 0.5, transform: 'rotate(15deg)' }}>✨</div>
+                <div style={{ position: 'absolute', top: 20, right: 36, fontSize: 14, opacity: 0.4, transform: 'rotate(-10deg)' }}>⭐</div>
+                <div style={{ position: 'absolute', bottom: 8, left: 14, fontSize: 16, opacity: 0.3 }}>🌟</div>
+              </>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.75)', letterSpacing: '1px', marginBottom: 6, textTransform: 'uppercase' }}>Your Rank</div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+                  <div style={{
+                    fontSize: 52, fontWeight: 900, color: '#fff', lineHeight: 1,
+                    textShadow: myRank === 1 ? '0 2px 12px rgba(0,0,0,0.3), 0 0 20px rgba(255,215,0,0.6)' : '0 2px 8px rgba(0,0,0,0.3)',
+                    letterSpacing: '-2px',
+                  }}>
+                    {myRank ? `#${myRank}` : '—'}
                   </div>
-                  <div style={{ fontSize: 10, color: '#9CA3AF' }}>{l.speciality}</div>
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 800, color: '#2563EB', flexShrink: 0 }}>
-                  {l.score.toLocaleString()}
+                  {myRank && myRank <= 3 && (
+                    <div style={{ fontSize: 32, marginBottom: 6 }}>
+                      {myRank === 1 ? '🥇' : myRank === 2 ? '🥈' : '🥉'}
+                    </div>
+                  )}
+                  {myRank === 1 && (
+                    <div style={{ fontSize: 28, marginBottom: 4 }}>👑</div>
+                  )}
                 </div>
               </div>
-            ))
-          )}
+              <button
+                onClick={() => setPage('leaderboard')}
+                style={{
+                  background: 'rgba(255,255,255,0.2)', color: '#fff', border: '1px solid rgba(255,255,255,0.35)',
+                  borderRadius: 8, padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  backdropFilter: 'blur(4px)', whiteSpace: 'nowrap',
+                }}
+              >Full Board →</button>
+            </div>
+            <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+              <div style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 8, padding: '5px 12px' }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{myScore.toLocaleString()}</div>
+                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>TOTAL PTS</div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 8, padding: '5px 12px' }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{myQuizPts.toLocaleString()}</div>
+                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>QUIZ PTS</div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.18)', borderRadius: 8, padding: '5px 12px' }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>{myReadPts.toLocaleString()}</div>
+                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>READ PTS</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Mini top-3 leaderboard */}
+          <div style={{ background: '#fff', padding: '12px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', letterSpacing: '0.5px', marginBottom: 8 }}>TOP PERFORMERS</div>
+            {miniLB.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '8px 0', color: '#9CA3AF', fontSize: 13 }}>
+                No rankings yet. Start earning points!
+              </div>
+            ) : (
+              miniLB.slice(0, 3).map((l, i) => (
+                <div key={l.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '7px 8px', marginBottom: 4,
+                  borderRadius: 8,
+                  background: l.isMe
+                    ? 'linear-gradient(135deg, rgba(79,70,229,0.08), rgba(124,58,237,0.06))'
+                    : i === 0 ? 'rgba(234,179,8,0.06)' : '#F9FAFB',
+                  border: l.isMe ? '1.5px solid rgba(79,70,229,0.2)' : '1px solid #F3F4F6',
+                }}>
+                  <div style={{ width: 22, fontSize: 14, textAlign: 'center' }}>
+                    {['🥇', '🥈', '🥉'][i]}
+                  </div>
+                  <Avatar name={l.name} size={26} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: l.isMe ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: l.isMe ? '#4F46E5' : '#111827' }}>
+                      {l.name}{l.isMe ? ' ← You' : ''}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#9CA3AF' }}>{l.speciality}</div>
+                  </div>
+                  <div style={{
+                    fontSize: 12, fontWeight: 800, flexShrink: 0,
+                    color: i === 0 ? '#D97706' : i === 1 ? '#6B7280' : '#C2410C',
+                    background: i === 0 ? 'rgba(234,179,8,0.12)' : i === 1 ? 'rgba(107,114,128,0.1)' : 'rgba(194,65,12,0.1)',
+                    borderRadius: 6, padding: '2px 8px',
+                  }}>
+                    {l.score.toLocaleString()}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
 

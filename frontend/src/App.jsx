@@ -41,6 +41,7 @@ import ExamPage from './components/ExamPage';
 import ChatBot from './components/ChatBot';
 import BroadcastPage from './components/BroadcastPage';
 import CaseSimulator from './components/CaseSimulator';
+import StudyPlanPage from './components/StudyPlan/StudyPlanPage';
 import ProfileSetupPage from './components/ProfileSetupPage';
 import MyPerformancePage from './components/MyPerformancePage';
 import PageTransition from './components/ui/PageTransition';
@@ -388,7 +389,7 @@ function MainApp() {
     switch (page) {
       case 'dashboard':
         return role === 'superadmin' ? <SADashboard {...commonProps} />
-          : role === 'contentadmin' ? <ContentAdminDashboard userId={userId} userName={userName} role={role} setPage={setPage} addToast={addToast} />
+          : role === 'contentadmin' ? <ContentAdminDashboard userId={userId} userName={userName} role={role} setPage={setPage} addToast={addToast} darkMode={darkMode} />
             : <DoctorDashboard {...commonProps} />;
       case 'ebooks':        return <EBooksPage {...commonProps} />;
       case 'upload':        return <UploadPage onUpload={onUpload} addToast={addToast} artifacts={artifacts} userId={userId} userName={userName} />;
@@ -434,6 +435,7 @@ function MainApp() {
       case 'arena-student': return <LiveArenaStudent userId={userId} addToast={addToast} />;
       case 'calendar':     return <StudyCalendar userId={userId} addToast={addToast} />;
       case 'case-sim':     return <CaseSimulator addToast={addToast} />;
+      case 'study-plan':   return <StudyPlanPage userId={userId} addToast={addToast} />;
       default: return (
         <div className="page">
           <div className="empty">

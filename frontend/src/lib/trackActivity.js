@@ -10,6 +10,15 @@ const SCORE_MAP = {
   daily_login: 2,
   profile_complete: 25,
   verification_complete: 50,
+  // Phase 2 — Study Plan Engine
+  clinical_case_logged: 15,
+  study_plan_completed: 25,
+  spaced_rep_reviewed: 5,
+  exam_set_completed: 30,
+  doubt_asked: 5,
+  diary_entry: 3,
+  streak_7_day: 50,
+  streak_30_day: 200,
 };
 
 export async function trackActivity(activityType, referenceId = '') {

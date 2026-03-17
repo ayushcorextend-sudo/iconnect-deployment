@@ -5,7 +5,7 @@ import {
   Activity, BarChart3, Bell, User, Users, MessageSquare, Target,
   Building2, FileText, Microscope, Swords, Upload, Settings,
   Radio, Megaphone, LogOut, Download, ChevronRight,
-  Bookmark, Globe, Video, Brain, Sparkles
+  Bookmark, Globe, Video, Brain, Sparkles, ClipboardList
 } from 'lucide-react';
 
 const iconMap = {
@@ -25,6 +25,7 @@ const iconMap = {
   conferences: Globe,
   exam: FileText,
   'case-sim': Microscope,
+  'study-plan': ClipboardList,
   users: Users,
   reports: BarChart3,
   settings: Settings,
@@ -112,6 +113,7 @@ export default function Sidebar({
     { k: 'arena-student', l: 'Live Arena' },
     { k: 'calendar', l: 'Study Calendar' },
     { k: 'case-sim', l: 'Case Simulator' },
+    { k: 'study-plan', l: 'Study Plan Engine' },
   ];
   const drMore = [
     { k: 'performance', l: 'My Performance' },
