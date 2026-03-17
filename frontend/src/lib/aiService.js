@@ -298,6 +298,51 @@ Keep the script under 250 words. Use clear spoken language — it will be read a
   }
 }
 
+// ── 14. Generate spaced repetition flashcards from wrong MCQ answers ──────────
+// Returns { cards:[{front,back,subject,difficulty}], error }
+export async function generateSpacedRepetitionCards(wrongAnswers, subject) {
+  const system = `You are a NEET-PG flashcard creator.
+For each wrong MCQ answer provided, generate one concise flashcard.
+Respond ONLY with valid JSON (no markdown):
+{"cards":[{"front":"key concept question (max 60 chars)","back":"clear explanation with correct answer (max 120 chars)","difficulty":"easy|medium|hard"}]}`;
+  const items = wrongAnswers.slice(0, 10).map((w, i) =>
+    `${i + 1}. Q: ${w.question}\n   Correct: ${w.correct_option} — ${w.correct_text}\n   Your answer: ${w.user_option}`
+  ).join('\n\n');
+  const msg = `Subject: ${subject || 'Medicine'}\n\nWrong answers to convert:\n${items}`;
+  const { text, error } = await callAI(system, msg, 800);
+  if (error) return { cards: null, error };
+  try {
+    const clean = text.replace(/```json|```/g, '').trim();
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No JSON found');
+    const parsed = JSON.parse(match[0]);
+    if (!Array.isArray(parsed.cards)) throw new Error('Invalid structure');
+    return { cards: parsed.cards, error: null };
+  } catch (_) {
+    return { cards: null, error: 'Could not parse flashcards.' };
+  }
+}
+
+// ── 15. Grade a subjective / open-ended answer ────────────────────────────────
+// Returns { score, maxScore, feedback, suggestions[], error }
+export async function gradeSubjectiveAnswer(question, studentAnswer, rubric) {
+  const system = `You are a NEET-PG examiner grading a short-answer response.
+Assess the answer against the rubric and respond ONLY with valid JSON:
+{"score":7,"maxScore":10,"feedback":"one concise sentence (max 80 chars)","suggestions":["improvement 1","improvement 2"]}`;
+  const msg = `Question: ${question}\n\nRubric: ${rubric || 'Accuracy, completeness, clinical relevance (10 points)'}\n\nStudent answer:\n${studentAnswer.slice(0, 800)}`;
+  const { text, error } = await callAI(system, msg, 400);
+  if (error) return { score: null, maxScore: 10, feedback: null, suggestions: [], error };
+  try {
+    const clean = text.replace(/```json|```/g, '').trim();
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No JSON found');
+    const parsed = JSON.parse(match[0]);
+    return { score: parsed.score ?? null, maxScore: parsed.maxScore ?? 10, feedback: parsed.feedback || '', suggestions: parsed.suggestions || [], error: null };
+  } catch (_) {
+    return { score: null, maxScore: 10, feedback: 'Could not grade answer.', suggestions: [], error: null };
+  }
+}
+
 // ── 10. Personalised "For You" suggestions on login ──────────────────────────
 // Returns { suggestions: [{icon, title, reason, tag, action}], error }
 // action is one of: 'ebooks' | 'exam' | 'learn' | 'arena-student' | 'calendar' | 'case-sim'

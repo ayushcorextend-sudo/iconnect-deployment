@@ -5,7 +5,7 @@ import {
   Activity, BarChart3, Bell, User, Users, MessageSquare, Target,
   Building2, FileText, Microscope, Swords, Upload, Settings,
   Radio, Megaphone, LogOut, Download, ChevronRight,
-  Bookmark, Globe, Video, Brain, Sparkles, ClipboardList
+  Bookmark, Globe, Video, Brain, Sparkles, ClipboardList, ClipboardCheck
 } from 'lucide-react';
 
 const iconMap = {
@@ -26,6 +26,7 @@ const iconMap = {
   exam: FileText,
   'case-sim': Microscope,
   'study-plan': ClipboardList,
+  'exam-manage': ClipboardCheck,
   users: Users,
   reports: BarChart3,
   settings: Settings,
@@ -90,6 +91,7 @@ export default function Sidebar({
     { k: 'upload', l: 'Upload Content' },
     { k: 'ebooks', l: 'E-Book Library' },
     { k: 'arena-host', l: 'Host Live Arena' },
+    { k: 'exam-manage', l: 'Exam Manager' },
     { k: 'broadcast', l: 'Notification Center' },
   ];
   const caAccount = [

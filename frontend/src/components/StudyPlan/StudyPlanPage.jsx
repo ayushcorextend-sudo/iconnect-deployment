@@ -3,11 +3,13 @@ import { supabase } from '../../lib/supabase';
 import ClinicalLogger from './ClinicalLogger';
 import PersonaBuilder from './PersonaBuilder';
 import WeeklyPlanner from './WeeklyPlanner';
+import SpacedRepetition from './SpacedRepetition';
 
 const TABS = [
-  { key: 'planner', label: '🗓 My Plan', desc: 'AI-generated 7-day schedule' },
-  { key: 'logger',  label: '📋 Case Log', desc: 'Log clinical cases' },
-  { key: 'persona', label: '🧠 My Persona', desc: 'Learning preferences' },
+  { key: 'planner',   label: '🗓 My Plan',     desc: 'AI-generated 7-day schedule' },
+  { key: 'logger',    label: '📋 Case Log',    desc: 'Log clinical cases' },
+  { key: 'persona',   label: '🧠 My Persona',  desc: 'Learning preferences' },
+  { key: 'flashcards',label: '🃏 Flash Review', desc: 'Spaced repetition review queue' },
 ];
 
 export default function StudyPlanPage({ userId, addToast }) {
@@ -69,9 +71,10 @@ export default function StudyPlanPage({ userId, addToast }) {
       {/* Tab content */}
       {uid ? (
         <>
-          {tab === 'planner' && <WeeklyPlanner userId={uid} addToast={addToast} />}
-          {tab === 'logger'  && <ClinicalLogger userId={uid} addToast={addToast} />}
-          {tab === 'persona' && <PersonaBuilder userId={uid} addToast={addToast} />}
+          {tab === 'planner'    && <WeeklyPlanner userId={uid} addToast={addToast} />}
+          {tab === 'logger'     && <ClinicalLogger userId={uid} addToast={addToast} />}
+          {tab === 'persona'    && <PersonaBuilder userId={uid} addToast={addToast} />}
+          {tab === 'flashcards' && <SpacedRepetition userId={uid} addToast={addToast} />}
         </>
       ) : (
         <div className="card" style={{ textAlign: 'center', padding: '40px 20px', color: '#9CA3AF' }}>

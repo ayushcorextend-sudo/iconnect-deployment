@@ -63,8 +63,9 @@ export default function ExamPage({ addToast }) {
     // Track activity
     const passed = (correct / total) >= 0.5;
     await trackActivity(passed ? 'quiz_passed' : 'quiz_attempted', `exam_${selected?.id}`);
+    await trackActivity('exam_set_completed', `exam_${selected?.id}`);
 
-    // Save attempt + notify on pass
+    // Save attempt, notify on pass, auto-add SR cards for wrong answers
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -79,6 +80,26 @@ export default function ExamPage({ addToast }) {
           sendNotification(user.id, 'Quiz Passed! 🎉',
             `You scored ${correct}/${total} on ${selected.name}. +20 points earned.`,
             'success', '🏆', 'in_app');
+        }
+        // Auto-create spaced repetition cards for wrong answers
+        const wrongQs = questions.filter(q => answers[q.id] && answers[q.id] !== q.correct);
+        if (wrongQs.length > 0) {
+          const today = new Date().toISOString().slice(0, 10);
+          const srCards = wrongQs.map(q => ({
+            user_id: user.id,
+            front: q.question,
+            back: `Correct: ${q.correct}. ${q[`option_${q.correct.toLowerCase()}`] || ''}${q.explanation ? ' — ' + q.explanation : ''}`,
+            subject: selected.name,
+            difficulty: q.difficulty || 'medium',
+            source_question_id: q.id,
+            easiness: 2.5,
+            interval: 0,
+            repetitions: 0,
+            next_review_at: today,
+          }));
+          // upsert — skip if same question already in queue
+          await supabase.from('spaced_repetition_cards')
+            .upsert(srCards, { onConflict: 'user_id,source_question_id', ignoreDuplicates: true });
         }
       }
     } catch (_) {}

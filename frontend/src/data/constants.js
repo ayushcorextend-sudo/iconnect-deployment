@@ -116,4 +116,5 @@ export const titles = {
   calendar: '📅 Study Calendar',
   'case-sim': '🏥 Case Simulator',
   'study-plan': '🗓 Study Plan Engine',
+  'exam-manage': '📋 Exam Manager',
 };

@@ -42,6 +42,7 @@ import ChatBot from './components/ChatBot';
 import BroadcastPage from './components/BroadcastPage';
 import CaseSimulator from './components/CaseSimulator';
 import StudyPlanPage from './components/StudyPlan/StudyPlanPage';
+import ExamManager from './components/Exam/ExamManager';
 import ProfileSetupPage from './components/ProfileSetupPage';
 import MyPerformancePage from './components/MyPerformancePage';
 import PageTransition from './components/ui/PageTransition';
@@ -436,6 +437,7 @@ function MainApp() {
       case 'calendar':     return <StudyCalendar userId={userId} addToast={addToast} />;
       case 'case-sim':     return <CaseSimulator addToast={addToast} />;
       case 'study-plan':   return <StudyPlanPage userId={userId} addToast={addToast} />;
+      case 'exam-manage':  return <ExamManager userId={userId} addToast={addToast} />;
       default: return (
         <div className="page">
           <div className="empty">

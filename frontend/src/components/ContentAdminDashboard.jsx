@@ -6,14 +6,17 @@ import VideoManager from './content/VideoManager';
 import FlashcardMaker from './content/FlashcardMaker';
 import DoubtBoard from './content/DoubtBoard';
 import KahootScheduler from './arena/KahootScheduler';
+import ExamManager from './Exam/ExamManager';
+import { SAMessageBox } from './BroadcastPage';
 
 const SIDEBAR_TABS = [
-  { key: 'ebooks',      icon: '📚', label: 'E-Library' },
-  { key: 'quizzes',     icon: '📝', label: 'Quiz Builder' },
-  { key: 'videos',      icon: '🎥', label: 'Video Manager' },
-  { key: 'flashcards',  icon: '🃏', label: 'Flashcard Maker' },
-  { key: 'kahoot',      icon: '🎮', label: 'Kahoot Scheduler' },
-  { key: 'doubts',      icon: '💬', label: 'Doubt Resolution' },
+  { key: 'ebooks',        icon: '📚', label: 'E-Library' },
+  { key: 'quizzes',       icon: '📝', label: 'Quiz Builder' },
+  { key: 'videos',        icon: '🎥', label: 'Video Manager' },
+  { key: 'flashcards',    icon: '🃏', label: 'Flashcard Maker' },
+  { key: 'kahoot',        icon: '🎮', label: 'Kahoot Scheduler' },
+  { key: 'doubts',        icon: '💬', label: 'Doubt Resolution' },
+  { key: 'exam-manager',  icon: '📋', label: 'Exam Manager' },
 ];
 
 const statusCfg = {
@@ -23,7 +26,7 @@ const statusCfg = {
   archived: { label: 'Archived', bg: '#F3F4F6', color: '#6B7280' },
 };
 
-export default function ContentAdminDashboard({ userId, userName, role, setPage, addToast }) {
+export default function ContentAdminDashboard({ userId, userName, role, setPage, addToast, darkMode }) {
   const [activeTab, setActiveTab]   = useState('ebooks');
   const [myArtifacts, setMyArtifacts] = useState(null);  // null = not loaded yet
   const [libLoading, setLibLoading] = useState(false);
@@ -111,6 +114,9 @@ export default function ContentAdminDashboard({ userId, userName, role, setPage,
 
   return (
     <div className="page">
+      {/* SA Message Box — fixed floating, appears only when superadmin has broadcast */}
+      <SAMessageBox userId={userId} darkMode={darkMode} />
+
       <div className="ph">
         <div className="pt">Content Dashboard</div>
         <div className="ps">Manage all content channels — e-books, quizzes, videos, flashcards, and doubts</div>
@@ -229,6 +235,9 @@ export default function ContentAdminDashboard({ userId, userName, role, setPage,
 
           {/* ── DOUBT BOARD ───────────────────────────────────── */}
           {activeTab === 'doubts' && <DoubtBoard userId={userId} role={role} addToast={addToast} />}
+
+          {/* ── EXAM MANAGER ──────────────────────────────────── */}
+          {activeTab === 'exam-manager' && <ExamManager userId={userId} addToast={addToast} />}
         </div>
       </div>
 
