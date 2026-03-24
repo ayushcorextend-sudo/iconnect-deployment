@@ -5,7 +5,7 @@ import { trackActivity } from '../../lib/trackActivity';
 const DIFFICULTIES = ['easy', 'medium', 'hard'];
 const DIFF_COLORS = { easy: '#10B981', medium: '#F59E0B', hard: '#EF4444' };
 
-const BLANK = { case_title: '', speciality: '', key_learnings: '', difficulty: 'medium' };
+const BLANK = { case_title: '', speciality: '', learning_points: '', difficulty: 'medium' };
 
 export default function ClinicalLogger({ userId, addToast }) {
   const [form, setForm] = useState(BLANK);
@@ -23,7 +23,7 @@ export default function ClinicalLogger({ userId, addToast }) {
         .from('clinical_logs')
         .select('*')
         .eq('user_id', userId)
-        .order('logged_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(20);
       if (error) throw error;
       setLogs(data || []);
@@ -39,18 +39,18 @@ export default function ClinicalLogger({ userId, addToast }) {
     if (!form.case_title.trim()) { addToast?.('error', 'Case title is required.'); return; }
     setSaving(true);
     try {
-      const { error } = await supabase.from('clinical_logs').insert({
+      const { data: inserted, error } = await supabase.from('clinical_logs').insert({
         user_id: userId,
-        ...form,
         case_title: form.case_title.trim(),
         speciality: form.speciality.trim(),
-        key_learnings: form.key_learnings.trim(),
-      });
+        learning_points: form.learning_points.trim(),
+        difficulty: form.difficulty,
+      }).select('id').single();
       if (error) throw error;
       addToast?.('success', 'Case logged!');
       setForm(BLANK);
       await fetchLogs();
-      trackActivity('clinical_case_logged');
+      trackActivity('clinical_case_logged', inserted?.id || '');
     } catch (e) {
       addToast?.('error', 'Failed to save: ' + e.message);
     } finally {
@@ -104,8 +104,8 @@ export default function ClinicalLogger({ userId, addToast }) {
             <textarea
               className="input"
               placeholder="Key learnings from this case..."
-              value={form.key_learnings}
-              onChange={e => setForm(f => ({ ...f, key_learnings: e.target.value }))}
+              value={form.learning_points}
+              onChange={e => setForm(f => ({ ...f, learning_points: e.target.value }))}
               rows={3}
               style={{ resize: 'vertical', fontFamily: 'inherit' }}
             />
@@ -182,7 +182,7 @@ export default function ClinicalLogger({ userId, addToast }) {
                     </div>
                     <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
                       {log.speciality && <span style={{ marginRight: 8 }}>🏥 {log.speciality}</span>}
-                      {relTime(log.logged_at)}
+                      {relTime(log.created_at)}
                     </div>
                   </div>
                   <span style={{

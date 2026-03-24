@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { trackActivity } from '../lib/trackActivity';
+import { trackActivity, startTimer, stopTimer } from '../lib/trackActivity';
 import { explainQuestion } from '../lib/aiService';
 import { captureException } from '../lib/sentry';
 import AIResponseBox from './AIResponseBox';
@@ -29,6 +29,7 @@ export default function ExamPage({ addToast }) {
 
   const startExam = useCallback(async (subj) => {
     setSelected(subj);
+    startTimer('exam_attempt', subj.id);
     setLoadingQ(true);
     setCurrent(0);
     setAnswers({});
@@ -79,9 +80,10 @@ export default function ExamPage({ addToast }) {
       setScore({ correct: data.score, total: data.total });
       setSubmitted(true);
 
-      // Track activity
-      await trackActivity(data.passed ? 'quiz_passed' : 'quiz_attempted', `exam_${selected.id}`);
-      await trackActivity('exam_set_completed', `exam_${selected.id}`);
+      // Track activity with duration
+      const examDuration = stopTimer('exam_attempt', selected.id);
+      await trackActivity(data.passed ? 'quiz_passed' : 'quiz_attempted', `exam_${selected.id}`, examDuration);
+      await trackActivity('exam_set_completed', `exam_${selected.id}`, examDuration);
 
       // Auto-create spaced repetition cards for wrong answers (not handled by edge function)
       try {

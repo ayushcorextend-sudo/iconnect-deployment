@@ -41,6 +41,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
   const [reminderLeadMins, setReminderLeadMins] = useState(60);
   const [reminderChannels, setReminderChannels] = useState(['in_app']);
   const [reminderSaving, setReminderSaving] = useState(false);
+  const [activePlan, setActivePlan] = useState(null);
 
   useEffect(() => {
     async function load() {
@@ -52,7 +53,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         setCurrentUserId(uid);
 
         // ── Fire all independent queries in parallel ───────
-        const [profileRes, statesRes, scoresRes, logsRes, actLogsRes, artsRes, wbRes] = await Promise.all([
+        const [profileRes, statesRes, scoresRes, logsRes, actLogsRes, artsRes, wbRes, planRes] = await Promise.all([
           supabase.from('profiles').select('speciality').eq('id', uid).maybeSingle(),
           getUserContentStates(uid),
           supabase.from('user_scores').select('user_id, total_score, quiz_score, reading_score')
@@ -65,6 +66,8 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
             .eq('status', 'approved').limit(20),
           supabase.from('admin_webinars').select('*')
             .gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(1),
+          supabase.from('study_plan_history').select('id, plan, completed_tasks')
+            .eq('user_id', uid).eq('is_active', true).order('created_at', { ascending: false }).limit(1),
         ]);
 
         const profileData = profileRes.data;
@@ -74,6 +77,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         const actLogs     = actLogsRes.data;
         const arts        = artsRes.data;
         const wb          = wbRes.data;
+        const activePlanData = planRes.data?.[0] || null;
 
         // ── Profile ────────────────────────────────────────
         if (profileData?.speciality) setMySpeciality(profileData.speciality);
@@ -150,6 +154,9 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
 
         // ── Next Webinar ──────────────────────────────────
         setNextWebinar(wb?.[0] || null);
+
+        // ── Active Study Plan ─────────────────────────────
+        setActivePlan(activePlanData);
 
         // ── AI "For You" (async, non-blocking) ────────────
         const forYouCacheKey = `forYou_${uid}`;
@@ -289,6 +296,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         myQuizPts={myQuizPts}
         myScore={myScore}
         setPage={setPage}
+        activePlan={activePlan}
       />
 
       <CalendarGoalRow

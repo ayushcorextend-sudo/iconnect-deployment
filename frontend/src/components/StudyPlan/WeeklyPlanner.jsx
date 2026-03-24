@@ -9,6 +9,7 @@ const DAY_COLORS = ['#6366F1', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#3B8
 
 export default function WeeklyPlanner({ userId, addToast }) {
   const [plan, setPlan] = useState(null);
+  const [planId, setPlanId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
   const [checked, setChecked] = useState({}); // { "dayIndex-taskIndex": bool }
@@ -22,13 +23,18 @@ export default function WeeklyPlanner({ userId, addToast }) {
       const [personaRes, casesRes, planRes] = await Promise.all([
         supabase.from('user_study_persona').select('*').eq('user_id', userId).maybeSingle(),
         supabase.from('clinical_logs').select('case_title').eq('user_id', userId).order('logged_at', { ascending: false }).limit(5),
-        supabase.from('study_plan_history').select('*').eq('user_id', userId).eq('is_active', true).order('generated_at', { ascending: false }).limit(1),
+        supabase.from('study_plan_history').select('*').eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: false }).limit(1),
       ]);
       if (personaRes.data) setPersona(personaRes.data);
       if (casesRes.data) setRecentCases(casesRes.data.map(c => c.case_title));
       if (planRes.data?.[0]) {
-        setPlan(planRes.data[0].plan_data);
+        setPlan(planRes.data[0].plan);
+        setPlanId(planRes.data[0].id);
         setHasSaved(true);
+        const savedChecked = planRes.data[0].completed_tasks;
+        if (savedChecked && typeof savedChecked === 'object' && !Array.isArray(savedChecked)) {
+          setChecked(savedChecked);
+        }
       }
     }
     init();
@@ -53,14 +59,19 @@ export default function WeeklyPlanner({ userId, addToast }) {
       setPlan(newPlan);
       setChecked({});
 
-      // Deactivate old plans
+      // Deactivate old plans, then save new one
       await supabase.from('study_plan_history').update({ is_active: false }).eq('user_id', userId).eq('is_active', true);
-      // Save new plan
-      await supabase.from('study_plan_history').insert({
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+      const { data: savedPlan } = await supabase.from('study_plan_history').insert({
         user_id: userId,
-        plan_data: newPlan,
+        week_start: weekStart.toISOString().split('T')[0],
+        plan: newPlan,
+        completed_tasks: {},
         is_active: true,
-      });
+        ai_generated: true,
+      }).select('id').single();
+      if (savedPlan) setPlanId(savedPlan.id);
       setHasSaved(true);
       addToast?.('success', '7-day plan generated and saved!');
       trackActivity('study_plan_completed');
@@ -71,9 +82,13 @@ export default function WeeklyPlanner({ userId, addToast }) {
     }
   }
 
-  function toggleTask(dayIdx, taskIdx) {
+  async function toggleTask(dayIdx, taskIdx) {
     const key = `${dayIdx}-${taskIdx}`;
-    setChecked(prev => ({ ...prev, [key]: !prev[key] }));
+    const next = { ...checked, [key]: !checked[key] };
+    setChecked(next);
+    if (planId) {
+      await supabase.from('study_plan_history').update({ completed_tasks: next }).eq('id', planId);
+    }
   }
 
   const completedCount = Object.values(checked).filter(Boolean).length;

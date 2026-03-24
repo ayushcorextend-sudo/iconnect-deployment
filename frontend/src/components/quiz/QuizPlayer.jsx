@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
+import { idempotentInsert } from '../../lib/idempotency';
+import { trackActivity, startTimer, stopTimer } from '../../lib/trackActivity';
 
 export default function QuizPlayer({ quizId, userId, addToast, onBack }) {
   const [quiz, setQuiz]           = useState(null);
@@ -49,7 +51,7 @@ export default function QuizPlayer({ quizId, userId, addToast, onBack }) {
     if (userId?.startsWith('local_')) return;
     setSaving(true);
     try {
-      const { error } = await supabase.from('quiz_attempts').insert({
+      const { error, isDuplicate } = await idempotentInsert('quiz_attempt', {
         quiz_id: quizId,
         user_id: userId,
         answers: finalAnswers,
@@ -57,8 +59,14 @@ export default function QuizPlayer({ quizId, userId, addToast, onBack }) {
         total: questions.length,
         started_at: startedAt,
         finished_at: new Date().toISOString(),
-      });
+      }, { table: 'quiz_attempts' });
+      if (isDuplicate) { addToast('info', 'Quiz already submitted.'); return; }
       if (error) throw error;
+      const duration = stopTimer('quiz_attempt', quizId);
+      const pct = Math.round((correct / questions.length) * 100);
+      trackActivity('quiz_complete', quizId, duration);
+      if (pct >= 60) trackActivity('quiz_passed', quizId);
+      else trackActivity('quiz_attempted', quizId);
     } catch (e) {
       addToast('error', 'Could not save attempt: ' + e.message);
     } finally {
@@ -126,7 +134,7 @@ export default function QuizPlayer({ quizId, userId, addToast, onBack }) {
           <span>⏱ {Math.floor(quiz.time_limit_sec / 60)} minutes</span>
         </div>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-          <button className="btn btn-p" onClick={() => setPhase('playing')}>Start Quiz</button>
+          <button className="btn btn-p" onClick={() => { startTimer('quiz_attempt', quizId); setPhase('playing'); }}>Start Quiz</button>
           <button className="btn btn-s" onClick={onBack}>Cancel</button>
         </div>
       </div>

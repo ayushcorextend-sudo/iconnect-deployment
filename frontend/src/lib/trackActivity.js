@@ -11,23 +11,54 @@ const queue = [];
 let flushTimer = null;
 const FLUSH_INTERVAL = 5000; // ms
 const MAX_BATCH = 20;
+const timers = {}; // { "activityType_referenceId": startTimestamp }
+
+/**
+ * Start a duration timer for an activity.
+ * @param {string} activityType
+ * @param {string|number} referenceId
+ */
+export function startTimer(activityType, referenceId = 'default') {
+  timers[`${activityType}_${referenceId}`] = Date.now();
+}
+
+/**
+ * Stop a duration timer and return elapsed minutes (min 1).
+ * Returns 0 if no timer was started.
+ * @param {string} activityType
+ * @param {string|number} referenceId
+ * @returns {number} minutes
+ */
+export function stopTimer(activityType, referenceId = 'default') {
+  const key = `${activityType}_${referenceId}`;
+  const start = timers[key];
+  if (start) {
+    const minutes = Math.max(1, Math.round((Date.now() - start) / 60000));
+    delete timers[key];
+    return minutes;
+  }
+  return 0;
+}
 
 /**
  * Queue an activity log entry. Fire-and-forget; never throws.
  * @param {string} activityType - Must match a row in score_rules table.
  * @param {string|number} referenceId - Optional artifact/quiz/etc. ID.
+ * @param {number|null} durationMinutes - Optional duration in minutes.
  */
-export function trackActivity(activityType, referenceId = '') {
-  // Get userId synchronously from the cached session (no await needed).
-  const session = supabase.auth.getSession ? null : null; // resolved below
+export function trackActivity(activityType, referenceId = '', durationMinutes = null) {
   _getUid().then(uid => {
     if (!uid) return;
-    queue.push({
+    const entry = {
       user_id:       uid,
       activity_type: activityType,
       reference_id:  String(referenceId),
       // score_delta intentionally omitted — DB trigger fills it server-side
-    });
+    };
+    if (durationMinutes !== null && durationMinutes > 0) {
+      entry.duration_minutes = durationMinutes;
+    }
+    queue.push(entry);
 
     if (queue.length >= MAX_BATCH) {
       flushActivityQueue();

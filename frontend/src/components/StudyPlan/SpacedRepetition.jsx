@@ -1,24 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { trackActivity } from '../../lib/trackActivity';
-
-// SM-2 algorithm: quality 0–5 → new easiness, interval, repetitions
-function sm2(easiness, interval, repetitions, quality) {
-  let e = Math.max(1.3, easiness + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
-  let rep = quality < 3 ? 0 : repetitions + 1;
-  let i;
-  if (rep === 0)      i = 1;
-  else if (rep === 1) i = 1;
-  else if (rep === 2) i = 6;
-  else                i = Math.round(interval * e);
-  return { easiness: e, interval: i, repetitions: rep };
-}
-
-function addDays(days) {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
+import { trackActivity, startTimer, stopTimer } from '../../lib/trackActivity';
+import { sm2 } from '../../lib/sm2';
 
 const RATINGS = [
   { label: 'Again', q: 0, bg: '#FEE2E2', color: '#DC2626', emoji: '🔁' },
@@ -56,6 +39,7 @@ export default function SpacedRepetition({ userId, addToast }) {
       if (error) throw error;
       setCards(data || []);
       setTotalDue(data?.length || 0);
+      if (data?.length > 0) startTimer('spaced_rep', userId);
     } catch (e) {
       addToast?.('error', 'Could not load review cards: ' + e.message);
     } finally {
@@ -68,20 +52,20 @@ export default function SpacedRepetition({ userId, addToast }) {
     if (!card || saving) return;
     setSaving(true);
 
-    const { easiness: newE, interval: newI, repetitions: newR } = sm2(
-      card.easiness || 2.5,
-      card.interval || 0,
+    const result = sm2(
+      quality,
       card.repetitions || 0,
-      quality
+      card.easiness || 2.5,
+      card.interval || 0
     );
-    const nextDate = quality < 3 ? addDays(1) : addDays(newI);
+    const { easeFactor: newE, interval: newI, repetitions: newR, nextReviewDate } = result;
 
     try {
       await supabase.from('spaced_repetition_cards').update({
         easiness: newE,
         interval: newI,
         repetitions: newR,
-        next_review_at: nextDate,
+        next_review_at: nextReviewDate,
         last_reviewed_at: new Date().toISOString(),
       }).eq('id', card.id);
 
@@ -91,7 +75,8 @@ export default function SpacedRepetition({ userId, addToast }) {
 
       if (nextIdx >= cards.length) {
         setDone(true);
-        trackActivity('spaced_rep_reviewed', userId);
+        const duration = stopTimer('spaced_rep', userId);
+        trackActivity('spaced_rep_reviewed', userId, duration || null);
       } else {
         setIdx(nextIdx);
       }
