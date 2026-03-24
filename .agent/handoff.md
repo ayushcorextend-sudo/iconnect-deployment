@@ -6,46 +6,49 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-03-24 — Session: Phase 1 Blueprint Execution — Database Foundation
+2026-03-24 — Session: Phase 2 Blueprint Execution — Security Hardening
 
 ## What We Worked On
-- Created 3 new migrations as part of Opus Blueprint Phase 1:
-  - 20260324083653_missing_tables_and_columns.sql — 6 tables + 2 columns + RLS + indexes
-  - 20260324083908_scoring_system.sql — score_rules + fn_calculate_score_delta trigger
-  - 20260324084313_fix_score_rules_points.sql — patch score_rules with correct point values
-- Discovered 4 tables already existed on remote (calendar_diary, user_study_persona,
-  clinical_logs, study_plan_history) with partial schemas — patched missing columns
-- Regenerated frontend/src/lib/database.types.ts from remote schema
-- All 3 migrations pushed and in sync (local = remote)
-- Frontend build: ✅ zero errors
+Phase 1 (previous session):
+- Created 6 DB tables, scoring trigger, regenerated database.types.ts
+
+Phase 2 (this session):
+- Task 2A: Added role-based route guards to renderPage() in App.jsx
+  ROLE_PAGES allowlist: doctor (19 pages), contentadmin (7 pages), superadmin (unrestricted)
+  Guard redirects to 'dashboard' if role tries to access a page not in their allowlist
+- Task 2B: Wired ExamPage.jsx to submit-exam edge function
+  Removed client-side score calculation entirely
+  Score now comes from edge function response (tamper-proof)
+  Added submitting state + disabled button during submission
+  Kept SR card creation client-side (edge function doesn't handle it)
+  Fixed swallowed catch block — now uses captureException(err) + addToast
+- Task 2C: Fixed hardcoded Supabase keys in chatbotConstants.js
+  SUPABASE_URL and SUPABASE_ANON_KEY now read from import.meta.env
 
 ## Current State
-✅ Phase 1 Complete
-- 6 tables exist on remote: calendar_diary, user_study_persona, clinical_logs,
-  study_plan_history, user_notes, idempotency_keys
-- score_rules has 14 rows with correct point values
-- trg_score_delta trigger fires on activity_logs INSERT → auto-populates score_delta + upserts user_scores
-- activity_logs.duration_minutes column added
-- database.types.ts regenerated and contains all new table types
+✅ Phase 1 Complete ✅ Phase 2 Complete
+- Build: zero errors
+- Route guards active for doctor + contentadmin roles
+- Exam scoring: server-side via submit-exam edge function
+- No hardcoded credentials in source
 
 ## Files Changed This Session
-- supabase/migrations/20260324083653_missing_tables_and_columns.sql — created + pushed
-- supabase/migrations/20260324083908_scoring_system.sql — created + pushed
-- supabase/migrations/20260324084313_fix_score_rules_points.sql — created + pushed
-- frontend/src/lib/database.types.ts — regenerated
+- frontend/src/App.jsx — ROLE_PAGES + renderPage() route guard
+- frontend/src/components/ExamPage.jsx — new handleSubmit, submitting state, import cleanup
+- frontend/src/components/chatbot/chatbotConstants.js — removed hardcoded keys
 
 ## Next Session Should Start With
-→ Phase 2: Security Hardening
-  Files to read: frontend/src/App.jsx (renderPage function), frontend/src/components/ExamPage.jsx
-  (handleSubmit), supabase/functions/submit-exam/index.ts, frontend/src/lib/chatbotConstants.js
-  Tasks: route guards, wire ExamPage to submit-exam edge function, fix hardcoded key
+→ Phase 3: Performance Overhaul
+  Files to read: frontend/src/App.jsx (imports + renderPage), frontend/src/components/DoctorDashboard.jsx
+  (load function), frontend/src/components/ActivityPage.jsx (data fetch), frontend/vite.config.js,
+  frontend/src/lib/trackActivity.js, frontend/src/components/arena/LiveArenaStudent.jsx
+  Tasks: lazy loading, Promise.all dashboard queries, vite manualChunks, memory leak fixes, Zustand selectors
 
 ## Decisions Made
-- Added ALTER TABLE ... ADD COLUMN IF NOT EXISTS patches for all pre-existing tables
-  (calendar_diary, user_study_persona, clinical_logs, study_plan_history existed on remote)
-- Created separate fix_score_rules_points migration rather than modifying the previous one
-  (preserves idempotency and audit trail)
-- score_rules ON CONFLICT changed to DO UPDATE in the fix migration to ensure correct values
+- ROLE_PAGES superadmin = [] (empty = unrestricted) rather than explicit list — easier to maintain
+- Kept SR card creation in ExamPage client-side; edge function handles scoring + idempotency only
+- Used captureException (named import) not default Sentry import — matches sentry.js exports
+- Added ALTER TABLE ... ADD COLUMN IF NOT EXISTS patches for all pre-existing tables (Phase 1)
 
 ## Do NOT Touch Until Discussed
 - frontend/src/migrations/ — reference only, do not run or delete
