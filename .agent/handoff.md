@@ -6,7 +6,7 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-03-24 — Session: Phase 3 — Performance Overhaul
+2026-03-24 — Session: Phase 4 — Dashboard Data Wiring
 
 ## What We Worked On
 Phase 3 (this session):
@@ -31,32 +31,33 @@ Phase 3 (this session):
   LeaderboardPage setCached: added TTL 5 * 60 * 1000 (was using default 2 min)
 
 ## Current State
-✅ Phase 1 Complete ✅ Phase 2 Complete ✅ Phase 3 Complete
+✅ Phase 1 Complete ✅ Phase 2 Complete ✅ Phase 3 Complete ✅ Phase 4 Complete
 - Build: zero errors (verified npm run build)
-- vendor-supabase / vendor-motion / vendor-lucide split confirmed in dist/
-- Dashboard load: parallelized (was 5-10 sequential round trips → 1 round trip)
+- All dashboard widgets wired to real DB data
+- Duration tracking active across exam, quiz, ebooks, spaced repetition
 
-## Files Changed This Session
-- frontend/src/components/DoctorDashboard.jsx — Promise.all parallel queries
-- frontend/vite.config.js — manualChunks build config
-- frontend/src/lib/trackActivity.js — cleanupActivityTracking() export
-- frontend/src/App.jsx — cleanupActivityTracking import + logout wire + useShallow
-- frontend/src/components/arena/LiveArenaStudent.jsx — channel cleanup + score fix
-- frontend/src/components/ActivityPage.jsx — .limit(5000) on 90-day query
-- frontend/src/components/LeaderboardPage.jsx — setCached TTL 5 min
+## Files Changed This Session (Phase 4)
+- supabase/migrations/20260324093903_phase4_missing_columns.sql — study_hours, goals_met, difficulty columns
+- frontend/src/components/Activity/DiaryPanel.jsx — notes → personal_notes column fix
+- frontend/src/components/StudyPlan/ClinicalLogger.jsx — key_learnings → learning_points, logged_at → created_at
+- frontend/src/components/StudyPlan/WeeklyPlanner.jsx — plan_data → plan, completed_tasks persistence, planId state
+- frontend/src/components/dashboard/StudyPlanCard.jsx — shows structured task progress from study_plan_history
+- frontend/src/components/DoctorDashboard.jsx — 8th parallel query for active plan, activePlan state + prop
+- frontend/src/components/quiz/QuizPlayer.jsx — trackActivity quiz_complete/quiz_passed/quiz_attempted + timer
+- frontend/src/lib/trackActivity.js — startTimer/stopTimer exports, durationMinutes param
+- frontend/src/components/ExamPage.jsx — startTimer on exam start, stopTimer + duration on submit
+- frontend/src/components/EBooksPage.jsx — startTimer on open, stopTimer + trackActivity on close
+- frontend/src/components/StudyPlan/SpacedRepetition.jsx — startTimer on load, stopTimer on session complete
 
 ## Next Session Should Start With
-→ Phase 4: Dashboard Data Wiring
-  Files to read:
-  - frontend/src/components/Activity/DiaryPanel.jsx
-  - frontend/src/components/StudyPlan/PersonaBuilder.jsx (if exists)
-  - frontend/src/components/StudyPlan/ClinicalLogger.jsx
-  - frontend/src/components/StudyPlan/WeeklyPlanner.jsx
-  - frontend/src/components/quiz/QuizPlayer.jsx
-  - frontend/src/lib/trackActivity.js (for duration tracking wiring)
-  Tasks: Wire DiaryPanel saves, PersonaBuilder upserts, ClinicalLogger inserts,
-  WeeklyPlanner study_plan_history writes, QuizPlayer activity tracking with duration,
-  reading duration tracking (startTimer/stopTimer in trackActivity)
+→ Phase 5: Feature Completion
+  Files to read (only as needed per task):
+  - frontend/src/components/dashboard/MonthlyCalendar.jsx (or CalendarGoalRow.jsx)
+  - frontend/src/components/dashboard/WebinarLeaderboardRow.jsx
+  - frontend/src/components/arena/LiveArenaStudent.jsx (already read)
+  - frontend/src/components/SmartNotesPanel.jsx
+  Tasks: DayDetailPanel calendar view, webinar save, arena final fixes,
+  approval emails, PDF notes persistence, embeddings, AI insights
 
 ## Decisions Made
 - ROLE_PAGES superadmin = [] (empty = unrestricted) rather than explicit list — easier to maintain
