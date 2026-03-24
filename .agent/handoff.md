@@ -6,43 +6,57 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-03-24 — Session: Phase 2 Blueprint Execution — Security Hardening
+2026-03-24 — Session: Phase 3 — Performance Overhaul
 
 ## What We Worked On
-Phase 1 (previous session):
-- Created 6 DB tables, scoring trigger, regenerated database.types.ts
-
-Phase 2 (this session):
-- Task 2A: Added role-based route guards to renderPage() in App.jsx
-  ROLE_PAGES allowlist: doctor (19 pages), contentadmin (7 pages), superadmin (unrestricted)
-  Guard redirects to 'dashboard' if role tries to access a page not in their allowlist
-- Task 2B: Wired ExamPage.jsx to submit-exam edge function
-  Removed client-side score calculation entirely
-  Score now comes from edge function response (tamper-proof)
-  Added submitting state + disabled button during submission
-  Kept SR card creation client-side (edge function doesn't handle it)
-  Fixed swallowed catch block — now uses captureException(err) + addToast
-- Task 2C: Fixed hardcoded Supabase keys in chatbotConstants.js
-  SUPABASE_URL and SUPABASE_ANON_KEY now read from import.meta.env
+Phase 3 (this session):
+- Task 3A: DoctorDashboard parallel queries
+  Rewrote sequential load() into single Promise.all([7 queries])
+  duration_minutes || 30 → || 0 (wrong default fixed)
+  Empty-state guards added for null logs
+- Task 3C: Vite manualChunks bundle splitting
+  vendor-supabase: 172 KB, vendor-motion: 125 KB, vendor-lucide: 19 KB
+  Main bundle reduced by separating heavy vendors
+- Task 3D: trackActivity memory leak fix
+  Added cleanupActivityTracking() export (cancels timer, drains queue)
+  Wired into App.jsx logout() — called before unsubscribeAll()
+- Task 3E: Arena subscription memory leak + score reset bug
+  subscribeArena(): removes existing channel before creating new (was leaking)
+  joinArena upsert: removed score: 0 (was resetting score on rejoin)
+- Task 3F: Zustand useShallow selectors
+  All 4 broad store destructures in MainApp() wrapped with useShallow(s => s)
+  Second useAppStore() call scoped to { initRouter, syncFromLocation } only
+- Task 3G: Activity/Leaderboard query guards
+  ActivityPage 90-day logs query: added .limit(5000)
+  LeaderboardPage setCached: added TTL 5 * 60 * 1000 (was using default 2 min)
 
 ## Current State
-✅ Phase 1 Complete ✅ Phase 2 Complete
-- Build: zero errors
-- Route guards active for doctor + contentadmin roles
-- Exam scoring: server-side via submit-exam edge function
-- No hardcoded credentials in source
+✅ Phase 1 Complete ✅ Phase 2 Complete ✅ Phase 3 Complete
+- Build: zero errors (verified npm run build)
+- vendor-supabase / vendor-motion / vendor-lucide split confirmed in dist/
+- Dashboard load: parallelized (was 5-10 sequential round trips → 1 round trip)
 
 ## Files Changed This Session
-- frontend/src/App.jsx — ROLE_PAGES + renderPage() route guard
-- frontend/src/components/ExamPage.jsx — new handleSubmit, submitting state, import cleanup
-- frontend/src/components/chatbot/chatbotConstants.js — removed hardcoded keys
+- frontend/src/components/DoctorDashboard.jsx — Promise.all parallel queries
+- frontend/vite.config.js — manualChunks build config
+- frontend/src/lib/trackActivity.js — cleanupActivityTracking() export
+- frontend/src/App.jsx — cleanupActivityTracking import + logout wire + useShallow
+- frontend/src/components/arena/LiveArenaStudent.jsx — channel cleanup + score fix
+- frontend/src/components/ActivityPage.jsx — .limit(5000) on 90-day query
+- frontend/src/components/LeaderboardPage.jsx — setCached TTL 5 min
 
 ## Next Session Should Start With
-→ Phase 3: Performance Overhaul
-  Files to read: frontend/src/App.jsx (imports + renderPage), frontend/src/components/DoctorDashboard.jsx
-  (load function), frontend/src/components/ActivityPage.jsx (data fetch), frontend/vite.config.js,
-  frontend/src/lib/trackActivity.js, frontend/src/components/arena/LiveArenaStudent.jsx
-  Tasks: lazy loading, Promise.all dashboard queries, vite manualChunks, memory leak fixes, Zustand selectors
+→ Phase 4: Dashboard Data Wiring
+  Files to read:
+  - frontend/src/components/Activity/DiaryPanel.jsx
+  - frontend/src/components/StudyPlan/PersonaBuilder.jsx (if exists)
+  - frontend/src/components/StudyPlan/ClinicalLogger.jsx
+  - frontend/src/components/StudyPlan/WeeklyPlanner.jsx
+  - frontend/src/components/quiz/QuizPlayer.jsx
+  - frontend/src/lib/trackActivity.js (for duration tracking wiring)
+  Tasks: Wire DiaryPanel saves, PersonaBuilder upserts, ClinicalLogger inserts,
+  WeeklyPlanner study_plan_history writes, QuizPlayer activity tracking with duration,
+  reading duration tracking (startTimer/stopTimer in trackActivity)
 
 ## Decisions Made
 - ROLE_PAGES superadmin = [] (empty = unrestricted) rather than explicit list — easier to maintain
