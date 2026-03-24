@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { lazy, Suspense, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   supabase,
   authSignOut,
@@ -8,86 +9,113 @@ import {
 import { sendNotification } from './lib/sendNotification';
 import { auditLog } from './lib/auditLog';
 import { trackActivity } from './lib/trackActivity';
+import { captureException, setUser } from './lib/sentry';
 import ErrorBoundary from './components/ErrorBoundary';
+import AppErrorBoundary from './components/ui/AppErrorBoundary';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import OnboardingBanner from './components/OnboardingBanner';
 import { titles } from './data/constants';
+
+import { useAuthStore } from './stores/useAuthStore';
+import { useAppStore }  from './stores/useAppStore';
+import { useChatStore } from './stores/useChatStore';
+import { useTenantStore } from './stores/useTenantStore';
+
+// Always-present shell components (eager)
 import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import Toasts from './components/Toasts';
-import SADashboard from './components/SADashboard';
-import CADashboard from './components/CADashboard';
-import ContentAdminDashboard from './components/ContentAdminDashboard';
-import LearnHub from './components/content/LearnHub';
-import LiveArenaHost from './components/arena/LiveArenaHost';
-import LiveArenaStudent from './components/arena/LiveArenaStudent';
-import StudyCalendar from './components/StudyCalendar';
-import DoctorDashboard from './components/DoctorDashboard';
-import EBooksPage from './components/EBooksPage';
-import UploadPage from './components/UploadPage';
-import LeaderboardPage from './components/LeaderboardPage';
-import ActivityPage from './components/ActivityPage';
-import NotificationsPage from './components/NotificationsPage';
-import ProfilePage from './components/ProfilePage';
-import UsersPage from './components/UsersPage';
-import ReportsPage from './components/ReportsPage';
-import SettingsPage from './components/SettingsPage';
-import RegistrationPage from './components/RegistrationPage';
-import ComingSoonPage from './components/ComingSoonPage';
-import KahootPage from './components/KahootPage';
-import ConferencesPage from './components/ConferencesPage';
-import ExamPage from './components/ExamPage';
 import ChatBot from './components/ChatBot';
-import BroadcastPage from './components/BroadcastPage';
-import CaseSimulator from './components/CaseSimulator';
-import StudyPlanPage from './components/StudyPlan/StudyPlanPage';
-import ExamManager from './components/Exam/ExamManager';
 import ProfileSetupPage from './components/ProfileSetupPage';
-import MyPerformancePage from './components/MyPerformancePage';
+import OfflineIndicator from './components/ui/OfflineIndicator';
 import PageTransition from './components/ui/PageTransition';
 
+// Page-level components — lazy loaded for code splitting
+const SADashboard           = lazy(() => import('./components/SADashboard'));
+const CADashboard           = lazy(() => import('./components/CADashboard'));
+const ContentAdminDashboard = lazy(() => import('./components/ContentAdminDashboard'));
+const DoctorDashboard       = lazy(() => import('./components/DoctorDashboard'));
+const EBooksPage            = lazy(() => import('./components/EBooksPage'));
+const UploadPage            = lazy(() => import('./components/UploadPage'));
+const LeaderboardPage       = lazy(() => import('./components/LeaderboardPage'));
+const ActivityPage          = lazy(() => import('./components/ActivityPage'));
+const NotificationsPage     = lazy(() => import('./components/NotificationsPage'));
+const ProfilePage           = lazy(() => import('./components/ProfilePage'));
+const UsersPage             = lazy(() => import('./components/UsersPage'));
+const ReportsPage           = lazy(() => import('./components/ReportsPage'));
+const SettingsPage          = lazy(() => import('./components/SettingsPage'));
+const RegistrationPage      = lazy(() => import('./components/RegistrationPage'));
+const ComingSoonPage        = lazy(() => import('./components/ComingSoonPage'));
+const KahootPage            = lazy(() => import('./components/KahootPage'));
+const ConferencesPage       = lazy(() => import('./components/ConferencesPage'));
+const ExamPage              = lazy(() => import('./components/ExamPage'));
+const BroadcastPage         = lazy(() => import('./components/BroadcastPage'));
+const CaseSimulator         = lazy(() => import('./components/CaseSimulator'));
+const StudyPlanPage         = lazy(() => import('./components/StudyPlan/StudyPlanPage'));
+const ExamManager           = lazy(() => import('./components/Exam/ExamManager'));
+const MyPerformancePage     = lazy(() => import('./components/MyPerformancePage'));
+const LearnHub              = lazy(() => import('./components/content/LearnHub'));
+const LiveArenaHost         = lazy(() => import('./components/arena/LiveArenaHost'));
+const LiveArenaStudent      = lazy(() => import('./components/arena/LiveArenaStudent'));
+const StudyCalendar         = lazy(() => import('./components/StudyCalendar'));
+
+function PageLoader() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 320 }}>
+      <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid #E5E7EB', borderTopColor: '#4F46E5', animation: 'spin 0.7s linear infinite' }} />
+    </div>
+  );
+}
+
 // ─── Outer shell ─────────────────────────────────────────────────────────────
-// Wraps the entire app in ErrorBoundary + AuthProvider. No business logic here.
 export default function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <MainApp />
-      </AuthProvider>
+      <AppErrorBoundary>
+        <AuthProvider>
+          <MainApp />
+        </AuthProvider>
+      </AppErrorBoundary>
     </ErrorBoundary>
   );
 }
 
 // ─── Inner application ────────────────────────────────────────────────────────
-// Consumes the AuthContext. All business logic lives here.
 function MainApp() {
   const { isAuthLoading, session, setAuthRole } = useAuth();
+  const navigate  = useNavigate();
+  const location  = useLocation();
 
-  const [role, setRole]                   = useState(null);
-  const [userName, setUserName]           = useState(null);
-  const [userId, setUserId]               = useState(null);
-  const [page, setPage]                   = useState('dashboard');
-  const [chatBotMode, setChatBotMode]     = useState(null); // null | 'chat' | 'doubt'
-  const [artifacts, setArtifacts]         = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [toasts, setToasts]               = useState([]);
-  const [notifPanel, setNotifPanel]       = useState(false);
-  const [darkMode, setDarkMode]           = useState(
-    () => localStorage.getItem('iconnect_theme') === 'dark'
-  );
-  const [sidebarOpen, setSidebarOpen]     = useState(false);
-  const [needsProfile, setNeedsProfile]   = useState(false);
-  const [pendingUserId, setPendingUserId] = useState(null);
-  const [pendingEmail, setPendingEmail]   = useState(null);
-  const [pendingMessage, setPendingMessage] = useState(null);
-  const [users, setUsers]                 = useState([]);
+  // Auth store
+  const {
+    role, userName, userId, needsProfile,
+    pendingUserId, pendingEmail, pendingMessage,
+    setRole, setUserName, setUserId, setNeedsProfile,
+    setPendingUserId, setPendingEmail, setPendingMessage, clearAuth,
+  } = useAuthStore();
 
-  const addToast = useCallback((type, msg) => {
-    const id = Date.now();
-    setToasts(t => [...t, { id, type, msg }]);
-    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3500);
-  }, []);
+  // App store
+  const {
+    page, setPage, darkMode, setDarkMode,
+    sidebarOpen, setSidebarOpen, notifPanel, setNotifPanel,
+    toasts, notifications, artifacts, users,
+    addToast, setNotifications, setArtifacts, setUsers,
+    updateArtifact, prependArtifact, updateUser, pushNotification,
+    subscribeToNotifications, unsubscribeAll,
+  } = useAppStore();
+
+  // Chat store
+  const { chatBotMode, setChatBotMode } = useChatStore();
+
+  // Tenant store — load once on mount
+  const { tenant, loadTenant, clearTenant } = useTenantStore();
+  useEffect(() => { loadTenant(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Wire React Router into the app store (once on mount, then sync on back/forward)
+  const { initRouter, syncFromLocation } = useAppStore();
+  useEffect(() => { initRouter(navigate, location); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { syncFromLocation(location.pathname); }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -111,7 +139,7 @@ function MainApp() {
         })));
       }
     } catch (_) {}
-  }, []);
+  }, [setUsers]);
 
   const fetchNotifs = useCallback(async (uid) => {
     if (!uid) return;
@@ -129,18 +157,13 @@ function MainApp() {
           : 'Recently',
       })));
     } catch (_) {}
-  }, []);
+  }, [setNotifications]);
 
   // ── Core auth-reactive effect ─────────────────────────────────────────────
-  // Fires once when AuthContext finishes loading, then again if the session
-  // user changes (login / logout from another tab).
   useEffect(() => {
-    if (isAuthLoading) return; // strict lock — do not evaluate until auth settles
-
-    // ── No live Supabase session ──────────────────────────────────────────
+    if (isAuthLoading) return;
     if (!session?.user) return;
 
-    // ── Live Supabase session ─────────────────────────────────────────────
     const authUser = session.user;
     const uid = authUser.id;
     const userEmail = authUser.email || '';
@@ -158,7 +181,6 @@ function MainApp() {
         return;
       }
 
-      // Block unverified doctors
       if (profile?.role === 'doctor' && profile?.status === 'pending') {
         await supabase.auth.signOut();
         setPendingMessage('Your account is pending admin approval. You will be notified via email.');
@@ -171,7 +193,6 @@ function MainApp() {
       }
 
       if (!profile) {
-        // New OAuth user — needs profile setup
         const n = authUser.user_metadata?.full_name || userEmail;
         setRole('doctor');
         setUserName(n);
@@ -188,12 +209,12 @@ function MainApp() {
       setUserName(n);
       setUserId(uid);
       setAuthRole(r);
+      setUser(uid, r);
 
       fetchNotifs(uid);
       fetchUsers();
       setPage('dashboard');
 
-      // Track daily login (once per calendar day per user)
       const todayKey = `iconnect_daily_login_${uid}_${new Date().toDateString()}`;
       if (!localStorage.getItem(todayKey)) {
         localStorage.setItem(todayKey, '1');
@@ -209,7 +230,7 @@ function MainApp() {
     loadProfile();
   }, [isAuthLoading, session?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Warn user before closing tab while logged in ──────────────────────────
+  // ── Warn user before closing tab ─────────────────────────────────────────
   useEffect(() => {
     if (!role) return;
     const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
@@ -217,29 +238,13 @@ function MainApp() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [role]);
 
-  // ── Realtime notification subscription ───────────────────────────────────
+  // ── Centralized realtime notification subscription (via useAppStore) ─────
   useEffect(() => {
     if (!userId) return;
-    const sub = supabase
-      .channel(`notifs-${userId}`)
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'notifications',
-        filter: `user_id=eq.${userId}`,
-      }, (payload) => {
-        const n = payload.new;
-        setNotifications(prev => [{
-          ...n,
-          time: new Date(n.created_at).toLocaleString('en-IN', {
-            hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short',
-          }),
-        }, ...prev]);
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(sub); };
-  }, [userId]);
-
-  // NOTE: Auto-read on panel open intentionally removed.
-  // Notifications stay unread until user explicitly clicks "Mark as Read".
+    subscribeToNotifications(userId);
+    // No cleanup here — channels persist across renders; unsubscribeAll() is
+    // called on logout to tear down all channels at once.
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Dark mode sync ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -247,10 +252,8 @@ function MainApp() {
     localStorage.setItem('iconnect_theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
-  useEffect(() => setNotifPanel(false), [page]);
-
   // ── Auth handlers ─────────────────────────────────────────────────────────
-  const login = ({ role: r, name, mode, needsProfile: np, userId: uid, email, authMode }) => {
+  const login = ({ role: r, name, needsProfile: np, userId: uid, email }) => {
     setRole(r);
     setUserName(name);
     setUserId(uid || null);
@@ -260,20 +263,17 @@ function MainApp() {
       setPendingUserId(uid);
       setPendingEmail(email);
     } else {
-      // Smart routing: role determines dashboard, authMode ensures intent matches
-      if (authMode === 'superadmin' || r === 'superadmin') setPage('dashboard');
-      else if (authMode === 'contentadmin' || r === 'contentadmin') setPage('dashboard');
-      else setPage('dashboard');
+      setPage('dashboard');
     }
   };
 
   const logout = async () => {
     window.removeEventListener('beforeunload', () => {});
+    setUser(null, null);
+    unsubscribeAll(); // tear down all realtime channels
+    clearTenant();    // reset tenant cache
     await authSignOut();
-    setRole(null);
-    setUserName(null);
-    setUserId(null);
-    setPage('dashboard');
+    clearAuth();
     setArtifacts([]);
     setNotifications([]);
     setUsers([]);
@@ -283,7 +283,7 @@ function MainApp() {
   // ── Artifact handlers ─────────────────────────────────────────────────────
   const onApprove = async (id) => {
     await approveArtifact(id);
-    setArtifacts(a => a.map(x => x.id === id ? { ...x, status: 'approved' } : x));
+    updateArtifact(id, { status: 'approved' });
     const art = artifacts.find(x => x.id === id);
     auditLog('approve_artifact', 'artifact', id, { title: art?.title });
   };
@@ -291,21 +291,21 @@ function MainApp() {
   const onReject = async (id, reason = '') => {
     const art = artifacts.find(x => x.id === id);
     await rejectArtifact(id, reason);
-    setArtifacts(a => a.map(x => x.id === id ? { ...x, status: 'rejected', rejection_reason: reason || 'No reason provided.' } : x));
+    updateArtifact(id, { status: 'rejected', rejection_reason: reason || 'No reason provided.' });
     auditLog('reject_artifact', 'artifact', id, { title: art?.title, reason });
   };
 
   const onUpload = (art) => {
-    setArtifacts(a => [art, ...a]);
-    setNotifications(n => [{
-      id: Date.now(), type: 'info', icon: '📤', unread: true, time: 'Just now',
+    prependArtifact(art);
+    pushNotification({
+      id: Date.now(), type: 'info', icon: '📤', is_read: false, time: 'Just now',
       title: 'Upload Submitted',
       body: `"${art.title}" is pending Super Admin approval.`,
       channel: 'in_app',
-    }, ...n]);
+    });
     try {
-      const session = JSON.parse(localStorage.getItem('iconnect_session') || '{}');
-      sendNotification(session.userId, 'Upload Submitted',
+      const s = JSON.parse(localStorage.getItem('iconnect_session') || '{}');
+      sendNotification(s.userId, 'Upload Submitted',
         `"${art.title}" is pending Super Admin approval.`, 'info', '📤', 'in_app');
     } catch (_) {}
   };
@@ -313,7 +313,7 @@ function MainApp() {
   // ── User management handlers ──────────────────────────────────────────────
   const onApproveUser = async (id) => {
     const u = users.find(x => x.id === id);
-    setUsers(us => us.map(x => x.id === id ? { ...x, status: 'active', verified: true } : x));
+    updateUser(id, { status: 'active', verified: true });
     auditLog('approve_user', 'user', id, { name: u?.name, email: u?.email });
     try {
       await supabase.from('profiles').update({ status: 'active', verified: true }).eq('id', id);
@@ -322,7 +322,7 @@ function MainApp() {
 
   const onRejectUser = async (id) => {
     const u = users.find(x => x.id === id);
-    setUsers(us => us.map(x => x.id === id ? { ...x, status: 'rejected' } : x));
+    updateUser(id, { status: 'rejected' });
     auditLog('reject_user', 'user', id, { name: u?.name, email: u?.email });
     try {
       await supabase.from('profiles').update({ status: 'rejected' }).eq('id', id);
@@ -330,15 +330,13 @@ function MainApp() {
   };
 
   const onRegisterSuccess = (newUser) => {
-    setUsers(us => [...us, newUser]);
+    setUsers([...users, newUser]);
   };
 
   // ── Derived counts ────────────────────────────────────────────────────────
   const unreadCount  = notifications.filter(n => n.is_read === false).length;
   const pendingCount = artifacts.filter(a => a.status === 'pending').length;
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // STRICT LOCK: Do not evaluate any routing logic until auth is settled.
   // ══════════════════════════════════════════════════════════════════════════
   if (isAuthLoading) {
     return (
@@ -378,7 +376,8 @@ function MainApp() {
     </>
   );
 
-  const commonProps = {
+  // Props passed explicitly to components that haven't been store-wired yet
+  const sharedProps = {
     artifacts, setArtifacts, setPage, addToast, notifications,
     setNotifications, role, onApprove, onReject, onUpload,
     userName, userId, users, onApproveUser, onRejectUser,
@@ -386,13 +385,37 @@ function MainApp() {
     darkMode,
   };
 
+  // Role-based page access allowlists — prevents cross-role navigation via devtools.
+  // Superadmin has no restrictions (empty array = bypass guard).
+  const ROLE_PAGES = {
+    doctor: [
+      'dashboard', 'ebooks', 'leaderboard', 'activity', 'notifications',
+      'profile', 'exam', 'broadcast', 'performance', 'learn',
+      'arena-student', 'calendar', 'case-sim', 'study-plan',
+      'social', 'groups', 'conferences', 'kahoot', 'settings',
+    ],
+    contentadmin: [
+      'dashboard', 'upload', 'notifications', 'profile', 'settings',
+      'learn', 'broadcast',
+    ],
+    superadmin: [], // unrestricted
+  };
+
   const renderPage = () => {
+    // Server-side route guard: redirect to default page if role has no access
+    const allowedPages = ROLE_PAGES[role];
+    if (role && allowedPages && allowedPages.length > 0 && page && !allowedPages.includes(page)) {
+      const defaultPage = 'dashboard';
+      setPage(defaultPage);
+      return null;
+    }
+
     switch (page) {
       case 'dashboard':
-        return role === 'superadmin' ? <SADashboard {...commonProps} />
+        return role === 'superadmin' ? <SADashboard {...sharedProps} />
           : role === 'contentadmin' ? <ContentAdminDashboard userId={userId} userName={userName} role={role} setPage={setPage} addToast={addToast} darkMode={darkMode} />
-            : <DoctorDashboard {...commonProps} />;
-      case 'ebooks':        return <EBooksPage {...commonProps} />;
+            : <DoctorDashboard {...sharedProps} />;
+      case 'ebooks':        return <EBooksPage {...sharedProps} />;
       case 'upload':        return <UploadPage onUpload={onUpload} addToast={addToast} artifacts={artifacts} userId={userId} userName={userName} />;
       case 'leaderboard':   return <LeaderboardPage setPage={setPage} />;
       case 'activity':      return <ActivityPage addToast={addToast} />;
@@ -429,7 +452,7 @@ function MainApp() {
       case 'kahoot':       return <KahootPage />;
       case 'conferences':  return <ConferencesPage role={role} addToast={addToast} />;
       case 'exam':         return <ExamPage addToast={addToast} />;
-      case 'broadcast':    return <BroadcastPage {...commonProps} />;
+      case 'broadcast':    return <BroadcastPage {...sharedProps} />;
       case 'performance':  return <MyPerformancePage userId={userId} />;
       case 'learn':        return <LearnHub userId={userId} addToast={addToast} />;
       case 'arena-host':   return <LiveArenaHost userId={userId} addToast={addToast} />;
@@ -474,13 +497,16 @@ function MainApp() {
             setSidebarOpen={setSidebarOpen}
           />
           <OnboardingBanner role={role} currentPage={page} setPage={setPage} />
-          <PageTransition pageKey={page}>
-            {renderPage()}
-          </PageTransition>
+          <Suspense fallback={<PageLoader />}>
+            <PageTransition pageKey={page}>
+              {renderPage()}
+            </PageTransition>
+          </Suspense>
         </div>
         <Toasts toasts={toasts} />
         <ChatBot chatBotMode={chatBotMode} setChatBotMode={setChatBotMode} />
       </div>
+      <OfflineIndicator />
     </>
   );
 }
