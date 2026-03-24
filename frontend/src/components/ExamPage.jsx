@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { trackActivity } from '../lib/trackActivity';
-import { sendNotification } from '../lib/sendNotification';
 import { explainQuestion } from '../lib/aiService';
+import { captureException } from '../lib/sentry';
 import AIResponseBox from './AIResponseBox';
 
 const OPTS = ['A', 'B', 'C', 'D'];
@@ -16,6 +16,7 @@ export default function ExamPage({ addToast }) {
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState({});        // { questionId: 'A'|'B'|'C'|'D' }
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [score, setScore] = useState(null);
   const [aiExplains, setAiExplains] = useState({}); // { [qId]: { loading, text, error } }
 
@@ -55,54 +56,66 @@ export default function ExamPage({ addToast }) {
   };
 
   const handleSubmit = async () => {
-    const correct = questions.filter(q => answers[q.id] === q.correct).length;
-    const total = questions.length;
-    setScore({ correct, total });
-    setSubmitted(true);
-
-    // Track activity
-    const passed = (correct / total) >= 0.5;
-    await trackActivity(passed ? 'quiz_passed' : 'quiz_attempted', `exam_${selected?.id}`);
-    await trackActivity('exam_set_completed', `exam_${selected?.id}`);
-
-    // Save attempt, notify on pass, auto-add SR cards for wrong answers
+    if (submitting || submitted) return;
+    setSubmitting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase.from('exam_attempts').insert([{
-          user_id: user.id,
+      // Server-side scoring — no client-side score calculation
+      const { data, error } = await supabase.functions.invoke('submit-exam', {
+        body: {
           subject_id: selected.id,
-          score: correct,
-          total,
-          answers: Object.entries(answers).map(([id, ans]) => ({ id, ans })),
-        }]);
-        if (passed) {
-          sendNotification(user.id, 'Quiz Passed! 🎉',
-            `You scored ${correct}/${total} on ${selected.name}. +20 points earned.`,
-            'success', '🏆', 'in_app');
+          answers,  // { [questionId]: 'A'|'B'|'C'|'D' }
+          idempotency_key: crypto.randomUUID(),
         }
-        // Auto-create spaced repetition cards for wrong answers
-        const wrongQs = questions.filter(q => answers[q.id] && answers[q.id] !== q.correct);
-        if (wrongQs.length > 0) {
-          const today = new Date().toISOString().slice(0, 10);
-          const srCards = wrongQs.map(q => ({
-            user_id: user.id,
-            front: q.question,
-            back: `Correct: ${q.correct}. ${q[`option_${q.correct.toLowerCase()}`] || ''}${q.explanation ? ' — ' + q.explanation : ''}`,
-            subject: selected.name,
-            difficulty: q.difficulty || 'medium',
-            source_question_id: q.id,
-            easiness: 2.5,
-            interval: 0,
-            repetitions: 0,
-            next_review_at: today,
-          }));
-          // upsert — skip if same question already in queue
-          await supabase.from('spaced_repetition_cards')
-            .upsert(srCards, { onConflict: 'user_id,source_question_id', ignoreDuplicates: true });
-        }
+      });
+      if (error) throw error;
+
+      if (data.isDuplicate) {
+        addToast('info', 'Exam already submitted.');
+        setSubmitted(true);
+        return;
       }
-    } catch (_) {}
+
+      // Display server-authoritative results
+      setScore({ correct: data.score, total: data.total });
+      setSubmitted(true);
+
+      // Track activity
+      await trackActivity(data.passed ? 'quiz_passed' : 'quiz_attempted', `exam_${selected.id}`);
+      await trackActivity('exam_set_completed', `exam_${selected.id}`);
+
+      // Auto-create spaced repetition cards for wrong answers (not handled by edge function)
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const wrongQs = questions.filter(q => answers[q.id] && answers[q.id] !== q.correct);
+          if (wrongQs.length > 0) {
+            const today = new Date().toISOString().slice(0, 10);
+            const srCards = wrongQs.map(q => ({
+              user_id: user.id,
+              front: q.question,
+              back: `Correct: ${q.correct}. ${q[`option_${q.correct.toLowerCase()}`] || ''}${q.explanation ? ' — ' + q.explanation : ''}`,
+              subject: selected.name,
+              difficulty: q.difficulty || 'medium',
+              source_question_id: q.id,
+              easiness: 2.5,
+              interval: 0,
+              repetitions: 0,
+              next_review_at: today,
+            }));
+            await supabase.from('spaced_repetition_cards')
+              .upsert(srCards, { onConflict: 'user_id,source_question_id', ignoreDuplicates: true });
+          }
+        }
+      } catch (srErr) {
+        // SR card creation is non-critical — log but don't block the result display
+        captureException(srErr);
+      }
+    } catch (err) {
+      captureException(err);
+      addToast('error', 'Failed to submit exam. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleAIExplain = async (rq) => {
@@ -327,8 +340,13 @@ export default function ExamPage({ addToast }) {
           {current < questions.length - 1 ? (
             <button className="btn btn-p" onClick={() => setCurrent(c => c + 1)} style={{ flex: 1 }}>Next →</button>
           ) : (
-            <button className="btn btn-p" onClick={handleSubmit} style={{ flex: 1, background: 'linear-gradient(135deg,#10B981,#059669)' }}>
-              Submit Exam ✓
+            <button
+              className="btn btn-p"
+              onClick={handleSubmit}
+              disabled={submitting}
+              style={{ flex: 1, background: submitting ? '#9CA3AF' : 'linear-gradient(135deg,#10B981,#059669)', cursor: submitting ? 'not-allowed' : 'pointer' }}
+            >
+              {submitting ? 'Submitting…' : 'Submit Exam ✓'}
             </button>
           )}
         </div>
