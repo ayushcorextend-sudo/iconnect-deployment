@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import Avatar from './Avatar';
 import { supabase } from '../lib/supabase';
 import { getCached, setCached } from '../lib/dataCache';
-
-const PAGE_SIZE = 20;
+import LeaderboardRow from './leaderboard/LeaderboardRow';
 
 function calculateStreak(logs) {
   const dates = new Set((logs || []).map(l => l.created_at.split('T')[0]));
@@ -26,20 +26,19 @@ export default function LeaderboardPage({ setPage }) {
   const [loading, setLoading] = useState(true);
   const [myUserId, setMyUserId] = useState(null);
   const [myProfile, setMyProfile] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
   const [myStreak, setMyStreak] = useState(0);
   const myRowRef = useRef(null);
+  const listParentRef = useRef(null);
 
   useEffect(() => {
     async function load() {
-      // ── Stale-while-revalidate: show cached data instantly ──────────────
       const cacheKey = `lb_${period}`;
       const cached = getCached(cacheKey);
       if (cached) {
         setLeaderboard(cached.leaderboard);
         setMyProfile(cached.myProfile);
         setMyUserId(cached.myUserId);
-        setLoading(false); // no skeleton flash on repeat visits
+        setLoading(false);
       } else {
         setLoading(true);
       }
@@ -130,8 +129,7 @@ export default function LeaderboardPage({ setPage }) {
         });
 
         setLeaderboard(mapped);
-        // Update cache for next visit (2-min TTL)
-        setCached(`lb_${period}`, { leaderboard: mapped, myProfile: myProfileData, myUserId: uid });
+        setCached(`lb_${period}`, { leaderboard: mapped, myProfile: myProfileData, myUserId: uid }, 5 * 60 * 1000);
       } catch (e) {
         console.warn('Leaderboard fetch failed:', e.message);
       } finally {
@@ -140,8 +138,6 @@ export default function LeaderboardPage({ setPage }) {
     }
     load();
   }, [period]);
-
-  useEffect(() => setCurrentPage(1), [period, tab]);
 
   const displayedLeaderboard = useMemo(() => {
     if (tab === 'speciality') {
@@ -158,12 +154,8 @@ export default function LeaderboardPage({ setPage }) {
   const myRankIdx = leaderboard.findIndex(l => l.isMe);
   const myRank = myRankIdx >= 0 ? myRankIdx + 1 : null;
   const me = leaderboard.find(l => l.isMe);
-  const totalPages = Math.ceil(displayedLeaderboard.length / PAGE_SIZE);
-  const pagedList = displayedLeaderboard.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const myPage = myRankIdx >= 0 ? Math.ceil((myRankIdx + 1) / PAGE_SIZE) : null;
 
   function jumpToMyRank() {
-    if (myPage && myPage !== currentPage) { setCurrentPage(myPage); return; }
     myRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
@@ -172,6 +164,14 @@ export default function LeaderboardPage({ setPage }) {
   const podH = [100, 140, 80];
   const podC = ['#C0C0C0', '#FFD700', '#CD7F32'];
   const podR = [2, 1, 3];
+
+  // ── Virtualizer ────────────────────────────────────────────────────────────
+  const rowVirtualizer = useVirtualizer({
+    count: displayedLeaderboard.length,
+    getScrollElement: () => listParentRef.current,
+    estimateSize: () => 64,
+    overscan: 10,
+  });
 
   const SkeletonRow = () => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 6, marginBottom: 4 }}>
@@ -299,54 +299,41 @@ export default function LeaderboardPage({ setPage }) {
             )}
           </div>
         ) : (
-          pagedList.map((l, i) => {
-            const globalIdx = (currentPage - 1) * PAGE_SIZE + i;
-            return (
+          /* Virtualized scroll container */
+          <div
+            ref={listParentRef}
+            style={{ height: 600, overflowY: 'auto' }}
+          >
             <div
-              key={l.id}
-              ref={l.isMe ? myRowRef : null}
-              className={`lb-row ${l.isMe ? 'me' : ''}`}
-              style={l.isMe ? { background: 'rgba(79,70,229,0.08)', border: '1px solid #4F46E5', borderRadius: 8 } : {}}
+              style={{
+                height: rowVirtualizer.getTotalSize(),
+                width: '100%',
+                position: 'relative',
+              }}
             >
-              <div className="lb-pos" style={{ color: globalIdx < 3 ? ['#FFD700', '#C0C0C0', '#CD7F32'][globalIdx] : '#6B7280' }}>
-                {globalIdx + 1}
-              </div>
-              <Avatar name={l.name} size={34} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>
-                  {l.name}{l.isMe ? ' (You)' : ''}
-                </div>
-                <div style={{ fontSize: 11, color: '#6B7280' }}>{l.college} · {l.speciality}</div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  {[['🟢', l.quizPts], ['🟣', l.readPts]].map(([c, v]) => (
-                    <span key={c} style={{ fontSize: 10, color: '#6B7280' }}>{c} {(v || 0).toLocaleString()}</span>
-                  ))}
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 15, fontWeight: 800, color: '#2563EB' }}>
-                  {l.score.toLocaleString()}
-                </div>
-                <div style={{ fontSize: 10, color: '#6B7280' }}>pts</div>
-              </div>
+              {rowVirtualizer.getVirtualItems().map(virtualRow => {
+                const user = displayedLeaderboard[virtualRow.index];
+                return (
+                  <div
+                    key={virtualRow.key}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: virtualRow.size,
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    <LeaderboardRow
+                      user={user}
+                      globalIdx={virtualRow.index}
+                      myRowRef={user.isMe ? myRowRef : null}
+                    />
+                  </div>
+                );
+              })}
             </div>
-            );
-          })
-        )}
-        {/* Pagination */}
-        {!loading && totalPages > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14, paddingTop: 12, borderTop: '1px solid #F3F4F6' }}>
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 7, padding: '5px 12px', fontSize: 13, cursor: currentPage === 1 ? 'not-allowed' : 'pointer', color: currentPage === 1 ? '#D1D5DB' : '#374151' }}
-            >← Prev</button>
-            <span style={{ fontSize: 13, color: '#6B7280' }}>Page {currentPage} of {totalPages}</span>
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 7, padding: '5px 12px', fontSize: 13, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', color: currentPage === totalPages ? '#D1D5DB' : '#374151' }}
-            >Next →</button>
           </div>
         )}
       </div>

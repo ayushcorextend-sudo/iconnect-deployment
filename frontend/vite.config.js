@@ -4,6 +4,17 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-supabase': ['@supabase/supabase-js'],
+          'vendor-motion': ['framer-motion'],
+          'vendor-lucide': ['lucide-react'],
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({
@@ -37,10 +48,25 @@ export default defineConfig({
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
-            options: { cacheName: 'google-fonts-cache', expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 } },
+            options: {
+              cacheName: 'google-fonts-cache',
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
           },
-          // ⚠️ Supabase auth + API must NEVER be cached — stale tokens break login
-          // All *.supabase.co requests go straight to network only
+          // Activity logs — BackgroundSync so offline events are retried
+          {
+            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/activity_logs.*/i,
+            handler: 'NetworkOnly',
+            options: {
+              backgroundSync: {
+                name: 'activity-sync',
+                options: {
+                  maxRetentionTime: 24 * 60, // retry for up to 24 hours (in minutes)
+                },
+              },
+            },
+          },
+          // ⚠️ All other Supabase requests: NetworkOnly (auth tokens must never be cached)
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: 'NetworkOnly',

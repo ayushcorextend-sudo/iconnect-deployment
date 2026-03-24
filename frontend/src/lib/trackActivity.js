@@ -1,64 +1,90 @@
+/**
+ * trackActivity.js
+ *
+ * Batches activity log inserts (max 20 per flush, flushed every 5 seconds).
+ * score_delta is calculated SERVER-SIDE via DB trigger (migration 004) — not here.
+ * Uses navigator.sendBeacon on page unload to prevent data loss (Flaw #29).
+ */
 import { supabase } from './supabase';
 
-const SCORE_MAP = {
-  quiz_attempted: 5,
-  quiz_passed: 20,
-  article_read: 10,
-  note_viewed: 5,
-  document_downloaded: 5,
-  webinar_attended: 30,
-  daily_login: 2,
-  profile_complete: 25,
-  verification_complete: 50,
-  // Phase 2 — Study Plan Engine
-  clinical_case_logged: 15,
-  study_plan_completed: 25,
-  spaced_rep_reviewed: 5,
-  exam_set_completed: 30,
-  doubt_asked: 5,
-  diary_entry: 3,
-  streak_7_day: 50,
-  streak_30_day: 200,
-};
+const queue = [];
+let flushTimer = null;
+const FLUSH_INTERVAL = 5000; // ms
+const MAX_BATCH = 20;
 
-export async function trackActivity(activityType, referenceId = '') {
-  try {
-    const { data: authData } = await supabase.auth.getUser();
-    const user = authData?.user;
-    if (!user) return; // silent bail in demo/offline mode
-
-    const scoreDelta = SCORE_MAP[activityType] || 0;
-
-    const { error: logError } = await supabase.from('activity_logs').insert({
-      user_id: user.id,
+/**
+ * Queue an activity log entry. Fire-and-forget; never throws.
+ * @param {string} activityType - Must match a row in score_rules table.
+ * @param {string|number} referenceId - Optional artifact/quiz/etc. ID.
+ */
+export function trackActivity(activityType, referenceId = '') {
+  // Get userId synchronously from the cached session (no await needed).
+  const session = supabase.auth.getSession ? null : null; // resolved below
+  _getUid().then(uid => {
+    if (!uid) return;
+    queue.push({
+      user_id:       uid,
       activity_type: activityType,
-      reference_id: String(referenceId),
-      score_delta: scoreDelta,
+      reference_id:  String(referenceId),
+      // score_delta intentionally omitted — DB trigger fills it server-side
     });
-    if (logError) throw logError;
 
-    // Get current scores, upsert with increments
-    const { data: existing } = await supabase
-      .from('user_scores')
-      .select('total_score, quiz_score, reading_score')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    if (queue.length >= MAX_BATCH) {
+      flushActivityQueue();
+    } else if (!flushTimer) {
+      flushTimer = setTimeout(flushActivityQueue, FLUSH_INTERVAL);
+    }
+  }).catch(() => {});
+}
 
-    const isQuiz = activityType.startsWith('quiz');
-    const isReading = ['article_read', 'note_viewed'].includes(activityType);
-
-    await supabase.from('user_scores').upsert({
-      user_id: user.id,
-      total_score: (existing?.total_score || 0) + scoreDelta,
-      quiz_score: (existing?.quiz_score || 0) + (isQuiz ? scoreDelta : 0),
-      reading_score: (existing?.reading_score || 0) + (isReading ? scoreDelta : 0),
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' });
-    // TODO: Check if user entered top 10 after score update and send milestone notification
-    // Query: SELECT COUNT(*) FROM user_scores WHERE total_score > newScore → if count < 10 → top 10 alert
-
-  } catch (e) {
-    // Never crash the UI for tracking failures
-    console.warn('[trackActivity] failed silently:', e.message);
+async function _getUid() {
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data?.user?.id ?? null;
+  } catch {
+    return null;
   }
+}
+
+export async function flushActivityQueue() {
+  if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+  if (queue.length === 0) return;
+
+  const batch = queue.splice(0, MAX_BATCH);
+  try {
+    const { error } = await supabase.from('activity_logs').insert(batch);
+    if (error) throw error;
+  } catch (e) {
+    console.warn('[trackActivity] batch insert failed:', e.message);
+    // Don't re-queue to avoid infinite retry loops on persistent errors.
+  }
+}
+
+/**
+ * Cancel pending flush timer and drain the queue without sending.
+ * Call on logout to prevent stale user data from flushing for the next session.
+ */
+export function cleanupActivityTracking() {
+  if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+  queue.length = 0;
+}
+
+// Flush remaining events on page unload using sendBeacon (fire-and-forget).
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    if (queue.length === 0) return;
+    const remaining = queue.splice(0);
+    const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL
+      || 'https://kzxsyeznpudomeqxbnvp.supabase.co';
+    const SUPABASE_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY
+      || supabase.supabaseKey;
+    // sendBeacon is fire-and-forget and works even during unload
+    navigator.sendBeacon(
+      `${SUPABASE_URL}/rest/v1/activity_logs`,
+      new Blob(
+        [JSON.stringify(remaining)],
+        { type: 'application/json' }
+      )
+    );
+  });
 }

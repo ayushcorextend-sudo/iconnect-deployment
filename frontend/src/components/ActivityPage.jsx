@@ -93,7 +93,7 @@ export default function ActivityPage({ addToast }) {
         since90.setHours(0, 0, 0, 0);
 
         const [logsRes, feedRes, targetsRes, quizRes, readRes, diaryRes] = await Promise.all([
-          supabase.from('activity_logs').select('created_at, duration_minutes').eq('user_id', userId).gte('created_at', since90.toISOString()),
+          supabase.from('activity_logs').select('created_at, duration_minutes').eq('user_id', userId).gte('created_at', since90.toISOString()).limit(5000),
           supabase.from('activity_logs').select('activity_type, reference_id, score_delta, created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(30),
           supabase.from('personal_targets').select('target_type, target_value').eq('user_id', userId),
           null, null,

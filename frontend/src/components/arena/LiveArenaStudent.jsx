@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
+import { idempotentInsert } from '../../lib/idempotency';
 
 const QUESTION_TIMEOUT = 15; // seconds — per SOW spec
 
@@ -46,7 +47,7 @@ export default function LiveArenaStudent({ userId, addToast }) {
 
       const { data: p, error: pErr } = await supabase
         .from('arena_participants')
-        .upsert({ arena_id: ar.id, user_id: userId, display_name: displayName.trim(), score: 0 }, { onConflict: 'arena_id,user_id' })
+        .upsert({ arena_id: ar.id, user_id: userId, display_name: displayName.trim() }, { onConflict: 'arena_id,user_id', ignoreDuplicates: false })
         .select().single();
       if (pErr) throw pErr;
 
@@ -72,6 +73,7 @@ export default function LiveArenaStudent({ userId, addToast }) {
   };
 
   const subscribeArena = (arenaId, qs) => {
+    if (subRef.current) { supabase.removeChannel(subRef.current); subRef.current = null; }
     subRef.current = supabase
       .channel('arena-student-' + arenaId)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_arenas', filter: `id=eq.${arenaId}` },
@@ -136,14 +138,16 @@ export default function LiveArenaStudent({ userId, addToast }) {
     setScore(newScore);
 
     try {
-      await supabase.from('arena_answers').insert({
+      const { isDuplicate } = await idempotentInsert('arena_answer', {
         arena_id: arena.id,
         participant_id: participant.id,
         question_id: q.id,
+        question_index: currentQ,
         chosen_key: key,
         is_correct: isCorrect,
         points_awarded: points,
-      });
+      }, { table: 'arena_answers' });
+      if (isDuplicate) return; // answer already recorded
       await supabase.from('arena_participants').update({ score: newScore }).eq('id', participant.id);
     } catch (e) {
       addToast('error', 'Answer submit error: ' + e.message);

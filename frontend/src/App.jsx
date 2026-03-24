@@ -8,7 +8,7 @@ import {
 } from './lib/supabase';
 import { sendNotification } from './lib/sendNotification';
 import { auditLog } from './lib/auditLog';
-import { trackActivity } from './lib/trackActivity';
+import { trackActivity, cleanupActivityTracking } from './lib/trackActivity';
 import { captureException, setUser } from './lib/sentry';
 import ErrorBoundary from './components/ErrorBoundary';
 import AppErrorBoundary from './components/ui/AppErrorBoundary';
@@ -16,6 +16,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import OnboardingBanner from './components/OnboardingBanner';
 import { titles } from './data/constants';
 
+import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from './stores/useAuthStore';
 import { useAppStore }  from './stores/useAppStore';
 import { useChatStore } from './stores/useChatStore';
@@ -93,7 +94,7 @@ function MainApp() {
     pendingUserId, pendingEmail, pendingMessage,
     setRole, setUserName, setUserId, setNeedsProfile,
     setPendingUserId, setPendingEmail, setPendingMessage, clearAuth,
-  } = useAuthStore();
+  } = useAuthStore(useShallow(s => s));
 
   // App store
   const {
@@ -103,17 +104,17 @@ function MainApp() {
     addToast, setNotifications, setArtifacts, setUsers,
     updateArtifact, prependArtifact, updateUser, pushNotification,
     subscribeToNotifications, unsubscribeAll,
-  } = useAppStore();
+  } = useAppStore(useShallow(s => s));
 
   // Chat store
-  const { chatBotMode, setChatBotMode } = useChatStore();
+  const { chatBotMode, setChatBotMode } = useChatStore(useShallow(s => s));
 
   // Tenant store — load once on mount
-  const { tenant, loadTenant, clearTenant } = useTenantStore();
+  const { tenant, loadTenant, clearTenant } = useTenantStore(useShallow(s => s));
   useEffect(() => { loadTenant(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Wire React Router into the app store (once on mount, then sync on back/forward)
-  const { initRouter, syncFromLocation } = useAppStore();
+  const { initRouter, syncFromLocation } = useAppStore(useShallow(s => ({ initRouter: s.initRouter, syncFromLocation: s.syncFromLocation })));
   useEffect(() => { initRouter(navigate, location); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { syncFromLocation(location.pathname); }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -269,6 +270,7 @@ function MainApp() {
 
   const logout = async () => {
     window.removeEventListener('beforeunload', () => {});
+    cleanupActivityTracking(); // cancel pending flush timer + drain queue
     setUser(null, null);
     unsubscribeAll(); // tear down all realtime channels
     clearTenant();    // reset tenant cache
