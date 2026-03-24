@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase, getUserContentStates, toggleBookmark } from '../lib/supabase';
 import { getPersonalizedSuggestions } from '../lib/aiService';
 import { getCached, setCached, invalidate } from '../lib/dataCache';
@@ -245,8 +245,14 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
     setReminderSaving(false);
   };
 
-  const recentlyRead = approved.filter(a => (contentStates[String(a.id)]?.currentPage || 1) > 1).slice(0, 3);
-  const bookmarked = approved.filter(a => contentStates[String(a.id)]?.isBookmarked).slice(0, 3);
+  const recentlyRead = useMemo(
+    () => approved.filter(a => (contentStates[String(a.id)]?.currentPage || 1) > 1).slice(0, 3),
+    [approved, contentStates]
+  );
+  const bookmarked = useMemo(
+    () => approved.filter(a => contentStates[String(a.id)]?.isBookmarked).slice(0, 3),
+    [approved, contentStates]
+  );
 
   // Resolve userId: prefer prop (passed from App), fallback to state
   const resolvedUserId = userIdProp || currentUserId;
@@ -308,6 +314,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
 
       <WebinarLeaderboardRow
         nextWebinar={nextWebinar}
+        currentUserId={userId}
         reminderPopover={reminderPopover}
         setReminderPopover={setReminderPopover}
         reminderLeadMins={reminderLeadMins}

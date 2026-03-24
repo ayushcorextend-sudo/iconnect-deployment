@@ -48,7 +48,6 @@ const ReportsPage           = lazy(() => import('./components/ReportsPage'));
 const SettingsPage          = lazy(() => import('./components/SettingsPage'));
 const RegistrationPage      = lazy(() => import('./components/RegistrationPage'));
 const ComingSoonPage        = lazy(() => import('./components/ComingSoonPage'));
-const KahootPage            = lazy(() => import('./components/KahootPage'));
 const ConferencesPage       = lazy(() => import('./components/ConferencesPage'));
 const ExamPage              = lazy(() => import('./components/ExamPage'));
 const BroadcastPage         = lazy(() => import('./components/BroadcastPage'));
@@ -320,14 +319,41 @@ function MainApp() {
     try {
       await supabase.from('profiles').update({ status: 'active', verified: true }).eq('id', id);
     } catch (_) {}
+    try {
+      if (u?.email) {
+        await supabase.functions.invoke('send-approval-email', {
+          body: {
+            doctorEmail: u.email,
+            doctorName: u.name || u.email,
+            mciNumber: u.mci_number || '',
+            college: u.college || '',
+            approved: true,
+          },
+        });
+      }
+    } catch (_) {}
   };
 
-  const onRejectUser = async (id) => {
+  const onRejectUser = async (id, rejectionReason) => {
     const u = users.find(x => x.id === id);
     updateUser(id, { status: 'rejected' });
     auditLog('reject_user', 'user', id, { name: u?.name, email: u?.email });
     try {
       await supabase.from('profiles').update({ status: 'rejected' }).eq('id', id);
+    } catch (_) {}
+    try {
+      if (u?.email) {
+        await supabase.functions.invoke('send-approval-email', {
+          body: {
+            doctorEmail: u.email,
+            doctorName: u.name || u.email,
+            mciNumber: u.mci_number || '',
+            college: u.college || '',
+            approved: false,
+            rejectionReason: rejectionReason || 'No reason provided.',
+          },
+        });
+      }
     } catch (_) {}
   };
 
@@ -451,7 +477,7 @@ function MainApp() {
           ]}
         />
       );
-      case 'kahoot':       return <KahootPage />;
+      case 'kahoot':       return null; // deprecated — use arena-student
       case 'conferences':  return <ConferencesPage role={role} addToast={addToast} />;
       case 'exam':         return <ExamPage addToast={addToast} />;
       case 'broadcast':    return <BroadcastPage {...sharedProps} />;
