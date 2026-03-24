@@ -6,40 +6,46 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-03-24 — Session: Migration cleanup + Blueprint setup
+2026-03-24 — Session: Phase 1 Blueprint Execution — Database Foundation
 
 ## What We Worked On
-- Cleaned iConnect migration history (supabase/migrations/)
-- Resolved naming conflicts: 20260313_ca_workflow.sql → 20260313500000_ca_workflow.sql
-- Resolved naming conflicts: 20260314_doctor_ux.sql → 20260314020000_doctor_ux.sql
-- Deleted orphan remote entries via Supabase SQL Editor
-- Pushed two pending migrations (professional fields + smart_notes patch)
-- Created full CLAUDE.md hierarchy and .agent/ folder structure
+- Created 3 new migrations as part of Opus Blueprint Phase 1:
+  - 20260324083653_missing_tables_and_columns.sql — 6 tables + 2 columns + RLS + indexes
+  - 20260324083908_scoring_system.sql — score_rules + fn_calculate_score_delta trigger
+  - 20260324084313_fix_score_rules_points.sql — patch score_rules with correct point values
+- Discovered 4 tables already existed on remote (calendar_diary, user_study_persona,
+  clinical_logs, study_plan_history) with partial schemas — patched missing columns
+- Regenerated frontend/src/lib/database.types.ts from remote schema
+- All 3 migrations pushed and in sync (local = remote)
+- Frontend build: ✅ zero errors
 
 ## Current State
-✅ Complete — migration history is clean and in sync
+✅ Phase 1 Complete
+- 6 tables exist on remote: calendar_diary, user_study_persona, clinical_logs,
+  study_plan_history, user_notes, idempotency_keys
+- score_rules has 14 rows with correct point values
+- trg_score_delta trigger fires on activity_logs INSERT → auto-populates score_delta + upserts user_scores
+- activity_logs.duration_minutes column added
+- database.types.ts regenerated and contains all new table types
 
 ## Files Changed This Session
-- supabase/migrations/20260313_ca_workflow.sql → renamed to 20260313500000_ca_workflow.sql
-- supabase/migrations/20260314_doctor_ux.sql → renamed to 20260314020000_doctor_ux.sql
-- supabase/migrations/20260324000000_registration_professional_fields.sql — pushed to remote
-- supabase/migrations/20260324000001_patch_smart_notes_is_starred.sql — pushed to remote
-- CLAUDE.md — created (root)
-- frontend/CLAUDE.md — created
-- supabase/CLAUDE.md — created
-- server/CLAUDE.md — created
-- .agent/architecture.md — created
-- .agent/handoff.md — created (this file)
+- supabase/migrations/20260324083653_missing_tables_and_columns.sql — created + pushed
+- supabase/migrations/20260324083908_scoring_system.sql — created + pushed
+- supabase/migrations/20260324084313_fix_score_rules_points.sql — created + pushed
+- frontend/src/lib/database.types.ts — regenerated
 
 ## Next Session Should Start With
-[ ] No urgent task — migration cleanup complete.
-    Suggested next: review frontend/src/styles/tokens.js and build out the design token system
-    OR: audit frontend/src/lib/supabase.js and split into modules
+→ Phase 2: Security Hardening
+  Files to read: frontend/src/App.jsx (renderPage function), frontend/src/components/ExamPage.jsx
+  (handleSubmit), supabase/functions/submit-exam/index.ts, frontend/src/lib/chatbotConstants.js
+  Tasks: route guards, wire ExamPage to submit-exam edge function, fix hardcoded key
 
 ## Decisions Made
-- Chose to rename migrations with suffix `500000` / `020000` to avoid conflicts with existing timestamps
-- Did NOT delete frontend/src/migrations/ — treating as reference documentation
-- Did NOT migrate Express server — leaving as-is pending audit
+- Added ALTER TABLE ... ADD COLUMN IF NOT EXISTS patches for all pre-existing tables
+  (calendar_diary, user_study_persona, clinical_logs, study_plan_history existed on remote)
+- Created separate fix_score_rules_points migration rather than modifying the previous one
+  (preserves idempotency and audit trail)
+- score_rules ON CONFLICT changed to DO UPDATE in the fix migration to ensure correct values
 
 ## Do NOT Touch Until Discussed
 - frontend/src/migrations/ — reference only, do not run or delete
@@ -48,6 +54,7 @@
 - supabase/migrations/20260301071219_remote_schema.sql — master schema dump, do not modify
 
 ## Known Issues / Open Questions
-- `supabase db diff` still fails locally due to profiles dependency ordering in 2024xxxx migrations
-  This is a local-only cosmetic issue — production is fine. Fix when needed.
-- server/ Express backend may have redundant routes vs Supabase — audit needed
+- supabase db diff still fails locally (profiles ordering in 2024xxxx migrations) — cosmetic, prod fine
+- server/ Express backend redundancy vs Supabase — audit still pending
+- Phase 1 trigger (trg_score_delta) cannot be verified without inserting a test row — verify
+  manually in Supabase Studio after Phase 2 or as a spot check now
