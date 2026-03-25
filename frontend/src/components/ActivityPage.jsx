@@ -69,6 +69,10 @@ export default function ActivityPage({ addToast }) {
   const [readProgress, setReadProgress] = useState(0);
   const [streak, setStreak] = useState(0);
   const [uid, setUid] = useState(null);
+  // KPI state — set from fresh fetch, not derived at render time (avoids stale cache drift)
+  const [activeDays, setActiveDays] = useState(0);
+  const [booksRead, setBooksRead] = useState(0);
+  const [quizzesDone, setQuizzesDone] = useState(0);
   // Diary state
   const [selectedDate, setSelectedDate] = useState(null);
   const [diaryDates, setDiaryDates] = useState(new Set());
@@ -102,6 +106,9 @@ export default function ActivityPage({ addToast }) {
           setWeeklyHours(cached.weeklyHours);
           setActivityFeed(cached.activityFeed);
           setStreak(cached.streak);
+          setActiveDays(cached.activeDays ?? 0);
+          setBooksRead(cached.booksRead ?? 0);
+          setQuizzesDone(cached.quizzesDone ?? 0);
           setQuizProgress(cached.quizProgress);
           setReadProgress(cached.readProgress);
           setQuizTarget(cached.quizTarget ?? 5);
@@ -113,14 +120,15 @@ export default function ActivityPage({ addToast }) {
         since90.setHours(0, 0, 0, 0);
 
         const [logsRes, feedRes, targetsRes, quizRes, readRes, diaryRes] = await Promise.all([
-          supabase.from('activity_logs').select('created_at, duration_minutes').eq('user_id', userId).gte('created_at', since90.toISOString()).limit(5000),
+          supabase.from('activity_logs').select('created_at, duration_minutes, activity_type, reference_id').eq('user_id', userId).gte('created_at', since90.toISOString()).limit(5000),
           supabase.from('activity_logs').select('activity_type, reference_id, score_delta, created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(30),
           supabase.from('personal_targets').select('target_type, target_value').eq('user_id', userId),
           null, null,
           supabase.from('calendar_diary').select('date').eq('user_id', userId).gte('date', since90.toISOString().split('T')[0]),
         ]);
 
-        const map = (logsRes.data || []).reduce((acc, log) => {
+        const logs90 = logsRes.data || [];
+        const map = logs90.reduce((acc, log) => {
           const d = log.created_at.split('T')[0];
           acc[d] = (acc[d] || 0) + 1;
           return acc;
@@ -128,6 +136,20 @@ export default function ActivityPage({ addToast }) {
         setActivityByDate(map);
         const newStreak = calculateStreak(map);
         setStreak(newStreak);
+
+        // KPIs — computed from 90-day logs, not from the 30-item feed
+        const newActiveDays = Object.keys(map).length; // unique dates only
+        const newBooksRead  = new Set(
+          logs90.filter(l => l.activity_type === 'article_read' && l.reference_id)
+                .map(l => l.reference_id)
+        ).size;
+        const newQuizzesDone = new Set(
+          logs90.filter(l => l.activity_type?.startsWith('quiz') && l.reference_id)
+                .map(l => l.reference_id)
+        ).size;
+        setActiveDays(newActiveDays);
+        setBooksRead(newBooksRead);
+        setQuizzesDone(newQuizzesDone);
 
         const now = new Date();
         const dow = now.getDay();
@@ -147,7 +169,6 @@ export default function ActivityPage({ addToast }) {
         setActivityFeed(feedRes.data || []);
 
         // ── Analytics insights ───────────────────────────────────
-        const logs90 = logsRes.data || [];
         const buckets4 = weeklyBuckets(logs90, 4);
         const thisW = buckets4[3]?.count ?? 0;
         const lastW = buckets4[2]?.count ?? 0;
@@ -177,6 +198,7 @@ export default function ActivityPage({ addToast }) {
         setCached(`activity_${userId}`, {
           activityByDate: map, weeklyHours: roundedWeekly,
           activityFeed: feedRes.data || [], streak: newStreak,
+          activeDays: newActiveDays, booksRead: newBooksRead, quizzesDone: newQuizzesDone,
           quizProgress: qProg, readProgress: rProg, quizTarget: qTarget, readTarget: rTarget,
         }, 90 * 1000);
 
@@ -199,10 +221,6 @@ export default function ActivityPage({ addToast }) {
     } catch (_) { addToast('error', 'Could not save targets'); }
   };
 
-  const activeDays = Object.keys(activityByDate).length;
-  const booksRead = activityFeed.filter(a => a.activity_type === 'article_read').length;
-  const quizzesDone = activityFeed.filter(a => a.activity_type?.startsWith('quiz')).length;
-
   // Productivity summary for today
   const todayIso = new Date().toISOString().split('T')[0];
   const todayFeed = activityFeed.filter(a => a.created_at?.startsWith(todayIso));
@@ -210,18 +228,13 @@ export default function ActivityPage({ addToast }) {
 
   return (
     <div className="page">
-      <div className="ph">
-        <div className="pt">📅 My Activity</div>
-        <div className="ps">Learning goals, progress & streak</div>
-      </div>
-
       {/* Stat cards */}
       <div className="sg4">
         {[
-          { l: 'Active Days', v: activeDays || '—', i: '📅', c: 'teal' },
-          { l: 'Books Read',  v: booksRead  || '—', i: '📖', c: 'violet' },
-          { l: 'Quizzes',    v: quizzesDone || '—', i: '📝', c: 'amber' },
-          { l: 'Streak',     v: streak > 0 ? `${streak}d` : '—', i: '🔥', c: 'rose' },
+          { l: 'Active Days', v: activeDays,                    i: '📅', c: 'teal' },
+          { l: 'Books Read',  v: booksRead,                     i: '📖', c: 'violet' },
+          { l: 'Quizzes',    v: quizzesDone,                   i: '📝', c: 'amber' },
+          { l: 'Streak',     v: streak > 0 ? `${streak}d` : 0, i: '🔥', c: 'rose' },
         ].map((s, i) => (
           <div key={i} className={`stat ${s.c} fu`} style={{ animationDelay: `${i * 0.07}s` }}>
             <div className="stat-ic">{s.i}</div>
