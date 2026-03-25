@@ -1,11 +1,13 @@
+import { useTransition } from 'react';
 import { ROLES } from '../data/constants';
 import usePWAInstall from '../hooks/usePWAInstall';
+import { useTenantStore } from '../stores/useTenantStore';
 import {
   LayoutDashboard, CalendarDays, BookOpen, GraduationCap, Trophy,
   Activity, BarChart3, Bell, User, Users, MessageSquare, Target,
   Building2, FileText, Microscope, Swords, Upload, Settings,
   Radio, Megaphone, LogOut, Download, ChevronRight,
-  Bookmark, Globe, Video, Brain, Sparkles, ClipboardList, ClipboardCheck
+  Bookmark, Globe, Video, Brain, Sparkles, ClipboardList, ClipboardCheck, StickyNote
 } from 'lucide-react';
 
 const iconMap = {
@@ -37,6 +39,7 @@ const iconMap = {
   webinars: Video,
   quiz: Brain,
   rewards: Sparkles,
+  notes: StickyNote,
 };
 
 function NavGroup({ label, children }) {
@@ -49,17 +52,22 @@ function NavGroup({ label, children }) {
 }
 
 function NavItem({ item, page, setPage, onClose }) {
+  const [isPending, startTransition] = useTransition();
   const isActive = page === item.k;
   const Icon = iconMap[item.k] || LayoutDashboard;
 
   return (
     <div
-      className={`nav-item-v2 ${isActive ? 'nav-active' : ''}`}
-      onClick={() => { setPage(item.k); if (onClose) onClose(); }}
+      className={`nav-item-v2 ${isActive ? 'nav-active' : ''}${isPending ? ' opacity-60' : ''}`}
+      onClick={() => {
+        startTransition(() => { setPage(item.k); });
+        if (onClose) onClose();
+      }}
     >
       <Icon size={18} strokeWidth={isActive ? 2 : 1.5} />
       <span className="nav-label">{item.l}</span>
-      {item.b ? <span className="nav-bdg-v2">{item.b}</span> : null}
+      {item.b && !isPending ? <span className="nav-bdg-v2">{item.b}</span> : null}
+      {isPending && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse ml-auto shrink-0" />}
     </div>
   );
 }
@@ -70,6 +78,7 @@ export default function Sidebar({
   isOpen, onClose
 }) {
   const { isInstallable, promptInstall } = usePWAInstall();
+  const tenant = useTenantStore(s => s.tenant);
 
   // ── Admin Navigation ──
   const adminOverview = [
@@ -119,6 +128,7 @@ export default function Sidebar({
   ];
   const drMore = [
     { k: 'performance', l: 'My Performance' },
+    { k: 'notes', l: 'My Notes' },
     { k: 'social', l: 'Social Features' },
     { k: 'groups', l: 'Interest Groups' },
     { k: 'profile', l: 'My Profile' },
@@ -173,9 +183,13 @@ export default function Sidebar({
       {/* Logo Header */}
       <div className="sb-header-v2">
         <div className="sb-logo-v2">
-          <div className="sb-logo-icon-v2">i</div>
+          {tenant?.logo_url ? (
+            <img src={tenant.logo_url} alt={tenant.name} style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover' }} />
+          ) : (
+            <div className="sb-logo-icon-v2" style={{ background: tenant?.primary_color || '#4F46E5' }}>i</div>
+          )}
           <div>
-            <div className="sb-logo-text-v2">iConnect</div>
+            <div className="sb-logo-text-v2">{tenant?.name || 'iConnect'}</div>
             <div className="sb-role-label">
               {role === 'superadmin' ? 'Super Admin' : role === 'contentadmin' ? 'Content Admin' : 'Icon Lifescience'}
             </div>

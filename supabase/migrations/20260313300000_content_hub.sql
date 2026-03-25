@@ -21,15 +21,12 @@ CREATE TABLE IF NOT EXISTS quizzes (
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
-
 ALTER TABLE quizzes ENABLE ROW LEVEL SECURITY;
-
 -- superadmin: full access
 CREATE POLICY "sa_quizzes_all" ON quizzes
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' );
-
 -- contentadmin: CRUD own, read all approved
 CREATE POLICY "ca_quizzes_own" ON quizzes
   FOR ALL TO authenticated
@@ -37,12 +34,10 @@ CREATE POLICY "ca_quizzes_own" ON quizzes
            AND (created_by = auth.uid() OR status = 'approved') )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin'
                AND created_by = auth.uid() );
-
 -- doctor: read approved only
 CREATE POLICY "doc_quizzes_read" ON quizzes
   FOR SELECT TO authenticated
   USING ( status = 'approved' );
-
 -- ── 2. QUIZ QUESTIONS ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS quiz_questions (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -54,25 +49,20 @@ CREATE TABLE IF NOT EXISTS quiz_questions (
   explanation text,
   created_at  timestamptz NOT NULL DEFAULT now()
 );
-
 ALTER TABLE quiz_questions ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "sa_quiz_q_all" ON quiz_questions
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' );
-
 CREATE POLICY "ca_quiz_q_own" ON quiz_questions
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin'
            AND (SELECT created_by FROM quizzes WHERE id = quiz_id) = auth.uid() )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin'
                AND (SELECT created_by FROM quizzes WHERE id = quiz_id) = auth.uid() );
-
 CREATE POLICY "doc_quiz_q_read" ON quiz_questions
   FOR SELECT TO authenticated
   USING ( (SELECT status FROM quizzes WHERE id = quiz_id) = 'approved' );
-
 -- ── 3. QUIZ ATTEMPTS ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS quiz_attempts (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -84,23 +74,18 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
   started_at  timestamptz NOT NULL DEFAULT now(),
   finished_at timestamptz
 );
-
 ALTER TABLE quiz_attempts ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "sa_quiz_att_all" ON quiz_attempts
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' );
-
 CREATE POLICY "ca_quiz_att_read" ON quiz_attempts
   FOR SELECT TO authenticated
   USING ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin' );
-
 CREATE POLICY "doc_quiz_att_own" ON quiz_attempts
   FOR ALL TO authenticated
   USING  ( user_id = auth.uid() )
   WITH CHECK ( user_id = auth.uid() );
-
 -- ── 4. LIVE ARENAS ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS live_arenas (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -113,25 +98,20 @@ CREATE TABLE IF NOT EXISTS live_arenas (
   question_started_at timestamptz,
   created_at   timestamptz NOT NULL DEFAULT now()
 );
-
 ALTER TABLE live_arenas ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "sa_arenas_all" ON live_arenas
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' );
-
 CREATE POLICY "ca_arenas_host" ON live_arenas
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin'
            AND host_id = auth.uid() )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin'
                AND host_id = auth.uid() );
-
 CREATE POLICY "doc_arenas_read" ON live_arenas
   FOR SELECT TO authenticated
   USING ( status IN ('waiting','active') );
-
 -- ── 5. ARENA PARTICIPANTS ────────────────────────────────────
 CREATE TABLE IF NOT EXISTS arena_participants (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -142,31 +122,25 @@ CREATE TABLE IF NOT EXISTS arena_participants (
   joined_at  timestamptz NOT NULL DEFAULT now(),
   UNIQUE (arena_id, user_id)
 );
-
 ALTER TABLE arena_participants ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "sa_arena_p_all" ON arena_participants
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' );
-
 -- host (contentadmin) can read participants in their arenas
 CREATE POLICY "ca_arena_p_read" ON arena_participants
   FOR SELECT TO authenticated
   USING ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin'
           AND (SELECT host_id FROM live_arenas WHERE id = arena_id) = auth.uid() );
-
 -- participants: insert/read own row
 CREATE POLICY "doc_arena_p_own" ON arena_participants
   FOR ALL TO authenticated
   USING  ( user_id = auth.uid() )
   WITH CHECK ( user_id = auth.uid() );
-
 -- all authenticated can read participants in active arenas (leaderboard)
 CREATE POLICY "auth_arena_p_active_read" ON arena_participants
   FOR SELECT TO authenticated
   USING ( (SELECT status FROM live_arenas WHERE id = arena_id) IN ('active','finished') );
-
 -- ── 6. ARENA ANSWERS ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS arena_answers (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -179,24 +153,19 @@ CREATE TABLE IF NOT EXISTS arena_answers (
   answered_at     timestamptz NOT NULL DEFAULT now(),
   UNIQUE (arena_id, participant_id, question_id)
 );
-
 ALTER TABLE arena_answers ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "sa_arena_ans_all" ON arena_answers
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' );
-
 CREATE POLICY "ca_arena_ans_read" ON arena_answers
   FOR SELECT TO authenticated
   USING ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin'
           AND (SELECT host_id FROM live_arenas WHERE id = arena_id) = auth.uid() );
-
 CREATE POLICY "doc_arena_ans_own" ON arena_answers
   FOR ALL TO authenticated
   USING  ( (SELECT user_id FROM arena_participants WHERE id = participant_id) = auth.uid() )
   WITH CHECK ( (SELECT user_id FROM arena_participants WHERE id = participant_id) = auth.uid() );
-
 -- ── 7. VIDEO LECTURES ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS video_lectures (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -214,25 +183,20 @@ CREATE TABLE IF NOT EXISTS video_lectures (
   created_at   timestamptz NOT NULL DEFAULT now(),
   updated_at   timestamptz NOT NULL DEFAULT now()
 );
-
 ALTER TABLE video_lectures ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "sa_videos_all" ON video_lectures
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' );
-
 CREATE POLICY "ca_videos_own" ON video_lectures
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin'
            AND (created_by = auth.uid() OR status = 'approved') )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin'
                AND created_by = auth.uid() );
-
 CREATE POLICY "doc_videos_read" ON video_lectures
   FOR SELECT TO authenticated
   USING ( status = 'approved' );
-
 -- ── 8. FLASHCARD DECKS ───────────────────────────────────────
 CREATE TABLE IF NOT EXISTS flashcard_decks (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -247,25 +211,20 @@ CREATE TABLE IF NOT EXISTS flashcard_decks (
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
-
 ALTER TABLE flashcard_decks ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "sa_decks_all" ON flashcard_decks
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' );
-
 CREATE POLICY "ca_decks_own" ON flashcard_decks
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin'
            AND (created_by = auth.uid() OR status = 'approved') )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin'
                AND created_by = auth.uid() );
-
 CREATE POLICY "doc_decks_read" ON flashcard_decks
   FOR SELECT TO authenticated
   USING ( status = 'approved' );
-
 -- ── 9. FLASHCARDS ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS flashcards (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -275,25 +234,20 @@ CREATE TABLE IF NOT EXISTS flashcards (
   back       text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
-
 ALTER TABLE flashcards ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "sa_flashcards_all" ON flashcards
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' );
-
 CREATE POLICY "ca_flashcards_own" ON flashcards
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin'
            AND (SELECT created_by FROM flashcard_decks WHERE id = deck_id) = auth.uid() )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin'
                AND (SELECT created_by FROM flashcard_decks WHERE id = deck_id) = auth.uid() );
-
 CREATE POLICY "doc_flashcards_read" ON flashcards
   FOR SELECT TO authenticated
   USING ( (SELECT status FROM flashcard_decks WHERE id = deck_id) = 'approved' );
-
 -- ── 10. DOUBTS ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS doubts (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -306,29 +260,23 @@ CREATE TABLE IF NOT EXISTS doubts (
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
-
 ALTER TABLE doubts ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "sa_doubts_all" ON doubts
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' );
-
 CREATE POLICY "ca_doubts_all" ON doubts
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin' )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin' );
-
 CREATE POLICY "doc_doubts_own_or_read" ON doubts
   FOR ALL TO authenticated
   USING  ( user_id = auth.uid() )
   WITH CHECK ( user_id = auth.uid() );
-
 -- doctors can read ALL doubts (peer learning) but only write own
 CREATE POLICY "doc_doubts_read_all" ON doubts
   FOR SELECT TO authenticated
   USING ( TRUE );
-
 -- ── 11. DOUBT REPLIES ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS doubt_replies (
   id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -338,38 +286,30 @@ CREATE TABLE IF NOT EXISTS doubt_replies (
   is_official boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now()
 );
-
 ALTER TABLE doubt_replies ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "sa_doubt_r_all" ON doubt_replies
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'superadmin' );
-
 CREATE POLICY "ca_doubt_r_all" ON doubt_replies
   FOR ALL TO authenticated
   USING  ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin' )
   WITH CHECK ( (SELECT role FROM profiles WHERE id = auth.uid()) = 'contentadmin' );
-
 CREATE POLICY "doc_doubt_r_own_write" ON doubt_replies
   FOR ALL TO authenticated
   USING  ( user_id = auth.uid() )
   WITH CHECK ( user_id = auth.uid() );
-
 CREATE POLICY "auth_doubt_r_read" ON doubt_replies
   FOR SELECT TO authenticated
   USING ( TRUE );
-
 -- ── REALTIME PUBLICATION ─────────────────────────────────────
 ALTER PUBLICATION supabase_realtime ADD TABLE live_arenas;
 ALTER PUBLICATION supabase_realtime ADD TABLE arena_participants;
 ALTER PUBLICATION supabase_realtime ADD TABLE arena_answers;
-
 -- ── UPDATED_AT TRIGGERS ──────────────────────────────────────
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END; $$;
-
 DO $$
 DECLARE t text;
 BEGIN

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import QuizPlayer from '../quiz/QuizPlayer';
 import FlashcardPlayer from './FlashcardPlayer';
+import SignedImg from '../ui/SignedImg';
 
 const TABS = [
   { key: 'quizzes',    label: '📝 Mock Tests' },
@@ -219,7 +220,7 @@ export default function LearnHub({ userId, addToast }) {
               <div key={v.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
                 <div style={{ height: 140, background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                   {v.thumbnail_url
-                    ? <img src={v.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ? <SignedImg src={v.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} fallback={<span style={{ fontSize: 40 }}>🎥</span>} />
                     : <span style={{ fontSize: 40 }}>🎥</span>}
                 </div>
                 <div style={{ padding: 14 }}>

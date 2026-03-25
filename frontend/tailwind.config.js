@@ -9,10 +9,15 @@ export default {
     extend: {
       colors: {
         primary: { DEFAULT: '#4F46E5', dark: '#3730A3', light: '#818CF8' },
-        accent:  { DEFAULT: '#F59E0B', dark: '#D97706' },
-        success: '#10B981',
-        surface: '#F8FAFC',
+        accent:  { DEFAULT: '#F59E0B', dark: '#D97706', light: '#FEF3C7' },
+        success: { DEFAULT: '#10B981', dark: '#15803D', light: '#DCFCE7' },
+        danger:  { DEFAULT: '#EF4444', dark: '#DC2626', light: '#FEE2E2' },
+        warn:    { DEFAULT: '#F59E0B', dark: '#D97706', light: '#FFFBEB' },
+        info:    { DEFAULT: '#3B82F6', dark: '#2563EB', light: '#EFF6FF' },
+        surface: { DEFAULT: '#F8FAFC', alt: '#F3F4F6' },
         sidebar: '#0F172A',
+        muted:   '#6B7280',
+        border:  '#E5E7EB',
       },
       borderRadius: {
         'xl': '12px',

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase, getUserContentStates, toggleBookmark } from '../lib/supabase';
 import { getPersonalizedSuggestions } from '../lib/aiService';
 import { getCached, setCached, invalidate } from '../lib/dataCache';
@@ -13,6 +13,10 @@ import CalendarGoalRow from './dashboard/CalendarGoalRow';
 import WebinarLeaderboardRow from './dashboard/WebinarLeaderboardRow';
 import LatestContentSection from './dashboard/LatestContentSection';
 import ReadingBookmarksRow from './dashboard/ReadingBookmarksRow';
+
+// Module-level stale-while-revalidate cache (2-min TTL, keyed by userId)
+const _dashCache = new Map(); // uid → { data, ts }
+const DASH_CACHE_TTL = 2 * 60 * 1000;
 
 export default function DoctorDashboard({ artifacts = [], notifications = [], setPage, userName, openChatBotDoubt, userId: userIdProp, darkMode }) {
   const approved = artifacts.filter(a => a.status === 'approved');
@@ -42,18 +46,30 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
   const [reminderChannels, setReminderChannels] = useState(['in_app']);
   const [reminderSaving, setReminderSaving] = useState(false);
   const [activePlan, setActivePlan] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [dashError, setDashError] = useState(null);
+
+  // Ref so refreshForYou can access latest computed values without stale closure
+  const dashDataRef = useRef({ booksRead: 0, quizScore: 0, totalScore: 0, weeklyMins: 0, lastActive: null, recentSubjects: [] });
 
   useEffect(() => {
-    async function load() {
+    async function load() { // eslint-disable-line no-shadow
       try {
-        // Must be first — everything depends on uid
-        const { data: authData } = await supabase.auth.getUser();
-        const uid = authData?.user?.id;
+        // Use userId passed from parent (via AuthStore in App.jsx) — no extra auth round-trip
+        const uid = userIdProp;
         if (!uid) return;
         setCurrentUserId(uid);
 
+        // ── Skip re-fetch if cache is fresh (< 2 min) ───────
+        const cached = _dashCache.get(uid);
+        if (cached && Date.now() - cached.ts < DASH_CACHE_TTL) {
+          // Data already in state from previous mount — nothing to do
+          setDashLoading(false);
+          return;
+        }
+
         // ── Fire all independent queries in parallel ───────
-        const [profileRes, statesRes, scoresRes, logsRes, actLogsRes, artsRes, wbRes, planRes] = await Promise.all([
+        const [profileRes, statesRes, scoresRes, logsRes, actLogsRes, artsRes, wbRes, planRes, lbProfilesRes] = await Promise.all([
           supabase.from('profiles').select('speciality').eq('id', uid).maybeSingle(),
           getUserContentStates(uid),
           supabase.from('user_scores').select('user_id, total_score, quiz_score, reading_score')
@@ -68,6 +84,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
             .gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(1),
           supabase.from('study_plan_history').select('id, plan, completed_tasks')
             .eq('user_id', uid).eq('is_active', true).order('created_at', { ascending: false }).limit(1),
+          supabase.from('profiles').select('id, name, speciality, college').limit(20),
         ]);
 
         const profileData = profileRes.data;
@@ -84,11 +101,8 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         setContentStates(states);
 
         // ── Scores & Leaderboard ──────────────────────────
+        const lbProfiles = lbProfilesRes.data;
         if (scoreData?.length) {
-          // Fetch profile names for top scorers (depends on scoreData)
-          const userIds = scoreData.map(d => d.user_id);
-          const { data: lbProfiles } = await supabase
-            .from('profiles').select('id, name, speciality, college').in('id', userIds);
           const profileMap = (lbProfiles || []).reduce((acc, p) => { acc[p.id] = p; return acc; }, {});
 
           const mapped = scoreData.map(row => ({
@@ -123,7 +137,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
             const d = new Date(l.created_at);
             if (Math.floor((now - d) / 86400000) < 7) {
               const dow = (d.getDay() + 6) % 7;
-              weekDays[dow] = Math.min(1, weekDays[dow] + 0.4);
+              weekDays[dow] += 1;
             }
           });
           setWeekActivity(weekDays);
@@ -133,6 +147,17 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
             const dateStr = new Date(l.created_at).toISOString().split('T')[0];
             byDate[dateStr] = (byDate[dateStr] || 0) + 1;
           });
+          // Merge diary entries into heatmap
+          const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
+          const { data: diaryEntries } = await supabase.from('calendar_diary')
+            .select('date, study_hours')
+            .eq('user_id', uid)
+            .gte('date', ninetyDaysAgo)
+            .order('date');
+          (diaryEntries || []).forEach(d => {
+            if (d.study_hours) byDate[d.date] = (byDate[d.date] || 0) + 1;
+          });
+
           setActivityByDate(byDate);
           setRecentActivities(logs.slice(0, 5));
 
@@ -159,51 +184,71 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         setActivePlan(activePlanData);
 
         // ── AI "For You" (async, non-blocking) ────────────
-        const forYouCacheKey = `forYou_${uid}`;
+        const meScore = scoreData?.find(d => d.user_id === uid);
+        const readCount = logs ? logs.filter(l => l.activity_type === 'article_read').length : 0;
+        const wMinsForAI = logs
+          ? logs.filter(l => new Date(l.created_at) >= new Date(Date.now() - 7 * 86400000))
+               .reduce((acc, l) => acc + (l.duration_minutes || 0), 0)
+          : 0;
+        const recentSubjectsSet = new Set(
+          (arts || []).filter(a => (actLogs || []).some(l => l.reference_id === String(a.id))).map(a => a.subject).filter(Boolean)
+        );
+        const recentSubjects = Array.from(recentSubjectsSet).slice(0, 5);
+
+        // Persist to ref so refreshForYou always has fresh data
+        dashDataRef.current = {
+          booksRead: readCount,
+          quizScore: meScore?.quiz_score || 0,
+          totalScore: meScore?.total_score || 0,
+          weeklyMins: wMinsForAI,
+          lastActive: logs?.[0]?.created_at || null,
+          recentSubjects,
+        };
+
+        const forYouCacheKey = `forYou_${uid}_${readCount}_${meScore?.total_score || 0}`;
         const cachedForYou = getCached(forYouCacheKey);
         if (cachedForYou) {
           setAiForYou({ loading: false, items: cachedForYou, error: null });
         } else {
-          const recentSubjectsSet = new Set(
-            (arts || []).filter(a => readIds.has(String(a.id))).map(a => a.subject).filter(Boolean)
-          );
           getPersonalizedSuggestions({
             speciality: profileData?.speciality || '',
-            booksRead: logs ? logs.filter(l => l.activity_type === 'article_read').length : 0,
-            quizScore: 0,
-            totalScore: 0,
-            weeklyMins: 0,
-            lastActive: logs?.[0]?.created_at || null,
-            recentSubjects: Array.from(recentSubjectsSet).slice(0, 5),
+            ...dashDataRef.current,
           }).then(({ suggestions, error }) => {
             const items = suggestions || defaultSuggestions;
-            setCached(forYouCacheKey, items, 10 * 60 * 1000);
+            setCached(forYouCacheKey, items, 5 * 60 * 1000);
             setAiForYou({ loading: false, items, error: error || null });
           });
         }
 
+        // ── Cache fresh data for stale-while-revalidate ───
+        _dashCache.set(uid, {
+          ts: Date.now(),
+          data: { profileData, states, scoreData, logs, actLogs, arts, wb, activePlanData, lbProfiles },
+        });
+
       } catch (e) {
         console.warn('Dashboard load failed:', e.message);
+        setDashError('Dashboard data failed to load. Please refresh or try again.');
       } finally {
         setDashLoading(false);
       }
     }
     load();
-  }, []);
+  }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshForYou = useCallback(async () => {
     if (!currentUserId) return;
     setAiForYou({ loading: true, items: [], error: null });
-    invalidate(`forYou_${currentUserId}`);
-    const { data: profileData } = await supabase.from('profiles').select('speciality').eq('id', currentUserId).maybeSingle();
+    // mySpeciality is already in state from load() — no redundant profile fetch needed
     const { suggestions, error } = await getPersonalizedSuggestions({
-      speciality: profileData?.speciality || '',
-      booksRead: 0, quizScore: 0, totalScore: 0, weeklyMins: 0, lastActive: null, recentSubjects: [],
+      speciality: mySpeciality,
+      ...dashDataRef.current,
     });
     const items = suggestions || defaultSuggestions;
-    setCached(`forYou_${currentUserId}`, items, 10 * 60 * 1000);
+    const { booksRead: br, totalScore: ts } = dashDataRef.current;
+    setCached(`forYou_${currentUserId}_${br}_${ts}`, items, 5 * 60 * 1000);
     setAiForYou({ loading: false, items, error: error || null });
-  }, [currentUserId]);
+  }, [currentUserId, mySpeciality]);
 
   const handleBookmarkToggle = async (e, artifactId) => {
     e.stopPropagation();
@@ -228,8 +273,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
     if (!nextWebinar || reminderSaving) return;
     setReminderSaving(true);
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const uid = authData?.user?.id;
+      const uid = userIdProp;
       if (!uid) return;
       const webinarTime = new Date(nextWebinar.scheduled_at);
       const remindAt = new Date(webinarTime.getTime() - reminderLeadMins * 60 * 1000);
@@ -271,6 +315,16 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         </div>
       </div>
 
+      {dashError && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <span style={{ fontSize: 13, color: '#DC2626' }}>⚠️ {dashError}</span>
+          <button
+            onClick={() => { setDashError(null); setRefreshKey(k => k + 1); }}
+            style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >Retry</button>
+        </div>
+      )}
+
       <LatestAlerts notifications={notifications} setPage={setPage} />
 
       <MyActivitySection
@@ -310,6 +364,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         activityByDate={activityByDate}
         weeklyMins={weeklyMins}
         currentUserId={currentUserId}
+        refreshDashboard={() => { _dashCache.delete(resolvedUserId); setRefreshKey(k => k + 1); }}
       />
 
       <WebinarLeaderboardRow

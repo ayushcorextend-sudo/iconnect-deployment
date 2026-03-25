@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Avatar from './Avatar';
 import { STATES, SPECIALITIES, PROG_YEARS, DISTRICTS_BY_STATE } from '../data/constants';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 
 const ROLE_LABELS = {
   superadmin:   { label: 'Super Admin',   icon: '🛡️', color: '#7C3AED', bg: '#F5F3FF' },
@@ -9,11 +10,12 @@ const ROLE_LABELS = {
 };
 
 export default function ProfilePage({ addToast }) {
+  const { user } = useAuth();
   const now = new Date().getFullYear();
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [userId, setUserId] = useState(null);
+  const [userId, setUserId] = useState(user?.id ?? null);
   const [role, setRole] = useState('doctor');
   const [form, setForm] = useState({
     name: '', email: '', phone: '',
@@ -33,9 +35,8 @@ export default function ProfilePage({ addToast }) {
   useEffect(() => {
     async function loadProfile() {
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        if (!authData?.user) { setLoading(false); return; }
-        const uid = authData.user.id;
+        const uid = user?.id;
+        if (!uid) { setLoading(false); return; }
         setUserId(uid);
 
         const { data: profile } = await supabase

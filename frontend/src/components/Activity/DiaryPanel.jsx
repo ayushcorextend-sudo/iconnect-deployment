@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
+import { getDiaryEntry, upsertDiaryEntry } from '../../lib/supabase';
 import { trackActivity } from '../../lib/trackActivity';
+import { supabase } from '../../lib/supabase';
 import { Z } from '../../styles/zIndex';
 
 const MOODS = [
@@ -53,8 +54,8 @@ export default function DiaryPanel({ date, userId, onClose, addToast, onDiarySav
   async function load() {
     setLoading(true);
     try {
-      const [diaryRes, logsRes] = await Promise.all([
-        supabase.from('calendar_diary').select('*').eq('user_id', userId).eq('date', date).maybeSingle(),
+      const [{ data: diaryData }, logsRes] = await Promise.all([
+        getDiaryEntry(userId, date),
         supabase.from('activity_logs')
           .select('activity_type, score_delta, created_at')
           .eq('user_id', userId)
@@ -62,11 +63,11 @@ export default function DiaryPanel({ date, userId, onClose, addToast, onDiarySav
           .lt('created_at', date + 'T23:59:59')
           .order('created_at', { ascending: false }),
       ]);
-      if (diaryRes.data) {
-        setMood(diaryRes.data.mood || null);
-        setNotes(diaryRes.data.personal_notes || '');
-        setStudyHours(diaryRes.data.study_hours || 0);
-        setGoalsMet(diaryRes.data.goals_met || false);
+      if (diaryData) {
+        setMood(diaryData.mood || null);
+        setNotes(diaryData.personal_notes || '');
+        setStudyHours(diaryData.study_hours || 0);
+        setGoalsMet(diaryData.goals_met || false);
         setIsNew(false);
       } else {
         setMood(null); setNotes(''); setStudyHours(0); setGoalsMet(false); setIsNew(true);
@@ -80,15 +81,12 @@ export default function DiaryPanel({ date, userId, onClose, addToast, onDiarySav
     if (!userId || !date) return;
     setSaving(true);
     try {
-      const payload = {
-        user_id: userId,
-        date,
+      const { error } = await upsertDiaryEntry(userId, date, {
         mood: updates.mood ?? mood,
         personal_notes: updates.notes ?? notes,
-        study_hours: Number(updates.studyHours ?? studyHours),
+        study_hours: updates.studyHours ?? studyHours,
         goals_met: updates.goalsMet ?? goalsMet,
-      };
-      const { error } = await supabase.from('calendar_diary').upsert(payload, { onConflict: 'user_id,date' });
+      });
       if (error) throw error;
       if (isNew) {
         setIsNew(false);

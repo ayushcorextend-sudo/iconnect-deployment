@@ -31,6 +31,7 @@ import ChatBot from './components/ChatBot';
 import ProfileSetupPage from './components/ProfileSetupPage';
 import OfflineIndicator from './components/ui/OfflineIndicator';
 import PageTransition from './components/ui/PageTransition';
+import PageErrorBoundary from './components/ui/PageErrorBoundary';
 
 // Page-level components — lazy loaded for code splitting
 const SADashboard           = lazy(() => import('./components/SADashboard'));
@@ -59,6 +60,7 @@ const LearnHub              = lazy(() => import('./components/content/LearnHub')
 const LiveArenaHost         = lazy(() => import('./components/arena/LiveArenaHost'));
 const LiveArenaStudent      = lazy(() => import('./components/arena/LiveArenaStudent'));
 const StudyCalendar         = lazy(() => import('./components/StudyCalendar'));
+const NotesPage             = lazy(() => import('./components/NotesPage'));
 
 function PageLoader() {
   return (
@@ -211,8 +213,6 @@ function MainApp() {
       setAuthRole(r);
       setUser(uid, r);
 
-      fetchNotifs(uid);
-      fetchUsers();
       setPage('dashboard');
 
       const todayKey = `iconnect_daily_login_${uid}_${new Date().toDateString()}`;
@@ -221,10 +221,13 @@ function MainApp() {
         trackActivity('daily_login', uid);
       }
 
-      try {
-        const data = await fetchArtifacts(r);
-        if (data?.length) setArtifacts(data);
-      } catch (_) {}
+      // Kick off parallel post-login data fetches — none are blocking for render
+      const parallelFetches = [
+        fetchNotifs(uid),
+        fetchArtifacts(r).then(data => { if (data?.length) setArtifacts(data); }).catch(() => {}),
+      ];
+      if (r === 'superadmin' || r === 'contentadmin') parallelFetches.push(fetchUsers());
+      await Promise.all(parallelFetches).catch(() => {});
     }
 
     loadProfile();
@@ -248,16 +251,29 @@ function MainApp() {
 
   // ── Dark mode sync ────────────────────────────────────────────────────────
   useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
-    localStorage.setItem('iconnect_theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
+
+  // ── System dark mode listener (only fires if user hasn't set a preference) ─
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e) => {
+      if (!localStorage.getItem('iconnect_theme')) setDarkMode(e.matches);
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [setDarkMode]);
 
   // ── Auth handlers ─────────────────────────────────────────────────────────
   const login = ({ role: r, name, needsProfile: np, userId: uid, email }) => {
     setRole(r);
     setUserName(name);
     setUserId(uid || null);
-    if (uid) { fetchNotifs(uid); fetchUsers(); }
+    if (uid) {
+      fetchNotifs(uid);
+      if (r === 'superadmin' || r === 'contentadmin') fetchUsers();
+    }
     if (np) {
       setNeedsProfile(true);
       setPendingUserId(uid);
@@ -420,7 +436,7 @@ function MainApp() {
       'dashboard', 'ebooks', 'leaderboard', 'activity', 'notifications',
       'profile', 'exam', 'broadcast', 'performance', 'learn',
       'arena-student', 'calendar', 'case-sim', 'study-plan',
-      'social', 'groups', 'conferences', 'kahoot', 'settings',
+      'social', 'groups', 'conferences', 'kahoot', 'settings', 'notes',
     ],
     contentadmin: [
       'dashboard', 'upload', 'notifications', 'profile', 'settings',
@@ -482,6 +498,7 @@ function MainApp() {
       case 'exam':         return <ExamPage addToast={addToast} />;
       case 'broadcast':    return <BroadcastPage {...sharedProps} />;
       case 'performance':  return <MyPerformancePage userId={userId} />;
+      case 'notes':        return <NotesPage />;
       case 'learn':        return <LearnHub userId={userId} addToast={addToast} />;
       case 'arena-host':   return <LiveArenaHost userId={userId} addToast={addToast} />;
       case 'arena-student': return <LiveArenaStudent userId={userId} addToast={addToast} />;
@@ -525,11 +542,13 @@ function MainApp() {
             setSidebarOpen={setSidebarOpen}
           />
           <OnboardingBanner role={role} currentPage={page} setPage={setPage} />
-          <Suspense fallback={<PageLoader />}>
-            <PageTransition pageKey={page}>
-              {renderPage()}
-            </PageTransition>
-          </Suspense>
+          <PageErrorBoundary resetKey={page}>
+            <Suspense fallback={<PageLoader />}>
+              <PageTransition pageKey={page}>
+                {renderPage()}
+              </PageTransition>
+            </Suspense>
+          </PageErrorBoundary>
         </div>
         <Toasts toasts={toasts} />
         <ChatBot chatBotMode={chatBotMode} setChatBotMode={setChatBotMode} />

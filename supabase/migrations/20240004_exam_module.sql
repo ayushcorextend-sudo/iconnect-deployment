@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS exam_subjects (
   icon        text DEFAULT '📚',
   question_count int DEFAULT 0
 );
-
 CREATE TABLE IF NOT EXISTS exam_questions (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   subject_id  int REFERENCES exam_subjects(id) ON DELETE CASCADE,
@@ -21,7 +20,6 @@ CREATE TABLE IF NOT EXISTS exam_questions (
   source      text DEFAULT 'NEET-PG',
   created_at  timestamptz DEFAULT now()
 );
-
 CREATE TABLE IF NOT EXISTS exam_attempts (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     uuid REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -31,11 +29,9 @@ CREATE TABLE IF NOT EXISTS exam_attempts (
   answers     jsonb DEFAULT '[]',
   attempted_at timestamptz DEFAULT now()
 );
-
 ALTER TABLE exam_subjects  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE exam_questions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE exam_attempts  ENABLE ROW LEVEL SECURITY;
-
 DO $$ BEGIN
   CREATE POLICY "exam_subjects_read"   ON exam_subjects  FOR SELECT USING (true);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
@@ -45,7 +41,6 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   CREATE POLICY "exam_attempts_own"    ON exam_attempts  FOR ALL USING (auth.uid() = user_id);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
 -- Seed subjects
 INSERT INTO exam_subjects (name, icon) VALUES
   ('Anatomy', '🦴'),
@@ -59,7 +54,6 @@ INSERT INTO exam_subjects (name, icon) VALUES
   ('Surgery', '🔪'),
   ('Obstetrics & Gynaecology', '👶')
 ON CONFLICT DO NOTHING;
-
 -- Seed 60 sample NEET-PG MCQs (6 per subject)
 INSERT INTO exam_questions (subject_id, question, option_a, option_b, option_c, option_d, correct, explanation, difficulty, source)
 SELECT s.id, q.question, q.a, q.b, q.c, q.d, q.correct, q.explanation, q.difficulty, 'NEET-PG'
@@ -146,7 +140,6 @@ JOIN (VALUES
   ('Obstetrics & Gynaecology', 'The normal amniotic fluid index (AFI) at term is:', '2-5 cm', '5-25 cm', '10-20 cm', '25-30 cm', 'B', 'Normal AFI at term is 5-25 cm. <5 cm = oligohydramnios, >25 cm = polyhydramnios.', 'medium')
 ) AS q(subject, question, a, b, c, d, correct, explanation, difficulty)
 ON s.name = q.subject;
-
 -- Update question counts
 UPDATE exam_subjects s
 SET question_count = (SELECT COUNT(*) FROM exam_questions q WHERE q.subject_id = s.id);

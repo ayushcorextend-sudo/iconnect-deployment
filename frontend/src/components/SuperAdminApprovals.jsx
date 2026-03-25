@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 
 // ── Helpers ──────────────────────────────────────────────────
 const OPTION_KEYS = ['A', 'B', 'C', 'D'];
@@ -35,6 +36,7 @@ async function fanOutNotification(supabaseClient, title, body, icon = '🔔') {
 
 // ── Main Component ────────────────────────────────────────────
 export default function SuperAdminApprovals({ addToast }) {
+  const { user } = useAuth();
   const [items, setItems]       = useState([]);
   const [loading, setLoading]   = useState(true);
   const [reviewItem, setReviewItem] = useState(null);    // item being reviewed
@@ -143,8 +145,7 @@ export default function SuperAdminApprovals({ addToast }) {
   const handleApprove = async () => {
     if (!reviewData) return;
     setApproving(true);
-    const { data: authData } = await supabase.auth.getUser();
-    const approvedBy = authData?.user?.id;
+    const approvedBy = user?.id;
 
     try {
       if (reviewData._type === 'quiz') {

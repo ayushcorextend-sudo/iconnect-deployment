@@ -17,14 +17,11 @@ create table if not exists spaced_repetition_cards (
   source_question_id uuid,                 -- optional link to exam_questions
   created_at      timestamptz default now()
 );
-
 alter table spaced_repetition_cards enable row level security;
-
 create policy "Users manage own SR cards"
   on spaced_repetition_cards for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
-
 -- Index for efficient due-card queries
 create index if not exists idx_sr_cards_user_due
   on spaced_repetition_cards (user_id, next_review_at);

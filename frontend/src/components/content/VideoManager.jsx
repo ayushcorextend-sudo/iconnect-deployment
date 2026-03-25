@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { SPECIALITIES } from '../../data/constants';
 import ConfirmModal from '../ui/ConfirmModal';
+import SignedImg from '../ui/SignedImg';
 
 const statusCfg = {
   pending:  { label: 'Pending',  bg: '#FEF3C7', color: '#D97706' },
@@ -151,7 +152,9 @@ export default function VideoManager({ userId, addToast }) {
             return (
               <div key={v.id} className="card" style={{ display: 'flex', gap: 14, alignItems: 'center', padding: 14 }}>
                 <div style={{ width: 56, height: 40, borderRadius: 6, background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0, overflow: 'hidden' }}>
-                  {v.thumbnail_url ? <img src={v.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🎥'}
+                  {v.thumbnail_url
+                    ? <SignedImg src={v.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} fallback={<span>🎥</span>} />
+                    : '🎥'}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>{v.title}</div>

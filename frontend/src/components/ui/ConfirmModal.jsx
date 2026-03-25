@@ -6,12 +6,14 @@
  *   // to trigger: setPending({ message: '…', onConfirm: () => doDelete() })
  *   // in JSX: {pending && <ConfirmModal {...pending} onCancel={() => setPending(null)} />}
  */
+import { Z } from '../../styles/zIndex';
+
 export default function ConfirmModal({ message, onConfirm, onCancel, confirmLabel = 'Delete', danger = true }) {
   return (
     <div
       className="overlay"
       onClick={onCancel}
-      style={{ zIndex: 600 }}
+      style={{ zIndex: Z.confirmModal }}
     >
       <div
         className="modal"

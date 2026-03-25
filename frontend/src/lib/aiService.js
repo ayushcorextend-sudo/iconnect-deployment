@@ -1,44 +1,74 @@
 /**
  * aiService.js — Centralised AI service layer for iConnect
  *
- * PRIMARY: NVIDIA API (set VITE_NVIDIA_API_KEY in your .env file)
- * FALLBACK: Google Gemini via Supabase edge function (gemini-proxy)
+ * ROUTING:
+ *   USE_EDGE_FUNCTION=true  → all calls go through /functions/v1/ai-orchestrator
+ *                             (server-side NVIDIA→Gemini routing, circuit breaker, rate limit)
+ *   USE_EDGE_FUNCTION=false → direct client calls (NVIDIA first, Gemini fallback)
+ *                             Flip to true after deploying the ai-orchestrator edge function.
  *
- * To use NVIDIA: create a .env file in the frontend folder with:
- *   VITE_NVIDIA_API_KEY=nvapi-xxxxxxxxxxxxxxxxxxxx
- *
+ * See: src/docs/EDGE_FUNCTION_SPEC.md for edge function details.
  * All functions return { text, error } — never throws.
  */
+import { supabase } from './supabase';
 
-// ── Supabase Gemini proxy (fallback) ─────────────────────────────────────────
+// ── Feature flag ─────────────────────────────────────────────────────────────
+// Set to true once supabase/functions/ai-orchestrator is deployed.
+const USE_EDGE_FUNCTION = false;
+
+// ── Edge function proxy (Flaw #14: no client-side API keys) ──────────────────
 const SUPABASE_URL = 'https://kzxsyeznpudomeqxbnvp.supabase.co';
+
+async function callAIViaEdge(action, payload, maxTokens = 512) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return { text: null, error: 'Not authenticated' };
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-orchestrator`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ action, payload, max_tokens: maxTokens }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { text: null, error: err.error || `AI service error ${res.status}` };
+    }
+
+    const data = await res.json();
+    return { text: data.data || data.text || '', error: null };
+  } catch (e) {
+    if (e.name === 'AbortError') return { text: null, error: 'AI request timed out' };
+    return { text: null, error: e.message || 'Network error' };
+  }
+}
+
+// ── Direct callers (used when USE_EDGE_FUNCTION=false) ───────────────────────
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6eHN5ZXpucHVkb21lcXhibnZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMjQ1NjEsImV4cCI6MjA4NzkwMDU2MX0.4w2UkRl3rxq2WOiQDmY4aMPGUhQ_5V4W8hridmGmy9o';
 
-// ── NVIDIA API config ─────────────────────────────────────────────────────────
-// Reads from VITE_NVIDIA_API_KEY environment variable (set in .env file)
-const NVIDIA_API_KEY = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_NVIDIA_API_KEY) || '';
-const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
-const NVIDIA_MODEL = 'meta/llama-3.1-70b-instruct';
+const NVIDIA_API_KEY   = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_NVIDIA_API_KEY) || '';
+const NVIDIA_BASE_URL  = 'https://integrate.api.nvidia.com/v1';
+const NVIDIA_MODEL     = 'meta/llama-3.1-70b-instruct';
 
-// ── NVIDIA caller ─────────────────────────────────────────────────────────────
 async function callNvidia(systemPrompt, userMessage, maxTokens = 512) {
   try {
     const res = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${NVIDIA_API_KEY}`,
-      },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${NVIDIA_API_KEY}` },
       body: JSON.stringify({
         model: NVIDIA_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage },
-        ],
-        max_tokens: maxTokens,
-        temperature: 0.7,
-        stream: false,
+        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMessage }],
+        max_tokens: maxTokens, temperature: 0.7, stream: false,
       }),
     });
     if (!res.ok) {
@@ -46,22 +76,17 @@ async function callNvidia(systemPrompt, userMessage, maxTokens = 512) {
       return { text: null, error: err.message || `NVIDIA API error ${res.status}` };
     }
     const data = await res.json();
-    const text = data.choices?.[0]?.message?.content || '';
-    return { text, error: null };
+    return { text: data.choices?.[0]?.message?.content || '', error: null };
   } catch (e) {
     return { text: null, error: e.message || 'Network error' };
   }
 }
 
-// ── Gemini via Supabase edge function (fallback) ──────────────────────────────
 async function callGemini(systemPrompt, userMessage, maxTokens = 512) {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/gemini-proxy`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
       body: JSON.stringify({
         system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
@@ -79,13 +104,16 @@ async function callGemini(systemPrompt, userMessage, maxTokens = 512) {
   }
 }
 
-// ── Smart router: NVIDIA first, Gemini fallback ───────────────────────────────
+// ── Unified callAI — routes to edge function or direct based on flag ──────────
 async function callAI(systemPrompt, userMessage, maxTokens = 512) {
+  if (USE_EDGE_FUNCTION) {
+    return callAIViaEdge('generic', { system: systemPrompt, user: userMessage }, maxTokens);
+  }
+  // Direct routing: NVIDIA first, Gemini fallback
   if (NVIDIA_API_KEY) {
     const result = await callNvidia(systemPrompt, userMessage, maxTokens);
     if (!result.error) return result;
-    // Log and fall back to Gemini on NVIDIA failure
-    console.warn('[iConnect AI] NVIDIA API failed, falling back to Gemini:', result.error);
+    console.warn('[iConnect AI] NVIDIA failed, falling back to Gemini:', result.error);
   }
   return callGemini(systemPrompt, userMessage, maxTokens);
 }
@@ -375,7 +403,8 @@ Respond ONLY with valid JSON — no markdown, no extra text, no explanation outs
 - Days since last activity: ${inactiveDays !== null ? inactiveDays : 'unknown'}
 - Recently studied subjects: ${recentSubjects.length > 0 ? recentSubjects.join(', ') : 'None yet'}
 
-Generate 3 data-driven, personalised suggestions for this student.`;
+Generate 3 data-driven, personalised suggestions for this student.
+Variation seed: ${new Date().toDateString()} — ensure variety; avoid repeating generic advice.`;
 
   const { text, error } = await callAI(system, msg, 600);
   if (error) return { suggestions: null, error };

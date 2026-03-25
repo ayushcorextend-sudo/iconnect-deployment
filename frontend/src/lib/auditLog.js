@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { validateInsert, AuditLogSchema } from './schemas';
 
 /**
  * Log an admin action to the audit_logs table.
@@ -15,14 +16,14 @@ export async function auditLog(action, resource = '', resourceId = '', details =
     const user = authData?.user;
     if (!user) return; // not logged in — skip
 
-    await supabase.from('audit_logs').insert([{
-      actor_id: user.id,
-      actor_email: user.email || '',
+    const payload = validateInsert(AuditLogSchema, {
+      user_id:     user.id,
       action,
       resource,
       resource_id: String(resourceId),
       details,
-    }]);
+    });
+    await supabase.from('audit_logs').insert([payload]);
   } catch (_) {
     // silently ignore — audit logging must never break the UI
   }

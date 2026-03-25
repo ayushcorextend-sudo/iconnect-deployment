@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { getCached, setCached } from '../lib/dataCache';
 import ActivityHeatmapClickable from './Activity/ActivityHeatmapClickable';
 import DiaryPanel from './Activity/DiaryPanel';
+import { useAuth } from '../context/AuthContext';
 
 // ── Activity colour classification ────────────────────────────────────────
 const PRODUCTIVE = new Set(['quiz_passed','article_read','clinical_case_logged','study_plan_completed','spaced_rep_reviewed','exam_set_completed','quiz_complete']);
@@ -55,6 +56,7 @@ const relTime = d => {
 };
 
 export default function ActivityPage({ addToast }) {
+  const { user } = useAuth();
   const [activityByDate, setActivityByDate] = useState({});
   const [weeklyHours, setWeeklyHours] = useState([0, 0, 0, 0, 0, 0, 0]);
   const [activityFeed, setActivityFeed] = useState([]);
@@ -71,9 +73,8 @@ export default function ActivityPage({ addToast }) {
   useEffect(() => {
     async function loadAll() {
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        if (!authData?.user) return;
-        const userId = authData.user.id;
+        const userId = user?.id;
+        if (!userId) return;
         setUid(userId);
 
         const cached = getCached(`activity_${userId}`);
@@ -161,11 +162,11 @@ export default function ActivityPage({ addToast }) {
 
   const saveTargets = async () => {
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData?.user) { addToast('warn', 'Sign in to save targets'); return; }
+      const userId = user?.id;
+      if (!userId) { addToast('warn', 'Sign in to save targets'); return; }
       await supabase.from('personal_targets').upsert([
-        { user_id: authData.user.id, target_type: 'quizzes_per_week', target_value: Number(quizTarget) },
-        { user_id: authData.user.id, target_type: 'articles_per_week', target_value: Number(readTarget) },
+        { user_id: userId, target_type: 'quizzes_per_week', target_value: Number(quizTarget) },
+        { user_id: userId, target_type: 'articles_per_week', target_value: Number(readTarget) },
       ], { onConflict: 'user_id,target_type' });
       addToast('success', 'Targets saved!');
     } catch (_) { addToast('error', 'Could not save targets'); }

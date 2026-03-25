@@ -4,10 +4,12 @@ import { trackActivity, startTimer, stopTimer } from '../lib/trackActivity';
 import { explainQuestion } from '../lib/aiService';
 import { captureException } from '../lib/sentry';
 import AIResponseBox from './AIResponseBox';
+import { useAuth } from '../context/AuthContext';
 
 const OPTS = ['A', 'B', 'C', 'D'];
 
 export default function ExamPage({ addToast }) {
+  const { user } = useAuth();
   const [subjects, setSubjects] = useState([]);
   const [subjectsLoading, setSubjectsLoading] = useState(true);
   const [selected, setSelected] = useState(null);   // selected subject
@@ -87,8 +89,7 @@ export default function ExamPage({ addToast }) {
 
       // Auto-create spaced repetition cards for wrong answers (not handled by edge function)
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
+        if (user?.id) {
           const wrongQs = questions.filter(q => answers[q.id] && answers[q.id] !== q.correct);
           if (wrongQs.length > 0) {
             const today = new Date().toISOString().slice(0, 10);

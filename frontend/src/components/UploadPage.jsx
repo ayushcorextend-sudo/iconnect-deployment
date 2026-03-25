@@ -4,10 +4,12 @@ import { supabase, deleteArtifact, updateArtifact } from '../lib/supabase';
 import { auditContent } from '../lib/aiService';
 import AIResponseBox from './AIResponseBox';
 import ConfirmModal from './ui/ConfirmModal';
+import { useAuth } from '../context/AuthContext';
 
 const EMOJIS = ['📗', '📘', '📙', '📕'];
 
 export default function UploadPage({ onUpload, addToast, artifacts = [], onDelete, userId: userIdProp, userName: userNameProp }) {
+  const { user } = useAuth();
   const [drag, setDrag] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const [pendingArchiveId, setPendingArchiveId] = useState(null);
@@ -30,22 +32,10 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
   const ref = useRef();
 
   useEffect(() => {
-    // Use props if available (faster), otherwise query Supabase
-    if (userIdProp && userNameProp) {
-      setUploaderUserId(userIdProp);
-      setUploaderName(userNameProp);
-      return;
-    }
-    supabase.auth.getUser().then(({ data }) => {
-      if (data?.user) {
-        setUploaderUserId(data.user.id);
-        supabase.from('profiles').select('name').eq('id', data.user.id).maybeSingle()
-          .then(({ data: p }) => {
-            setUploaderName(p?.name || data.user.email || 'Unknown');
-          }).catch(() => setUploaderName(data.user.email || 'Unknown'));
-      }
-    });
-  }, [userIdProp, userNameProp]);
+    const uid = userIdProp || user?.id;
+    const name = userNameProp || user?.user_metadata?.name || user?.email || 'Unknown';
+    if (uid) { setUploaderUserId(uid); setUploaderName(name); }
+  }, [userIdProp, userNameProp, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { setMyArtifacts(artifacts); }, [artifacts]);
 
@@ -92,12 +82,7 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
     if (!file) { addToast('error', 'Please select a PDF.'); return; }
     if (!form.title.trim() || !form.subject) { addToast('error', 'Title and category are required.'); return; }
 
-    // Resolve auth user ID at submit time (guard against race where component mounted before auth resolved)
-    let authUserId = uploaderUserId;
-    if (!authUserId) {
-      const { data: authData } = await supabase.auth.getUser();
-      authUserId = authData?.user?.id || null;
-    }
+    const authUserId = uploaderUserId || userIdProp || user?.id || null;
     if (!authUserId) {
       addToast('error', 'Authentication error — please log out and log back in.');
       return;

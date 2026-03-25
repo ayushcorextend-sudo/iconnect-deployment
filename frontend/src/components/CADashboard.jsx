@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { fetchMyArtifacts, updateArtifact, deleteArtifact } from '../lib/supabase';
 import { SPECIALITIES } from '../data/constants';
 import ConfirmModal from './ui/ConfirmModal';
+import SignedImg from './ui/SignedImg';
 
 export default function CADashboard({ userId, userName, setPage, notifications = [], addToast }) {
   const [myArtifacts, setMyArtifacts] = useState([]);
@@ -180,7 +181,7 @@ export default function CADashboard({ userId, userName, setPage, notifications =
                 {/* Thumbnail or emoji */}
                 <div style={{ width: 48, height: 62, borderRadius: 6, overflow: 'hidden', background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 22, border: '1px solid #E5E7EB' }}>
                   {a.thumbnail_url
-                    ? <img src={a.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ? <SignedImg src={a.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} fallback={<span>{a.emoji || '📄'}</span>} />
                     : (a.emoji || '📄')}
                 </div>
 

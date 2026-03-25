@@ -4,8 +4,10 @@ import { trackActivity, startTimer, stopTimer } from '../lib/trackActivity';
 import PDFReaderView from './ebooks/PDFReaderView';
 import LibraryFilterBar from './ebooks/LibraryFilterBar';
 import SemanticSearch from './search/SemanticSearch';
+import { useAuth } from '../context/AuthContext';
 
 export default function EBooksPage({ artifacts = [], role, onApprove, onReject, addToast }) {
+  const { user } = useAuth();
   const [viewMode, setVM] = useState('grid');
   const [tab, setTab] = useState(role === 'doctor' ? 'approved' : 'all');
   const [showReadingQuiz, setShowReadingQuiz] = useState(false);
@@ -39,9 +41,7 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
   useEffect(() => {
     async function init() {
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        const user = authData?.user;
-        if (!user) return;
+        if (!user?.id) return;
         setCurrentUserId(user.id);
         const name = user.user_metadata?.name || user.email || 'iConnect User';
         setWmName(name);
@@ -135,8 +135,7 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
 
   const markSubjectComplete = async (item) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user?.id) return;
       await supabase.from('subject_completion').upsert([{
         user_id: user.id, subject: item.subject,
         completed: true, progress: 100,

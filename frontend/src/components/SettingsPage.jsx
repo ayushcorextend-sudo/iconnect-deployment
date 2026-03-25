@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import Toggle from './Toggle';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 
 export default function SettingsPage({ addToast }) {
+  const { user } = useAuth();
   const [emailEnabled, setEmailEnabled] = useState(true);
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
   const [smsEnabled, setSmsEnabled] = useState(false);
@@ -13,14 +15,14 @@ export default function SettingsPage({ addToast }) {
   useEffect(() => {
     async function loadPrefs() {
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        if (!authData?.user) return;
-        const { data: profile } = await supabase.from('profiles').select('role').eq('id', authData.user.id).maybeSingle();
+        const uid = user?.id;
+        if (!uid) return;
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
         setIsSuperAdmin(profile?.role === 'superadmin');
         const { data } = await supabase
           .from('notification_preferences')
           .select('*')
-          .eq('user_id', authData.user.id)
+          .eq('user_id', uid)
           .maybeSingle();
         if (data) {
           setEmailEnabled(data.email_enabled ?? true);
@@ -40,10 +42,10 @@ export default function SettingsPage({ addToast }) {
 
   const savePrefs = async (updated) => {
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData?.user) return;
+      const uid = user?.id;
+      if (!uid) return;
       await supabase.from('notification_preferences').upsert({
-        user_id: authData.user.id,
+        user_id: uid,
         ...updated,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });

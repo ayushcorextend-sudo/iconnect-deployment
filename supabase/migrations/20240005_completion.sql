@@ -10,7 +10,6 @@ CREATE TABLE IF NOT EXISTS subject_completion (
   created_at  timestamptz DEFAULT now(),
   UNIQUE (user_id, subject)
 );
-
 CREATE TABLE IF NOT EXISTS admin_webinars (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   title       text NOT NULL,
@@ -23,18 +22,14 @@ CREATE TABLE IF NOT EXISTS admin_webinars (
   created_by  uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at  timestamptz DEFAULT now()
 );
-
 ALTER TABLE subject_completion ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_webinars     ENABLE ROW LEVEL SECURITY;
-
 DO $$ BEGIN
   CREATE POLICY "completion_own" ON subject_completion FOR ALL USING (auth.uid() = user_id);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
 DO $$ BEGIN
   CREATE POLICY "webinars_read" ON admin_webinars FOR SELECT USING (true);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
 DO $$ BEGIN
   CREATE POLICY "webinars_admin" ON admin_webinars FOR ALL
     USING (auth.uid() IN (SELECT id FROM profiles WHERE role IN ('superadmin','contentadmin')));

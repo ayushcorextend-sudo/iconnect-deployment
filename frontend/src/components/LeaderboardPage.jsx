@@ -4,6 +4,7 @@ import Avatar from './Avatar';
 import { supabase } from '../lib/supabase';
 import { getCached, setCached } from '../lib/dataCache';
 import LeaderboardRow from './leaderboard/LeaderboardRow';
+import { useAuth } from '../context/AuthContext';
 
 function calculateStreak(logs) {
   const dates = new Set((logs || []).map(l => l.created_at.split('T')[0]));
@@ -20,11 +21,12 @@ function calculateStreak(logs) {
 }
 
 export default function LeaderboardPage({ setPage }) {
+  const { user } = useAuth();
   const [period, setPeriod] = useState('alltime');
   const [tab, setTab] = useState('global');
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [myUserId, setMyUserId] = useState(null);
+  const [myUserId, setMyUserId] = useState(user?.id ?? null);
   const [myProfile, setMyProfile] = useState(null);
   const [myStreak, setMyStreak] = useState(0);
   const myRowRef = useRef(null);
@@ -32,20 +34,19 @@ export default function LeaderboardPage({ setPage }) {
 
   useEffect(() => {
     async function load() {
+      const uid = user?.id ?? null;
       const cacheKey = `lb_${period}`;
       const cached = getCached(cacheKey);
       if (cached) {
         setLeaderboard(cached.leaderboard);
         setMyProfile(cached.myProfile);
-        setMyUserId(cached.myUserId);
+        setMyUserId(uid);
         setLoading(false);
       } else {
         setLoading(true);
       }
 
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        const uid = authData?.user?.id || null;
         setMyUserId(uid);
 
         let myProfileData = null;

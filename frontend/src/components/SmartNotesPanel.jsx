@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { generateSmartNote } from '../lib/aiService';
+import { Z } from '../styles/zIndex';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * SmartNotesPanel — slide-out panel for AI-compressed study notes.
  * Opened from EBooksPage via a "📝 Smart Notes" button in the PDF toolbar.
  */
 export default function SmartNotesPanel({ onClose, currentArtifact }) {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [userId, setUserId] = useState(null);
 
   // Create-mode state
   const [creating, setCreating] = useState(false);
@@ -19,19 +22,9 @@ export default function SmartNotesPanel({ onClose, currentArtifact }) {
   const [draft, setDraft] = useState(null); // { note, mnemonic, tags, error }
 
   useEffect(() => {
-    async function init() {
-      try {
-        const { data: authData } = await supabase.auth.getUser();
-        const uid = authData?.user?.id;
-        if (!uid) { setLoading(false); return; }
-        setUserId(uid);
-        await fetchNotes(uid);
-      } catch (_) {
-        setLoading(false);
-      }
-    }
-    init();
-  }, []);
+    if (!userId) { setLoading(false); return; }
+    fetchNotes(userId);
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchNotes = async (uid) => {
     setLoading(true);
@@ -113,7 +106,7 @@ export default function SmartNotesPanel({ onClose, currentArtifact }) {
       position: 'fixed', top: 0, right: 0, height: '100vh', width: 380,
       background: '#fff', borderLeft: '1px solid #E5E7EB',
       boxShadow: '-6px 0 32px rgba(0,0,0,0.16)',
-      zIndex: 400, display: 'flex', flexDirection: 'column',
+      zIndex: Z.smartNotes, display: 'flex', flexDirection: 'column',
       fontFamily: 'Inter, sans-serif',
     }}>
       {/* Header */}

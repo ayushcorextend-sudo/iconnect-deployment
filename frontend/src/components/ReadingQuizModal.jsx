@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { generateReadingQuiz } from '../lib/aiService';
 import { supabase } from '../lib/supabase';
 import { trackActivity } from '../lib/trackActivity';
+import { Z } from '../styles/zIndex';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * ReadingQuizModal — Proof of Learning
@@ -9,6 +11,7 @@ import { trackActivity } from '../lib/trackActivity';
  * 3 AI-generated MCQs → score → save to reading_progress → award points.
  */
 export default function ReadingQuizModal({ artifact, onClose, onComplete }) {
+  const { user } = useAuth();
   const [phase, setPhase] = useState('loading'); // loading | quiz | result | error
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({}); // { [index]: 'A'|'B'|'C'|'D' }
@@ -51,8 +54,7 @@ export default function ReadingQuizModal({ artifact, onClose, onComplete }) {
     // Save to reading_progress and award points
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      if (user?.id) {
         await supabase.from('reading_progress').upsert([{
           user_id: user.id,
           artifact_id: artifact.id,
@@ -82,7 +84,7 @@ export default function ReadingQuizModal({ artifact, onClose, onComplete }) {
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 300,
+      position: 'fixed', inset: 0, zIndex: Z.readingModal,
       background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 16, fontFamily: 'Inter, sans-serif',

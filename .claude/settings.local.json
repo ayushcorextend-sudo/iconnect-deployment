@@ -5,7 +5,18 @@
       "Bash(npx tailwindcss:*)",
       "Bash(npm run:*)",
       "Bash(curl:*)",
-      "Bash(npx playwright:*)"
+      "Bash(npx playwright:*)",
+      "Bash(supabase db:*)",
+      "Bash(grep:*)",
+      "Bash(supabase migration:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(supabase gen:*)",
+      "Bash(git push:*)",
+      "Bash(supabase status:*)",
+      "Bash(supabase projects:*)",
+      "Bash(supabase link:*)",
+      "Bash(supabase functions:*)"
     ]
   }
 }

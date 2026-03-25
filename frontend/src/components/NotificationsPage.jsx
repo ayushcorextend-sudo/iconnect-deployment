@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import Toggle from './Toggle';
 import { supabase } from '../lib/supabase';
 import { getCached, setCached } from '../lib/dataCache';
+import { useAuth } from '../context/AuthContext';
 
 // Default prefs shape — mirrors notification_preferences table columns
 const DEFAULT_CHANNELS = { in_app_enabled: true, email_enabled: true, whatsapp_enabled: false, sms_enabled: false };
@@ -37,6 +38,7 @@ function groupByDate(items) {
 const TYPE_BORDER = { info: '#3B82F6', success: '#10B981', warn: '#F59E0B', error: '#EF4444' };
 
 export default function NotificationsPage({ addToast, setPage }) {
+  const { user } = useAuth();
   const [notifs, setNotifs]         = useState([]);
   const [loading, setLoading]       = useState(true);
   const [tab, setTab]               = useState('all');
@@ -60,9 +62,7 @@ export default function NotificationsPage({ addToast, setPage }) {
 
     async function load() {
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        const user = authData?.user;
-        if (!user) { setLoading(false); return; }
+        if (!user?.id) { setLoading(false); return; }
         userIdRef.current = user.id;
 
         // ── Restore cached prefs instantly (no flicker) ─────────────────────

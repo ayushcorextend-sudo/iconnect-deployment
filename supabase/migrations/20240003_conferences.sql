@@ -15,28 +15,22 @@ CREATE TABLE IF NOT EXISTS conferences (
   created_by    uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at    timestamptz DEFAULT now()
 );
-
 ALTER TABLE conferences ENABLE ROW LEVEL SECURITY;
-
 DO $$ BEGIN
   CREATE POLICY "conferences_read_all" ON conferences FOR SELECT USING (true);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
 DO $$ BEGIN
   CREATE POLICY "conferences_insert_admin" ON conferences FOR INSERT
     WITH CHECK (auth.uid() IN (SELECT id FROM profiles WHERE role IN ('superadmin','contentadmin')));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
 DO $$ BEGIN
   CREATE POLICY "conferences_update_admin" ON conferences FOR UPDATE
     USING (auth.uid() IN (SELECT id FROM profiles WHERE role IN ('superadmin','contentadmin')));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
 DO $$ BEGIN
   CREATE POLICY "conferences_delete_admin" ON conferences FOR DELETE
     USING (auth.uid() IN (SELECT id FROM profiles WHERE role IN ('superadmin','contentadmin')));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
 -- Seed 5 real upcoming Indian medical conferences
 INSERT INTO conferences (title, organizer, location, start_date, end_date, speciality, description, website_url, is_featured)
 VALUES

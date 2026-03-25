@@ -9,17 +9,22 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "deploy:prod": "vercel --prod --yes",
+    "build:prod": "vite build --sourcemap && bash scripts/upload-sourcemaps.sh",
     "ship": "git -C .. push origin main && npm run deploy:prod"
   },
   "dependencies": {
+    "@sentry/react": "^10.43.0",
     "@supabase/supabase-js": "^2.98.0",
+    "@tanstack/react-virtual": "^3.13.23",
     "axios": "^1.13.5",
     "clsx": "^2.1.1",
     "framer-motion": "^12.36.0",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.13.1"
+    "react-router-dom": "^7.13.1",
+    "zod": "^4.3.6",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

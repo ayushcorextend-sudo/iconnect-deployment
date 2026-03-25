@@ -1,28 +1,29 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import Avatar from './Avatar';
 import { supabase, deleteArtifact, updateArtifact } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 import { sendNotification } from '../lib/sendNotification';
-import MCIVerificationQueue from './MCIVerificationQueue';
 import SuperAdminApprovals from './SuperAdminApprovals';
 import UserManagement from './superadmin/UserManagement';
-import { getPredictiveAlerts, analyzeKnowledgeGap } from '../lib/aiService';
-import AIResponseBox from './AIResponseBox';
 import ConfirmModal from './ui/ConfirmModal';
+
+import DoctorApprovalsTab from './sadashboard/DoctorApprovalsTab';
+import ArtifactsTab from './sadashboard/ArtifactsTab';
+import WebinarCalendarTab from './sadashboard/WebinarCalendarTab';
+import ReportsTab from './sadashboard/ReportsTab';
+import AIInsightsTab from './sadashboard/AIInsightsTab';
+import ManageAdminsTab from './sadashboard/ManageAdminsTab';
 
 const EMOJIS = ['📗', '📘', '📙', '📕', '📚', '📋', '📄', '🗂️'];
 
 export default function SADashboard({ artifacts = [], setPage, addToast, onApprove, onReject, users = [], onApproveUser, onRejectUser, onLogout }) {
+  const { user } = useAuth();
   const [tab, setTab] = useState('doctor-approvals');
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const [pendingRevokeUser, setPendingRevokeUser] = useState(null);
-  const [doctorSubTab, setDoctorSubTab] = useState('pending');
   const [reviewUser, setReviewUser] = useState(null);
   const [systemAlerts, setSystemAlerts] = useState([]);
   const [pendingCount, setPendingCount] = useState(0);
-  const [webinars, setWebinars] = useState([]);
-  const [wForm, setWForm] = useState({ title: '', speaker: '', scheduled_at: '', duration_min: 60, join_url: '', description: '' });
-  const [showWForm, setShowWForm] = useState(false);
-  const [savingW, setSavingW] = useState(false);
 
   // Local artifact state — shadows prop for immediate UI updates
   const [localArtifacts, setLocalArtifacts] = useState(artifacts);
@@ -38,78 +39,12 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
 
   // Unified Approvals state
   const [approvalItems, setApprovalItems] = useState([]);
-  const [approvalsLoading, setApprovalsLoading] = useState(false);
-  const [approvalAction, setApprovalAction] = useState(null);  // { id, type } currently processing
-  const [rejectNote, setRejectNote] = useState('');
-  const [rejectTarget, setRejectTarget] = useState(null);  // { id, type }
-
-  // AI Insights state
-  const [aiAlerts, setAiAlerts] = useState({ loading: false, text: null, error: null });
-  const [aiGap, setAiGap] = useState({ loading: false, text: null, error: null });
-
-  // Manage Admins state
-  const [admins, setAdmins] = useState([]);
-  const [adminsLoading, setAdminsLoading] = useState(false);
-  const [adminSearchEmail, setAdminSearchEmail] = useState('');
-  const [adminSearchResult, setAdminSearchResult] = useState(null); // null | 'notfound' | profile object
-  const [adminSearching, setAdminSearching] = useState(false);
-  const [newAdminRole, setNewAdminRole] = useState('contentadmin');
 
   const pending = localArtifacts.filter(a => a.status === 'pending');
   const approved = localArtifacts.filter(a => a.status === 'approved');
   const pendingUsers = users.filter(u => u.status === 'pending');
 
-  // ── Geographic breakdown for Reports tab ─────────────────────
-  const geoStats = useMemo(() => {
-    const stateMap = {};
-    users.forEach(u => {
-      const state = u.state && u.state !== '—' ? u.state : 'Unknown';
-      if (!stateMap[state]) stateMap[state] = { count: 0, specs: {} };
-      stateMap[state].count++;
-      if (u.speciality && u.speciality !== '—') {
-        stateMap[state].specs[u.speciality] = (stateMap[state].specs[u.speciality] || 0) + 1;
-      }
-    });
-    return Object.entries(stateMap)
-      .map(([state, v]) => ({
-        state,
-        count: v.count,
-        topSpec: Object.entries(v.specs).sort((a, b) => b[1] - a[1])[0]?.[0] || '—',
-      }))
-      .sort((a, b) => b.count - a.count);
-  }, [users]);
-
-  const specialityStats = useMemo(() => {
-    const specMap = {};
-    users.forEach(u => {
-      if (!u.speciality || u.speciality === '—') return;
-      specMap[u.speciality] = (specMap[u.speciality] || 0) + 1;
-    });
-    return Object.entries(specMap).sort((a, b) => b[1] - a[1]).slice(0, 10);
-  }, [users]);
-
-  const handleExport = () => {
-    const headers = ['Name', 'Email', 'Speciality', 'College', 'State', 'MCI Number', 'Status'];
-    const esc = v => `"${String(v || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`;
-    const rows = users.map(u => [u.name, u.email, u.speciality, u.college, u.state, u.mci, u.status].map(esc));
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `iconnect-doctors-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-    addToast('success', `Exported ${users.length} doctor records as CSV`);
-  };
-
   useEffect(() => {
-    supabase.from('admin_webinars').select('*').order('scheduled_at').then(({ data }) => {
-      if (data?.length) setWebinars(data);
-    }).catch(() => {});
-
     const fetchPending = async () => {
       try {
         const { count } = await supabase
@@ -135,16 +70,39 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
     if (tab !== 'alerts') return;
     (async () => {
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        if (!authData?.user) return;
+        if (!user?.id) return;
         const { data } = await supabase
           .from('notifications')
           .select('*')
-          .eq('user_id', authData.user.id)
+          .eq('user_id', user.id)
           .in('type', ['warn', 'error'])
           .order('created_at', { ascending: false })
           .limit(50);
         setSystemAlerts(data || []);
+      } catch (_) {}
+    })();
+  }, [tab]);
+
+  // Load unified approvals when tab opens
+  useEffect(() => {
+    if (tab !== 'approvals') return;
+    (async () => {
+      try {
+        const [
+          { data: qz },
+          { data: vd },
+          { data: fd },
+        ] = await Promise.all([
+          supabase.from('quizzes').select('id, title, subject, created_at, created_by, status').eq('status', 'pending'),
+          supabase.from('video_lectures').select('id, title, subject, created_at, created_by, status').eq('status', 'pending'),
+          supabase.from('flashcard_decks').select('id, title, subject, created_at, created_by, status').eq('status', 'pending'),
+        ]);
+        const items = [
+          ...(qz || []).map(r => ({ ...r, _type: 'quiz',      _icon: '📝' })),
+          ...(vd || []).map(r => ({ ...r, _type: 'video',     _icon: '🎥' })),
+          ...(fd || []).map(r => ({ ...r, _type: 'flashcard', _icon: '🃏' })),
+        ].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        setApprovalItems(items);
       } catch (_) {}
     })();
   }, [tab]);
@@ -202,152 +160,15 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
     }
   };
 
-  // ── Webinar handlers ──────────────────────────────────────────
-
-  const handleAddWebinar = async () => {
-    if (!wForm.title || !wForm.scheduled_at) { addToast('error', 'Title and date are required.'); return; }
-    setSavingW(true);
-    try {
-      const { data, error } = await supabase.from('admin_webinars').insert([wForm]).select().single();
-      if (error) throw error;
-      setWebinars(prev => [...prev, data]);
-      addToast('success', 'Webinar scheduled!');
-      setShowWForm(false);
-      setWForm({ title: '', speaker: '', scheduled_at: '', duration_min: 60, join_url: '', description: '' });
-    } catch (_) {
-      setWebinars(prev => [...prev, { ...wForm, id: `local_${Date.now()}` }]);
-      addToast('success', 'Webinar added (offline).');
-      setShowWForm(false);
-    } finally {
-      setSavingW(false);
-    }
-  };
-
-  const handleDeleteWebinar = async (id) => {
-    setWebinars(prev => prev.filter(w => w.id !== id));
-    try { await supabase.from('admin_webinars').delete().eq('id', id); } catch (_) {}
-  };
-
-  // Load unified approvals when tab opens
-  useEffect(() => {
-    if (tab !== 'approvals') return;
-    (async () => {
-      setApprovalsLoading(true);
-      try {
-        const [
-          { data: qz },
-          { data: vd },
-          { data: fd },
-        ] = await Promise.all([
-          supabase.from('quizzes').select('id, title, subject, created_at, created_by, status').eq('status', 'pending'),
-          supabase.from('video_lectures').select('id, title, subject, created_at, created_by, status').eq('status', 'pending'),
-          supabase.from('flashcard_decks').select('id, title, subject, created_at, created_by, status').eq('status', 'pending'),
-        ]);
-        const items = [
-          ...(qz || []).map(r => ({ ...r, _type: 'quiz',      _icon: '📝' })),
-          ...(vd || []).map(r => ({ ...r, _type: 'video',     _icon: '🎥' })),
-          ...(fd || []).map(r => ({ ...r, _type: 'flashcard', _icon: '🃏' })),
-        ].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-        setApprovalItems(items);
-      } catch (_) {}
-      setApprovalsLoading(false);
-    })();
-  }, [tab]);
-
-  const approveContent = async (item) => {
-    const { id, _type } = item;
-    const tbl = _type === 'quiz' ? 'quizzes' : _type === 'video' ? 'video_lectures' : 'flashcard_decks';
-    setApprovalAction({ id, type: _type });
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      await supabase.from(tbl).update({ status: 'approved', approved_by: authData?.user?.id }).eq('id', id);
-      setApprovalItems(prev => prev.filter(i => i.id !== id));
-      addToast('success', `${item.title} approved!`);
-    } catch (e) {
-      addToast('error', 'Approve failed: ' + e.message);
-    } finally {
-      setApprovalAction(null);
-    }
-  };
-
-  const openRejectContent = (item) => { setRejectTarget(item); setRejectNote(''); };
-
-  const confirmRejectContent = async () => {
-    if (!rejectTarget) return;
-    const { id, _type } = rejectTarget;
-    const tbl = _type === 'quiz' ? 'quizzes' : _type === 'video' ? 'video_lectures' : 'flashcard_decks';
-    setApprovalAction({ id, type: _type });
-    try {
-      await supabase.from(tbl).update({ status: 'rejected', rejection_note: rejectNote.trim() || null }).eq('id', id);
-      setApprovalItems(prev => prev.filter(i => i.id !== id));
-      addToast('success', `${rejectTarget.title} rejected.`);
-      setRejectTarget(null);
-    } catch (e) {
-      addToast('error', 'Reject failed: ' + e.message);
-    } finally {
-      setApprovalAction(null);
-    }
-  };
-
-  // Load admins when tab opens
-  useEffect(() => {
-    if (tab !== 'manage-admins') return;
-    (async () => {
-      setAdminsLoading(true);
-      try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('id, name, email, role, speciality')
-          .in('role', ['superadmin', 'contentadmin'])
-          .order('role');
-        setAdmins(data || []);
-      } catch (_) {}
-      setAdminsLoading(false);
-    })();
-  }, [tab]);
-
-  const searchAdminCandidate = async () => {
-    if (!adminSearchEmail.trim()) return;
-    setAdminSearching(true);
-    setAdminSearchResult(null);
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, name, email, role, speciality')
-        .ilike('email', adminSearchEmail.trim())
-        .maybeSingle();
-      setAdminSearchResult(data || 'notfound');
-    } catch (_) {
-      setAdminSearchResult('notfound');
-    }
-    setAdminSearching(false);
-  };
-
-  const grantAdminRole = async (userId, userName) => {
-    try {
-      await supabase.from('profiles').update({ role: newAdminRole }).eq('id', userId);
-      addToast('success', `${userName} is now ${newAdminRole === 'superadmin' ? 'Super Admin' : 'Content Admin'}!`);
-      setAdminSearchEmail('');
-      setAdminSearchResult(null);
-      // Refresh admin list
-      const { data } = await supabase.from('profiles').select('id, name, email, role, speciality').in('role', ['superadmin', 'contentadmin']).order('role');
-      setAdmins(data || []);
-    } catch (_) {
-      addToast('error', 'Failed to update role. Please try again.');
-    }
-  };
-
+  // ── Revoke admin (called from ManageAdminsTab confirm) ────────
   const revokeAdminRole = async (userId, userName) => {
     try {
       await supabase.from('profiles').update({ role: 'doctor' }).eq('id', userId);
       addToast('success', `${userName}'s admin access removed.`);
-      setAdmins(prev => prev.filter(a => a.id !== userId));
     } catch (_) {
       addToast('error', 'Failed to revoke access. Please try again.');
     }
   };
-
-  const fmtDt = (d) => d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
   return (
     <div className="page">
@@ -407,198 +228,34 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
       </div>
 
       {tab === 'doctor-approvals' && (
-        <div>
-          {/* Sub-filter pills */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-            {[['pending', `Pending (${pendingUsers.length})`], ['mci-queue', `MCI Queue${pendingCount > 0 ? ` (${pendingCount})` : ''}`], ['active', 'Active Doctors']].map(([k, l]) => (
-              <button
-                key={k}
-                onClick={() => setDoctorSubTab(k)}
-                style={{
-                  padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
-                  background: doctorSubTab === k ? '#4F46E5' : '#F3F4F6',
-                  color: doctorSubTab === k ? '#fff' : '#374151',
-                  transition: 'all .15s',
-                }}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-
-          {doctorSubTab === 'pending' && (
-            pendingUsers.length === 0
-              ? <div className="empty"><div className="empty-ic">✅</div><div className="empty-t">No pending verifications</div></div>
-              : pendingUsers.map(u => (
-                <div key={u.id} className="card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{u.name}</div>
-                    <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>
-                      {u.mci} · {u.speciality || '—'} · {u.college || '—'}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>Applied: {u.date || 'Recently'}</div>
-                  </div>
-                  <button className="btn btn-p btn-sm" onClick={() => setReviewUser(u)}>Review</button>
-                </div>
-              ))
-          )}
-
-          {doctorSubTab === 'mci-queue' && <MCIVerificationQueue addToast={addToast} />}
-
-          {doctorSubTab === 'active' && (
-            users.filter(u => u.status === 'active').length === 0 ? (
-              <div className="empty">
-                <div className="empty-ic">👤</div>
-                <div className="empty-t">No approved doctors yet</div>
-              </div>
-            ) : users.filter(u => u.status === 'active').map(u => (
-              <div key={u.id} className="card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px' }}>
-                <Avatar name={u.name} size={36} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{u.name}</div>
-                  <div style={{ fontSize: 12, color: '#6B7280' }}>{u.speciality} · {u.college}</div>
-                </div>
-                <span className="bdg bg-g">Active</span>
-              </div>
-            ))
-          )}
-        </div>
+        <DoctorApprovalsTab
+          users={users}
+          pendingUsers={pendingUsers}
+          pendingCount={pendingCount}
+          addToast={addToast}
+          onApproveUser={onApproveUser}
+          onRejectUser={onRejectUser}
+          setReviewUser={setReviewUser}
+        />
       )}
 
       {tab === 'artifacts' && (
-        <div>
-          {pending.length === 0
-            ? <div className="empty"><div className="empty-ic">✅</div><div className="empty-t">All caught up!</div></div>
-            : pending.map(a => (
-              <div key={a.id} className="card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{a.emoji} {a.title}</div>
-                  <div style={{ fontSize: 12, color: '#6B7280' }}>{a.subject} · {a.size} · by {a.uploadedBy}</div>
-                </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-                  <button className="btn btn-s btn-sm" onClick={() => handlePreview(a)}>👁 Preview</button>
-                  <button className="btn btn-p btn-sm" onClick={async () => {
-                    onApprove(a.id);
-                    addToast('success', 'Approved!');
-                    setLocalArtifacts(prev => prev.map(x => x.id === a.id ? { ...x, status: 'approved', rejection_reason: null } : x));
-                    try {
-                      // Notify the uploader
-                      if (a.uploaded_by_id) {
-                        sendNotification(a.uploaded_by_id, 'E-Book Approved! 🎉', `Your upload "${a.title}" has been approved and is now live.`, 'success', '✅', 'in_app');
-                      }
-                      // Batch notify all active doctors
-                      const { data: doctors } = await supabase.from('profiles').select('id').eq('role', 'doctor').eq('status', 'active');
-                      if (doctors?.length) {
-                        await supabase.from('notifications').insert(
-                          doctors.map(d => ({
-                            user_id: d.id,
-                            title: 'New E-book',
-                            body: `"${a.title}" is now available in the library.`,
-                            type: 'info', icon: '📚', channel: 'in_app', unread: true,
-                          }))
-                        );
-                      }
-                    } catch (_) {}
-                  }}>✅ Approve</button>
-                  <button className="btn btn-d btn-sm" onClick={async () => {
-                    const reason = window.prompt(`Reason for rejecting "${a.title}" (shown to Content Admin):`);
-                    if (reason === null) return; // cancelled
-                    const finalReason = reason.trim() || 'No reason provided.';
-                    await onReject(a.id, finalReason);
-                    addToast('error', 'Rejected');
-                    setLocalArtifacts(prev => prev.map(x => x.id === a.id ? { ...x, status: 'rejected', rejection_reason: finalReason } : x));
-                    try {
-                      if (a.uploaded_by_id) {
-                        sendNotification(a.uploaded_by_id, 'E-Book Rejected', `Your upload "${a.title}" was rejected. Reason: ${finalReason}`, 'error', '❌', 'in_app');
-                      }
-                    } catch (_) {}
-                  }}>✗ Reject</button>
-                  <div style={{ position: 'relative' }}>
-                    <button
-                      className="btn btn-s btn-sm"
-                      style={{ fontWeight: 700, letterSpacing: 1 }}
-                      onClick={() => setOpenMenu(openMenu === a.id ? null : a.id)}
-                    >
-                      ⋮
-                    </button>
-                    {openMenu === a.id && (
-                      <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 100, minWidth: 130, padding: 4, border: '1px solid #E5E7EB' }}>
-                        <button
-                          onClick={() => handleEditOpen(a)}
-                          style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}
-                        >
-                          ✏️ Edit
-                        </button>
-                        <button
-                          onClick={() => setPendingDeleteId(a.id)}
-                          style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', color: '#DC2626', borderRadius: 6 }}
-                        >
-                          🗑 Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
-          }
-        </div>
+        <ArtifactsTab
+          pending={pending}
+          onApprove={onApprove}
+          onReject={onReject}
+          addToast={addToast}
+          setLocalArtifacts={setLocalArtifacts}
+          artifacts={artifacts}
+          openMenu={openMenu}
+          setOpenMenu={setOpenMenu}
+          handlePreview={handlePreview}
+          handleEditOpen={handleEditOpen}
+          setPendingDeleteId={setPendingDeleteId}
+        />
       )}
 
-
-      {tab === 'webinars' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>Scheduled Webinars ({webinars.length})</div>
-            <button className="btn btn-p btn-sm" onClick={() => setShowWForm(s => !s)}>
-              {showWForm ? '✕ Cancel' : '+ Schedule Webinar'}
-            </button>
-          </div>
-
-          {showWForm && (
-            <div className="card" style={{ marginBottom: 16 }}>
-              <div className="fg"><label className="fl">Title *</label><input className="fi-in" value={wForm.title} onChange={e => setWForm(p => ({ ...p, title: e.target.value }))} placeholder="Webinar title" /></div>
-              <div className="fg2">
-                <div className="fg"><label className="fl">Speaker</label><input className="fi-in" value={wForm.speaker} onChange={e => setWForm(p => ({ ...p, speaker: e.target.value }))} placeholder="Dr. Name, Designation" /></div>
-                <div className="fg"><label className="fl">Duration (min)</label><input className="fi-in" type="number" value={wForm.duration_min} onChange={e => setWForm(p => ({ ...p, duration_min: parseInt(e.target.value) }))} /></div>
-              </div>
-              <div className="fg"><label className="fl">Date & Time *</label><input className="fi-in" type="datetime-local" value={wForm.scheduled_at} onChange={e => setWForm(p => ({ ...p, scheduled_at: e.target.value }))} /></div>
-              <div className="fg"><label className="fl">Join URL</label><input className="fi-in" type="url" value={wForm.join_url} onChange={e => setWForm(p => ({ ...p, join_url: e.target.value }))} placeholder="https://zoom.us/..." /></div>
-              <div className="fg"><label className="fl">Description</label><textarea className="fi-ta" value={wForm.description} onChange={e => setWForm(p => ({ ...p, description: e.target.value }))} placeholder="Brief description..." /></div>
-              <button className="btn btn-p btn-sm" onClick={handleAddWebinar} disabled={savingW}>{savingW ? 'Saving…' : 'Save Webinar'}</button>
-            </div>
-          )}
-
-          {webinars.length === 0
-            ? <div className="empty"><div className="empty-ic">📅</div><div className="empty-t">No webinars scheduled</div></div>
-            : webinars.map(w => {
-              const isPast = new Date(w.scheduled_at) < new Date();
-              return (
-                <div key={w.id} className="card" style={{ marginBottom: 10, padding: '16px 20px', opacity: isPast ? 0.65 : 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{w.title}</div>
-                      {w.speaker && <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 4 }}>🎤 {w.speaker}</div>}
-                      <div style={{ fontSize: 12, color: '#6B7280' }}>
-                        📅 {fmtDt(w.scheduled_at)} · ⏱ {w.duration_min} min
-                      </div>
-                      {w.description && <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>{w.description}</div>}
-                    </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {w.join_url && !isPast && (
-                        <a href={w.join_url} target="_blank" rel="noreferrer" style={{ background: 'linear-gradient(135deg,#4F46E5,#3730A3)', color: '#fff', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                          🚀 Join
-                        </a>
-                      )}
-                      <button onClick={() => handleDeleteWebinar(w.id)} style={{ background: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>🗑</button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          }
-        </div>
-      )}
+      {tab === 'webinars' && <WebinarCalendarTab addToast={addToast} />}
 
       {tab === 'alerts' && (
         <div>
@@ -627,87 +284,7 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
       )}
 
       {tab === 'reports' && (
-        <div>
-          {/* Export header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14, color: '#111827' }}>Doctor Analytics</div>
-              <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{users.length} total registered doctors</div>
-            </div>
-            <button
-              className="btn btn-p btn-sm"
-              onClick={handleExport}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              📥 Export Doctor Data (CSV)
-            </button>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
-
-            {/* Geographic breakdown */}
-            <div className="card" style={{ margin: 0, padding: 0, overflow: 'hidden' }}>
-              <div style={{ padding: '14px 20px', borderBottom: '1px solid #F1F5F9', fontWeight: 700, fontSize: 13 }}>
-                🗺 Geographic Distribution
-              </div>
-              {geoStats.length === 0 ? (
-                <div style={{ padding: '24px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No geographic data yet</div>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                    <thead>
-                      <tr style={{ background: '#F9FAFB' }}>
-                        <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #F1F5F9' }}>State</th>
-                        <th style={{ padding: '10px 16px', textAlign: 'center', fontWeight: 600, color: '#374151', borderBottom: '1px solid #F1F5F9' }}>Doctors</th>
-                        <th style={{ padding: '10px 16px', textAlign: 'left', fontWeight: 600, color: '#374151', borderBottom: '1px solid #F1F5F9' }}>Top Speciality</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {geoStats.map((row, i) => (
-                        <tr key={row.state} style={{ borderBottom: i < geoStats.length - 1 ? '1px solid #F1F5F9' : 'none' }}>
-                          <td style={{ padding: '10px 16px', fontWeight: 500, color: '#111827' }}>{row.state}</td>
-                          <td style={{ padding: '10px 16px', textAlign: 'center' }}>
-                            <span style={{ fontWeight: 700, color: '#2563EB' }}>{row.count}</span>
-                          </td>
-                          <td style={{ padding: '10px 16px', color: '#6B7280', fontSize: 12 }}>{row.topSpec}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Speciality breakdown */}
-            <div className="card" style={{ margin: 0, padding: 0, overflow: 'hidden' }}>
-              <div style={{ padding: '14px 20px', borderBottom: '1px solid #F1F5F9', fontWeight: 700, fontSize: 13 }}>
-                🩺 Top Specialities
-              </div>
-              {specialityStats.length === 0 ? (
-                <div style={{ padding: '24px', textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>No speciality data yet</div>
-              ) : (
-                <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {specialityStats.map(([spec, count]) => {
-                    const maxCount = specialityStats[0][1] || 1;
-                    const pct = Math.round((count / maxCount) * 100);
-                    return (
-                      <div key={spec}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <span style={{ fontSize: 12, fontWeight: 500, color: '#374151' }}>{spec}</span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#2563EB' }}>{count}</span>
-                        </div>
-                        <div style={{ height: 6, background: '#F3F4F6', borderRadius: 99, overflow: 'hidden' }}>
-                          <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg,#2563EB,#4F46E5)', borderRadius: 99, transition: 'width .5s' }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-          </div>
-        </div>
+        <ReportsTab users={users} approvedCount={approved.length} addToast={addToast} />
       )}
 
       {tab === 'approvals' && <SuperAdminApprovals addToast={addToast} />}
@@ -715,215 +292,11 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
       {tab === 'user-management' && <UserManagement addToast={addToast} />}
 
       {tab === 'ai-insights' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Predictive Engagement Alerts */}
-          <div className="card">
-            <div className="ch" style={{ marginBottom: 12 }}>
-              <div className="ct">🚨 Predictive Engagement Alerts</div>
-              <button
-                className="btn btn-sm"
-                style={{ background: 'linear-gradient(135deg,#4F46E5,#7C3AED)', color: '#fff', border: 'none', cursor: 'pointer' }}
-                disabled={aiAlerts.loading}
-                onClick={async () => {
-                  setAiAlerts({ loading: true, text: null, error: null });
-                  const activeUsers = users.filter(u => u.status === 'active').length;
-                  const pendingCount = users.filter(u => u.status === 'pending').length;
-                  const { text, error } = await getPredictiveAlerts({
-                    totalUsers: activeUsers,
-                    avgScore: 0,
-                    inactiveUsers: Math.round(activeUsers * 0.3),
-                    pendingVerifications: pendingCount,
-                    topSubject: 'Internal Medicine',
-                  });
-                  setAiAlerts({ loading: false, text, error });
-                }}
-              >
-                {aiAlerts.loading ? '…' : aiAlerts.text ? '↺ Refresh' : '✨ Analyse'}
-              </button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 12 }}>
-              {[
-                { label: 'Total Users', value: users.length, color: '#2563EB', bg: '#EFF6FF' },
-                { label: 'Active', value: users.filter(u => u.status === 'active').length, color: '#059669', bg: '#ECFDF5' },
-                { label: 'Pending', value: users.filter(u => u.status === 'pending').length, color: '#D97706', bg: '#FFFBEB' },
-                { label: 'E-Books', value: approved.length, color: '#7C3AED', bg: '#F5F3FF' },
-              ].map(s => (
-                <div key={s.label} style={{ background: s.bg, borderRadius: 10, padding: '10px 14px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</div>
-                  <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
-            <AIResponseBox
-              loading={aiAlerts.loading}
-              error={aiAlerts.error}
-              text={aiAlerts.text}
-              label="Engagement Alerts"
-              onRetry={async () => {
-                setAiAlerts({ loading: true, text: null, error: null });
-                const { text, error } = await getPredictiveAlerts({ totalUsers: users.length, avgScore: 0, inactiveUsers: 0, pendingVerifications: users.filter(u => u.status === 'pending').length, topSubject: 'Internal Medicine' });
-                setAiAlerts({ loading: false, text, error });
-              }}
-            />
-            {!aiAlerts.loading && !aiAlerts.text && !aiAlerts.error && (
-              <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '12px 0' }}>
-                Click <strong>✨ Analyse</strong> to generate AI-powered engagement recommendations.
-              </div>
-            )}
-          </div>
-
-          {/* Knowledge Gap Analysis */}
-          <div className="card">
-            <div className="ch" style={{ marginBottom: 12 }}>
-              <div className="ct">🧠 Knowledge Gap Analysis</div>
-              <button
-                className="btn btn-sm"
-                style={{ background: 'linear-gradient(135deg,#059669,#0D9488)', color: '#fff', border: 'none', cursor: 'pointer' }}
-                disabled={aiGap.loading}
-                onClick={async () => {
-                  setAiGap({ loading: true, text: null, error: null });
-                  // Build subject scores from approved artifacts as proxy
-                  const subjectCounts = {};
-                  approved.forEach(a => {
-                    if (a.subject) subjectCounts[a.subject] = (subjectCounts[a.subject] || 0) + 1;
-                  });
-                  const subjectScores = Object.entries(subjectCounts).map(([subject, count]) => ({
-                    subject,
-                    avgScore: Math.round(40 + Math.random() * 40), // proxy until quiz data loaded
-                    attempts: count * 3,
-                  })).slice(0, 8);
-                  const { text, error } = await analyzeKnowledgeGap(subjectScores.length ? subjectScores : [{ subject: 'No data yet', avgScore: 0, attempts: 0 }]);
-                  setAiGap({ loading: false, text, error });
-                }}
-              >
-                {aiGap.loading ? '…' : aiGap.text ? '↺ Refresh' : '✨ Analyse'}
-              </button>
-            </div>
-            <AIResponseBox
-              loading={aiGap.loading}
-              error={aiGap.error}
-              text={aiGap.text}
-              label="Knowledge Gap Report"
-              onRetry={async () => {
-                setAiGap({ loading: true, text: null, error: null });
-                const { text, error } = await analyzeKnowledgeGap([{ subject: 'General', avgScore: 50, attempts: 10 }]);
-                setAiGap({ loading: false, text, error });
-              }}
-            />
-            {!aiGap.loading && !aiGap.text && !aiGap.error && (
-              <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '12px 0' }}>
-                Click <strong>✨ Analyse</strong> to identify platform-wide knowledge gaps from content data.
-              </div>
-            )}
-          </div>
-        </div>
+        <AIInsightsTab users={users} approved={approved} />
       )}
 
       {tab === 'manage-admins' && (
-        <div>
-          {/* Current Admins */}
-          <div className="card" style={{ marginBottom: 20 }}>
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>
-              👑 Current Admins {!adminsLoading && `(${admins.length})`}
-            </div>
-            {adminsLoading ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', border: '3px solid #E5E7EB', borderTopColor: '#4F46E5', animation: 'spin 0.8s linear infinite' }} />
-              </div>
-            ) : admins.length === 0 ? (
-              <div style={{ color: '#9CA3AF', textAlign: 'center', padding: 24, fontSize: 13 }}>No admins found</div>
-            ) : admins.map(a => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid #F9FAFB' }}>
-                <Avatar name={a.name || a.email} size={36} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{a.name || '—'}</div>
-                  <div style={{ fontSize: 12, color: '#6B7280' }}>{a.email}</div>
-                </div>
-                <span style={{
-                  fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
-                  background: a.role === 'superadmin' ? '#FEF3C7' : '#EFF6FF',
-                  color: a.role === 'superadmin' ? '#D97706' : '#2563EB',
-                  border: `1px solid ${a.role === 'superadmin' ? '#FDE68A' : '#BFDBFE'}`,
-                  flexShrink: 0,
-                }}>
-                  {a.role === 'superadmin' ? '👑 Super Admin' : '📝 Content Admin'}
-                </span>
-                <button
-                  className="btn btn-d btn-sm"
-                  style={{ flexShrink: 0 }}
-                  onClick={() => setPendingRevokeUser({ id: a.id, name: a.name || a.email })}
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
-
-          {/* Grant admin access */}
-          <div className="card">
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>➕ Grant Admin Access</div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input
-                className="fi-in"
-                style={{ flex: 1 }}
-                type="email"
-                placeholder="Enter doctor's registered email address"
-                value={adminSearchEmail}
-                onChange={e => { setAdminSearchEmail(e.target.value); setAdminSearchResult(null); }}
-                onKeyDown={e => e.key === 'Enter' && searchAdminCandidate()}
-              />
-              <button
-                className="btn btn-s btn-sm"
-                style={{ flexShrink: 0 }}
-                onClick={searchAdminCandidate}
-                disabled={adminSearching || !adminSearchEmail.trim()}
-              >
-                {adminSearching ? 'Searching…' : '🔍 Find'}
-              </button>
-            </div>
-
-            {adminSearchResult === 'notfound' && (
-              <div style={{ color: '#EF4444', fontSize: 13, padding: '8px 12px', background: '#FEF2F2', borderRadius: 8, marginBottom: 12 }}>
-                No account found with this email. The user must be registered on iConnect first.
-              </div>
-            )}
-
-            {adminSearchResult && adminSearchResult !== 'notfound' && (
-              <div style={{ background: '#F9FAFB', borderRadius: 10, padding: 14, border: '1px solid #E5E7EB' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <Avatar name={adminSearchResult.name || adminSearchResult.email} size={36} />
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{adminSearchResult.name || '—'}</div>
-                    <div style={{ fontSize: 12, color: '#6B7280' }}>
-                      {adminSearchResult.email} · {adminSearchResult.speciality || 'Doctor'}
-                    </div>
-                    {(adminSearchResult.role === 'superadmin' || adminSearchResult.role === 'contentadmin') && (
-                      <div style={{ fontSize: 12, color: '#F59E0B', marginTop: 2 }}>⚠️ Already an admin</div>
-                    )}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <select
-                    className="fi-sel"
-                    style={{ flex: 1 }}
-                    value={newAdminRole}
-                    onChange={e => setNewAdminRole(e.target.value)}
-                  >
-                    <option value="contentadmin">Content Admin — Upload & manage e-books</option>
-                    <option value="superadmin">Super Admin — Full platform access</option>
-                  </select>
-                  <button
-                    className="btn btn-p btn-sm"
-                    style={{ flexShrink: 0 }}
-                    onClick={() => grantAdminRole(adminSearchResult.id, adminSearchResult.name || adminSearchResult.email)}
-                  >
-                    ✅ Grant Access
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        <ManageAdminsTab addToast={addToast} setPendingRevokeUser={setPendingRevokeUser} />
       )}
 
       {/* Review user modal */}

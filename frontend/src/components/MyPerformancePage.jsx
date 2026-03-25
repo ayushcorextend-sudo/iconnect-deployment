@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import GoalRingShared from './dashboard/GoalRing';
 
 // ── Shared sub-components ──────────────────────────────────────
 function ActivityHeatmap({ data }) {
@@ -34,34 +35,7 @@ function ActivityHeatmap({ data }) {
   );
 }
 
-function GoalRing({ mins, targetMins = 300 }) {
-  const r = 38;
-  const circ = 2 * Math.PI * r;
-  const pct = Math.min(mins / Math.max(targetMins, 1), 1);
-  const offset = circ * (1 - pct);
-  const hours = Math.floor(mins / 60);
-  const m = mins % 60;
-  const label = hours > 0 ? `${hours}h${m > 0 ? ` ${m}m` : ''}` : `${mins}m`;
-  const color = pct >= 1 ? '#059669' : pct >= 0.6 ? '#D97706' : '#2563EB';
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-      <svg width={96} height={96} viewBox="0 0 96 96">
-        <circle cx={48} cy={48} r={r} fill="none" stroke="#F3F4F6" strokeWidth={8} />
-        <circle
-          cx={48} cy={48} r={r} fill="none" stroke={color} strokeWidth={8}
-          strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset}
-          transform="rotate(-90 48 48)"
-          style={{ transition: 'stroke-dashoffset 0.8s ease' }}
-        />
-        <text x={48} y={44} textAnchor="middle" fontSize={13} fontWeight="700" fill={color}>{Math.round(pct * 100)}%</text>
-        <text x={48} y={58} textAnchor="middle" fontSize={9} fill="#6B7280">{label || '0m'}</text>
-      </svg>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>Weekly Goal</div>
-      <div style={{ fontSize: 10, color: '#9CA3AF' }}>{Math.round(mins / 60 * 10) / 10}h of 5h target</div>
-      {pct >= 1 && <div style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>🎉 Goal achieved!</div>}
-    </div>
-  );
-}
+// GoalRing is imported from dashboard/GoalRing (shared component)
 
 const fmtDate = (iso) => new Date(iso).toLocaleDateString('en-IN', {
   day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
@@ -112,8 +86,10 @@ export default function MyPerformancePage({ userId }) {
   const [recentActivity, setRecentActivity] = useState([]);
   const [weeklyData, setWeeklyData] = useState([]);
   const [rank, setRank] = useState(null);
+  const [percentile, setPercentile] = useState(null);
   const [heatmapData, setHeatmapData] = useState(Array(35).fill(0));
   const [weeklyMins, setWeeklyMins] = useState(0);
+  const [trendData, setTrendData] = useState([]);
 
   useEffect(() => {
     async function load() {
@@ -141,6 +117,8 @@ export default function MyPerformancePage({ userId }) {
             const row = allScores[idx];
             setScores({ total: row.total_score || 0, quiz: row.quiz_score || 0, reading: row.reading_score || 0 });
             setRank(idx + 1);
+            const pct = Math.round(((allScores.length - (idx + 1)) / allScores.length) * 100);
+            setPercentile(pct);
           }
         }
 
@@ -183,6 +161,20 @@ export default function MyPerformancePage({ userId }) {
             if (diffDays < 35) heatmap[34 - diffDays]++;
           });
           setHeatmapData(heatmap);
+
+          // 4-week trend (group by week, newest last)
+          const weeks = Array.from({ length: 4 }, (_, i) => {
+            const weekEnd = new Date(now - i * 7 * 86400000);
+            const weekStart = new Date(now - (i + 1) * 7 * 86400000);
+            const label = i === 0 ? 'This week' : i === 1 ? 'Last week' : `-${i + 1}w`;
+            return { label, start: weekStart, end: weekEnd, count: 0, mins: 0 };
+          }).reverse();
+          logs.forEach(l => {
+            const d = new Date(l.created_at);
+            const slot = weeks.find(w => d >= w.start && d < w.end);
+            if (slot) { slot.count++; slot.mins += l.duration_minutes || 30; }
+          });
+          setTrendData(weeks);
 
           // Weekly learning minutes (last 7 days)
           const weekStart = new Date(now - 7 * 86400000);
@@ -251,6 +243,14 @@ export default function MyPerformancePage({ userId }) {
                   padding: '4px 14px', fontSize: 12, fontWeight: 700,
                 }}>
                   🏆 Rank #{rank} on Leaderboard
+                </span>
+              )}
+              {percentile !== null && (
+                <span style={{
+                  background: percentile >= 75 ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.18)',
+                  borderRadius: 99, padding: '4px 14px', fontSize: 12, fontWeight: 700,
+                }}>
+                  📊 Top {100 - percentile}% of users
                 </span>
               )}
               <span style={{
@@ -410,6 +410,45 @@ export default function MyPerformancePage({ userId }) {
         </div>
       </div>
 
+      {/* ── 4-WEEK TREND ─────────────────────────────────────────── */}
+      {trendData.length > 0 && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <div className="ch" style={{ marginBottom: 16 }}>
+            <div className="ct">📈 4-Week Activity Trend</div>
+            <span style={{ fontSize: 12, color: '#9CA3AF' }}>Weekly comparison</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+            {trendData.map((w, i) => {
+              const maxCount = Math.max(...trendData.map(t => t.count), 1);
+              const barPct = w.count === 0 ? 4 : Math.max(10, Math.round((w.count / maxCount) * 100));
+              const isLatest = i === trendData.length - 1;
+              const prevCount = i > 0 ? trendData[i - 1].count : null;
+              const delta = prevCount !== null ? w.count - prevCount : null;
+              return (
+                <div key={i} style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: isLatest ? '#2563EB' : '#6B7280', marginBottom: 8 }}>{w.label}</div>
+                  <div style={{ height: 80, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: isLatest ? '#2563EB' : '#374151', marginBottom: 3 }}>{w.count}</div>
+                    <div style={{
+                      width: '60%', height: `${barPct}%`,
+                      background: isLatest ? 'linear-gradient(180deg,#2563EB,#4F46E5)' : 'linear-gradient(180deg,#93C5FD,#BFDBFE)',
+                      borderRadius: '4px 4px 0 0', transition: 'height .5s',
+                      minHeight: 4,
+                    }} />
+                  </div>
+                  <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 4 }}>{Math.round(w.mins / 60 * 10) / 10}h</div>
+                  {delta !== null && (
+                    <div style={{ fontSize: 10, fontWeight: 700, color: delta > 0 ? '#059669' : delta < 0 ? '#DC2626' : '#9CA3AF', marginTop: 2 }}>
+                      {delta > 0 ? `+${delta}` : delta === 0 ? '=' : delta} vs prev
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── ACTIVITY CALENDAR & WEEKLY GOAL (2-col) ─────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 24 }}>
         <div className="card" style={{ margin: 0 }}>
@@ -425,7 +464,7 @@ export default function MyPerformancePage({ userId }) {
           <div className="ch" style={{ marginBottom: 12, width: '100%' }}>
             <div className="ct">🎯 Weekly Learning Target</div>
           </div>
-          <GoalRing mins={weeklyMins} />
+          <GoalRingShared mins={weeklyMins} userId={userId} />
           <div style={{ marginTop: 16, padding: '10px 14px', background: '#F9FAFB', borderRadius: 10, width: '100%', boxSizing: 'border-box' }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>This week</div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#6B7280' }}>

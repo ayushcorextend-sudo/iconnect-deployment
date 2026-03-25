@@ -78,14 +78,24 @@ export default function StudyPlanCard({ dashLoading, studyPlan, setStudyPlan, my
         )}
       </div>
       {!studyPlan.loading && !studyPlan.text && !studyPlan.error && (
-        <div style={{ textAlign: 'center', padding: '16px 0', color: '#9CA3AF', fontSize: 13 }}>
-          Click <strong>✨ Generate Plan</strong> to get a personalised 7-day study schedule from AI.
-          <div style={{ marginTop: 10 }}>
+        <div style={{ textAlign: 'center', padding: '24px 16px' }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>📋</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: '#111827', marginBottom: 4 }}>No active study plan</div>
+          <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}>
+            Create a personalised study plan to track your weekly progress
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button
               onClick={() => setPage('study-plan')}
-              style={{ background: 'none', border: 'none', color: '#6366F1', fontSize: 12, cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}
+              style={{ background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
             >
-              📋 Open full Study Plan Engine →
+              Create Study Plan
+            </button>
+            <button
+              onClick={handleGenerate}
+              style={{ background: 'none', border: '1.5px solid #E5E7EB', borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 600, color: '#6366F1', cursor: 'pointer' }}
+            >
+              ✨ Quick AI Plan
             </button>
           </div>
         </div>

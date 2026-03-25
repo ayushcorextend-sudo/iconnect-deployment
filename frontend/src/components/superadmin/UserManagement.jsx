@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import Avatar from '../Avatar';
 import { downloadCSV } from '../../lib/exportUtils';
+import { Z } from '../../styles/zIndex';
 
 const ROLES      = { superadmin: 'Super Admin', contentadmin: 'Content Admin', doctor: 'PG Aspirant' };
 const STATUSES   = { active: '#10B981', pending: '#F59E0B', rejected: '#EF4444', suspended: '#6B7280' };
@@ -562,7 +563,7 @@ export default function UserManagement({ addToast }) {
           background: '#1E1B4B', color: '#fff', borderRadius: 14, padding: '12px 20px',
           display: 'flex', alignItems: 'center', gap: 16,
           boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
-          zIndex: 900, animation: 'scaleIn 0.2s ease', whiteSpace: 'nowrap',
+          zIndex: Z.userMgmtMenu, animation: 'scaleIn 0.2s ease', whiteSpace: 'nowrap',
         }}>
           <span style={{ fontWeight: 600, fontSize: 14 }}>
             {selectedIds.length} user{selectedIds.length !== 1 ? 's' : ''} selected

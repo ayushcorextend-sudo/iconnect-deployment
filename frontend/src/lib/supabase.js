@@ -498,6 +498,84 @@ export const deleteNote = async (noteId) => {
   } catch (err) { console.error('Error deleting note:', err); return false; }
 };
 
+export const getAllUserNotes = async (userId) => {
+  try {
+    const { data, error } = await supabase.from('user_notes')
+      .select('*, artifacts(title)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (err) { console.error('Error fetching all notes:', err); return []; }
+};
+
+export const getSmartNotes = async (userId) => {
+  try {
+    const { data, error } = await supabase.from('smart_notes')
+      .select('*, artifacts(title)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (err) { console.error('Error fetching smart notes:', err); return []; }
+};
+
+export const toggleSmartNoteStar = async (noteId, isStarred) => {
+  try {
+    const { error } = await supabase.from('smart_notes')
+      .update({ is_starred: isStarred })
+      .eq('id', noteId);
+    if (error) throw error;
+    return true;
+  } catch (err) { console.error('Error updating smart note:', err); return false; }
+};
+
+export const deleteSmartNote = async (noteId) => {
+  try {
+    const { error } = await supabase.from('smart_notes').delete().eq('id', noteId);
+    if (error) throw error;
+    return true;
+  } catch (err) { console.error('Error deleting smart note:', err); return false; }
+};
+
+// ── Calendar Diary helpers ────────────────────────────────────────────────────
+// Shared data contract for both DiaryPanel and DayDetailPanel.
+// Columns: user_id, date, mood, personal_notes, study_hours, goals_met
+
+export const getDiaryEntry = async (userId, date) => {
+  try {
+    const { data, error } = await supabase
+      .from('calendar_diary')
+      .select('personal_notes, study_hours, goals_met, mood')
+      .eq('user_id', userId)
+      .eq('date', date)
+      .maybeSingle();
+    if (error) throw error;
+    return { data, error: null };
+  } catch (err) {
+    console.error('Error fetching diary entry:', err);
+    return { data: null, error: err };
+  }
+};
+
+export const upsertDiaryEntry = async (userId, date, { mood, personal_notes, study_hours, goals_met }) => {
+  try {
+    const { error } = await supabase.from('calendar_diary').upsert({
+      user_id: userId,
+      date,
+      mood: mood ?? null,
+      personal_notes: personal_notes ?? '',
+      study_hours: Number(study_hours) || 0,
+      goals_met: goals_met ?? false,
+    }, { onConflict: 'user_id,date' });
+    if (error) throw error;
+    return { error: null };
+  } catch (err) {
+    console.error('Error upserting diary entry:', err);
+    return { error: err };
+  }
+};
+
 // Upload MCI/NMC certificate to Supabase Storage and update the profile row.
 // Accepts: userId (string), file (File object).
 // Returns: { url } on success, throws on failure.

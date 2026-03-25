@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 import ClinicalLogger from './ClinicalLogger';
 import PersonaBuilder from './PersonaBuilder';
 import WeeklyPlanner from './WeeklyPlanner';
@@ -13,15 +14,9 @@ const TABS = [
 ];
 
 export default function StudyPlanPage({ userId, addToast }) {
+  const { user } = useAuth();
   const [tab, setTab] = useState('planner');
-  const [uid, setUid] = useState(userId || null);
-
-  useEffect(() => {
-    if (uid) return;
-    supabase.auth.getUser().then(({ data }) => {
-      if (data?.user?.id) setUid(data.user.id);
-    });
-  }, [uid]);
+  const uid = userId || user?.id || null;
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '0 0 40px' }}>

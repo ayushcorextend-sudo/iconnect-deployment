@@ -3,6 +3,7 @@ import { supabase, fetchMyArtifacts, updateArtifact, deleteArtifact } from '../l
 import ConfirmModal from './ui/ConfirmModal';
 import { SPECIALITIES } from '../data/constants';
 import QuizBuilder from './quiz/QuizBuilder';
+import SignedImg from './ui/SignedImg';
 import VideoManager from './content/VideoManager';
 import FlashcardMaker from './content/FlashcardMaker';
 import DoubtBoard from './content/DoubtBoard';
@@ -196,7 +197,9 @@ export default function ContentAdminDashboard({ userId, userName, role, setPage,
                     return (
                       <div key={a.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 14 }}>
                         <div style={{ width: 48, height: 62, borderRadius: 6, overflow: 'hidden', background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 22, border: '1px solid #E5E7EB' }}>
-                          {a.thumbnail_url ? <img src={a.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (a.emoji || '📄')}
+                          {a.thumbnail_url
+                            ? <SignedImg src={a.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} fallback={<span>{a.emoji || '📄'}</span>} />
+                            : (a.emoji || '📄')}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, fontSize: 14 }}>{a.title}</div>

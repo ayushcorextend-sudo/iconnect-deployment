@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { authSignIn, authSignInWithGoogle, authSendOtp, authVerifyOtp, supabase } from '../lib/supabase';
+import { Z } from '../styles/zIndex';
+import { useTenantStore } from '../stores/useTenantStore';
 
 function Spinner() {
   return (
@@ -32,6 +34,8 @@ const MODE = {
 };
 
 export default function Login({ onLogin, onRegister, pendingMessage, onDismissPendingMessage, addToast }) {
+  const tenant = useTenantStore(s => s.tenant);
+
   // Auth mode: 'doctor' | 'superadmin' | 'contentadmin'
   const [authMode, setAuthMode] = useState('doctor');
 
@@ -59,6 +63,34 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError] = useState('');
   const otpRefs = [useRef(), useRef(), useRef(), useRef(), useRef(), useRef()];
+
+  // OTP rate limiting — track failed attempts in localStorage (Flaw #13)
+  const OTP_RL_KEY = 'iconnect_otp_attempts';
+  function getOtpAttempts() {
+    try { return JSON.parse(localStorage.getItem(OTP_RL_KEY) || '{"count":0,"windowStart":0,"lockUntil":0}'); }
+    catch { return { count: 0, windowStart: 0, lockUntil: 0 }; }
+  }
+  function checkOtpLock() {
+    const a = getOtpAttempts();
+    if (a.lockUntil && Date.now() < a.lockUntil) {
+      const mins = Math.ceil((a.lockUntil - Date.now()) / 60000);
+      return `Too many failed attempts. Try again in ${mins} minute${mins > 1 ? 's' : ''}.`;
+    }
+    return null;
+  }
+  function recordOtpFailure() {
+    const now = Date.now();
+    const a = getOtpAttempts();
+    const inWindow = now - a.windowStart < 10 * 60 * 1000; // 10-min window
+    const count = inWindow ? a.count + 1 : 1;
+    const windowStart = inWindow ? a.windowStart : now;
+    const lockUntil = count >= 10 ? now + 30 * 60 * 1000
+      : count >= 5 ? now + 5 * 60 * 1000 : 0;
+    localStorage.setItem(OTP_RL_KEY, JSON.stringify({ count, windowStart, lockUntil }));
+  }
+  function clearOtpAttempts() {
+    localStorage.removeItem(OTP_RL_KEY);
+  }
 
   useEffect(() => {
     if (otpTimer > 0) {
@@ -149,6 +181,8 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
 
   const handleSendOtp = async () => {
     if (!otpEmail.trim()) { setOtpError('Please enter your email address'); return; }
+    const lockMsg = checkOtpLock();
+    if (lockMsg) { setOtpError(lockMsg); return; }
     setOtpLoading(true);
     setOtpError('');
     try {
@@ -157,6 +191,7 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
       setOtpTimer(60);
       setOtpDigits(['', '', '', '', '', '']);
     } catch (err) {
+      recordOtpFailure();
       setOtpError(err.message || 'Failed to send OTP. Please try again.');
     } finally {
       setOtpLoading(false);
@@ -175,9 +210,12 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
       setOtpError('');
       try {
         const result = await authVerifyOtp(otpEmail.trim(), code);
+        clearOtpAttempts();
         onLogin(result);
       } catch (err) {
-        setOtpError(err.message || 'Invalid or expired code. Please try again.');
+        recordOtpFailure();
+        const lockMsg = checkOtpLock();
+        setOtpError(lockMsg || err.message || 'Invalid or expired code. Please try again.');
         setOtpDigits(['', '', '', '', '', '']);
         otpRefs[0].current?.focus();
       } finally {
@@ -209,7 +247,7 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
       {/* Pending/rejected message banner */}
       {pendingMessage && (
         <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: Z.loginBanner,
           background: '#FEF3C7', color: '#92400E',
           textAlign: 'center', padding: '12px 20px',
           fontSize: 13, fontWeight: 500,
@@ -227,9 +265,17 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
 
       <div className="login-bg" style={{ paddingTop: pendingMessage ? 48 : 0 }}>
         <div className="login-logo-wrap">
-          <div className="logo-icon">🏥</div>
-          <div className="logo-text">iConnect</div>
-          <div className="logo-sub">Icon Lifescience Medical Education Platform</div>
+          {tenant?.logo_url ? (
+            <img src={tenant.logo_url} alt={tenant.name} style={{ width: 56, height: 56, borderRadius: 14, objectFit: 'cover', marginBottom: 8 }} />
+          ) : (
+            <div className="logo-icon">🏥</div>
+          )}
+          <div className="logo-text">{tenant?.name || 'iConnect'}</div>
+          <div className="logo-sub">
+            {tenant?.name && tenant.name !== 'iConnect'
+              ? `Powered by iConnect · Medical Education Platform`
+              : 'Icon Lifescience Medical Education Platform'}
+          </div>
         </div>
 
         <div className="login-card">

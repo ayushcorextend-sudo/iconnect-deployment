@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { ROLES } from '../data/constants'
 import { supabase } from '../lib/supabase'
 import usePWAInstall from '../hooks/usePWAInstall'
+import { useTenantStore } from '../stores/useTenantStore'
+import { useAuth } from '../context/AuthContext'
 import {
   Search, Moon, Sun, Bell, Menu, Download, ShieldCheck,
   X, ChevronRight, Lock
@@ -12,6 +14,8 @@ export default function TopBar({
   notifPanelOpen, setNotifPanel, notifications,
   darkMode, setDarkMode, setSidebarOpen
 }) {
+  const { user } = useAuth()
+  const tenant = useTenantStore(s => s.tenant)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [liveUnread, setLiveUnread] = useState(null)
@@ -44,9 +48,7 @@ export default function TopBar({
     let channel
     async function load() {
       try {
-        const { data: authData } = await supabase.auth.getUser()
-        const user = authData?.user
-        if (!user) return
+        if (!user?.id) return
         const { count } = await supabase
           .from('notifications')
           .select('id', { count: 'exact', head: true })
@@ -124,6 +126,9 @@ export default function TopBar({
           <Menu size={20} />
         </button>
         <div className="topbar-breadcrumb">
+          {tenant?.logo_url && (
+            <img src={tenant.logo_url} alt="" style={{ width: 22, height: 22, borderRadius: 5, objectFit: 'cover', marginRight: 6, verticalAlign: 'middle' }} />
+          )}
           <span className="topbar-title-v2">{title}</span>
         </div>
       </div>
@@ -188,7 +193,7 @@ export default function TopBar({
         {/* Dark mode toggle */}
         <button
           className="topbar-icon-btn"
-          onClick={() => setDarkMode && setDarkMode(d => !d)}
+          onClick={() => setDarkMode && setDarkMode(!darkMode)}
           title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         >
           {darkMode ? <Sun size={18} /> : <Moon size={18} />}

@@ -68,6 +68,12 @@ export default function StudyCalendar({ userId, addToast }) {
 
       if (qzErr) throw qzErr;
 
+      // Fetch admin compulsory events
+      const { data: adminEvents } = await supabase
+        .from('admin_calendar_events')
+        .select('*')
+        .order('date');
+
       const evList = [
         ...(arenas || []).map(a => ({
           id: a.id,
@@ -88,6 +94,16 @@ export default function StudyCalendar({ userId, addToast }) {
           kind: 'quiz',
           color: '#2563EB',
           bg: '#EFF6FF',
+        })),
+        ...(adminEvents || []).map(e => ({
+          id: `admin-${e.id}`,
+          date: e.date,
+          label: e.title,
+          subject: e.description || '',
+          kind: 'compulsory',
+          color: e.color || '#8B5CF6',
+          bg: (e.color || '#8B5CF6') + '18',
+          isCompulsory: true,
         })),
       ].filter(e => e.date !== null);
 
@@ -166,6 +182,7 @@ export default function StudyCalendar({ userId, addToast }) {
                 const isSel   = key === selectedKey;
                 const hasArena = dayEvs.some(e => e.kind === 'arena');
                 const hasQuiz  = dayEvs.some(e => e.kind === 'quiz');
+                const hasAdmin = dayEvs.some(e => e.kind === 'compulsory');
 
                 return (
                   <div
@@ -192,6 +209,7 @@ export default function StudyCalendar({ userId, addToast }) {
                     <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
                       {hasArena && <div style={{ width: 6, height: 6, borderRadius: '50%', background: isSel ? '#fff' : '#EF4444' }} />}
                       {hasQuiz  && <div style={{ width: 6, height: 6, borderRadius: '50%', background: isSel ? '#BFD7FF' : '#2563EB' }} />}
+                      {hasAdmin && <div style={{ width: 6, height: 6, borderRadius: '50%', background: isSel ? '#FDE68A' : '#8B5CF6' }} />}
                     </div>
                   </div>
                 );
@@ -200,12 +218,15 @@ export default function StudyCalendar({ userId, addToast }) {
           )}
 
           {/* Legend */}
-          <div style={{ display: 'flex', gap: 16, marginTop: 16, paddingTop: 14, borderTop: '1px solid #F3F4F6', fontSize: 12, color: '#6B7280' }}>
+          <div style={{ display: 'flex', gap: 16, marginTop: 16, paddingTop: 14, borderTop: '1px solid #F3F4F6', fontSize: 12, color: '#6B7280', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#EF4444' }} /> Live Arena
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#2563EB' }} /> Quiz Approved
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#8B5CF6' }} /> Admin Event
             </div>
           </div>
         </div>
@@ -222,8 +243,11 @@ export default function StudyCalendar({ userId, addToast }) {
               ) : selectedEvs.map((ev, i) => (
                 <div key={i} style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 8, background: ev.bg, borderLeft: `3px solid ${ev.color}` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                    <span style={{ fontSize: 14 }}>{ev.kind === 'arena' ? '🔴' : '📝'}</span>
+                    <span style={{ fontSize: 14 }}>{ev.kind === 'arena' ? '🔴' : ev.kind === 'compulsory' ? '📌' : '📝'}</span>
                     <div style={{ fontWeight: 700, fontSize: 13 }}>{ev.label}</div>
+                    {ev.isCompulsory && (
+                      <span style={{ fontSize: 9, fontWeight: 700, color: '#8B5CF6', background: '#F5F3FF', borderRadius: 99, padding: '1px 6px', border: '1px solid #DDD6FE' }}>ADMIN</span>
+                    )}
                   </div>
                   <div style={{ fontSize: 12, color: '#6B7280' }}>{ev.subject}</div>
                   {ev.kind === 'arena' && ev.time && (
@@ -234,6 +258,28 @@ export default function StudyCalendar({ userId, addToast }) {
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Admin compulsory events panel */}
+          {events.filter(e => e.kind === 'compulsory' && e.date >= todayKey).length > 0 && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>📌 Compulsory Events</div>
+              {events
+                .filter(e => e.kind === 'compulsory' && e.date >= todayKey)
+                .slice(0, 5)
+                .map((ev, i) => (
+                  <div key={i} style={{ marginBottom: 8, padding: '10px 12px', borderRadius: 8, background: ev.bg || '#F5F3FF', borderLeft: `3px solid ${ev.color || '#8B5CF6'}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{ev.label}</div>
+                      <span style={{ fontSize: 9, fontWeight: 700, color: '#8B5CF6', background: '#F5F3FF', borderRadius: 99, padding: '1px 6px', border: '1px solid #DDD6FE' }}>ADMIN</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#6B7280' }}>
+                      {new Date(`${ev.date}T12:00`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    </div>
+                    {ev.subject && <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{ev.subject}</div>}
+                  </div>
+                ))}
             </div>
           )}
 

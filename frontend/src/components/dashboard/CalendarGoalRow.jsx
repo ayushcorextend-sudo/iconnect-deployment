@@ -3,16 +3,16 @@ import MonthlyCalendar from './MonthlyCalendar';
 import GoalRing from './GoalRing';
 import DayDetailPanel from './DayDetailPanel';
 
-export default function CalendarGoalRow({ dashLoading, activityByDate, weeklyMins, currentUserId }) {
+export default function CalendarGoalRow({ dashLoading, activityByDate, weeklyMins, currentUserId, refreshDashboard }) {
   const [selectedDate, setSelectedDate] = useState(null);
 
   if (dashLoading) return null;
 
   return (
     <>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 20 }}>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
       <div className="card" style={{ margin: 0 }}>
-        <div className="ch" style={{ marginBottom: 12 }}>
+        <div className="ch mb-3">
           <div className="ct">📅 Activity Calendar</div>
         </div>
         <MonthlyCalendar
@@ -21,8 +21,8 @@ export default function CalendarGoalRow({ dashLoading, activityByDate, weeklyMin
           onDateClick={date => setSelectedDate(date)}
         />
       </div>
-      <div className="card" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="ch" style={{ marginBottom: 12, width: '100%' }}>
+      <div className="card flex flex-col items-center justify-center" style={{ margin: 0 }}>
+        <div className="ch mb-3 w-full">
           <div className="ct">🎯 Weekly Learning Target</div>
         </div>
         <GoalRing mins={weeklyMins} userId={currentUserId} />
@@ -33,6 +33,7 @@ export default function CalendarGoalRow({ dashLoading, activityByDate, weeklyMin
         date={selectedDate}
         userId={currentUserId}
         onClose={() => setSelectedDate(null)}
+        refreshDashboard={refreshDashboard}
       />
     )}
     </>

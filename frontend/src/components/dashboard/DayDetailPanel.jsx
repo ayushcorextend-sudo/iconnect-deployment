@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, getDiaryEntry, upsertDiaryEntry } from '../../lib/supabase';
+import { Z } from '../../styles/zIndex';
 
 const relTime = (d) => {
   if (!d) return '';
@@ -12,11 +13,19 @@ const ACT_ICONS = {
   clinical_case_logged: '🏥', study_session: '📚',
 };
 
-export default function DayDetailPanel({ date, userId, onClose }) {
+export default function DayDetailPanel({ date, userId, onClose, refreshDashboard }) {
   const [loading, setLoading]       = useState(true);
+  const [saving, setSaving]         = useState(false);
   const [actLogs, setActLogs]       = useState([]);
   const [diary, setDiary]           = useState(null);
   const [contentState, setContent]  = useState([]);
+
+  // Edit mode
+  const [error, setError]           = useState(null);
+  const [editMode, setEditMode]     = useState(false);
+  const [editNotes, setEditNotes]   = useState('');
+  const [editHours, setEditHours]   = useState('');
+  const [editGoals, setEditGoals]   = useState(false);
 
   useEffect(() => {
     if (!date || !userId) return;
@@ -28,7 +37,7 @@ export default function DayDetailPanel({ date, userId, onClose }) {
     const dayStart = `${date}T00:00:00`;
     const dayEnd   = `${date}T23:59:59`;
     try {
-      const [actRes, diaryRes, contentRes] = await Promise.all([
+      const [actRes, { data: d }, contentRes] = await Promise.all([
         supabase.from('activity_logs')
           .select('activity_type, duration_minutes, created_at')
           .eq('user_id', userId)
@@ -36,11 +45,7 @@ export default function DayDetailPanel({ date, userId, onClose }) {
           .lte('created_at', dayEnd)
           .order('created_at', { ascending: true })
           .limit(50),
-        supabase.from('calendar_diary')
-          .select('personal_notes, study_hours, goals_met')
-          .eq('user_id', userId)
-          .eq('date', date)
-          .maybeSingle(),
+        getDiaryEntry(userId, date),
         supabase.from('user_content_state')
           .select('content_type, progress_pct, updated_at')
           .eq('user_id', userId)
@@ -50,10 +55,44 @@ export default function DayDetailPanel({ date, userId, onClose }) {
           .limit(10),
       ]);
       setActLogs(actRes.data || []);
-      setDiary(diaryRes.data || null);
+      setDiary(d);
       setContent(contentRes.data || []);
-    } catch (_) {}
+      // Pre-populate edit fields
+      setEditNotes(d?.personal_notes || '');
+      setEditHours(d?.study_hours?.toString() || '');
+      setEditGoals(d?.goals_met || false);
+    } catch (err) {
+      console.warn('[DayDetailPanel] load failed:', err.message);
+      setError('Could not load day details. Please try again.');
+    }
     setLoading(false);
+  }
+
+  async function saveDiary() {
+    if (!userId || !date) return;
+    setSaving(true);
+    try {
+      const { error: saveErr } = await upsertDiaryEntry(userId, date, {
+        mood: diary?.mood ?? null,
+        personal_notes: editNotes,
+        study_hours: parseFloat(editHours) || 0,
+        goals_met: editGoals,
+      });
+      if (saveErr) throw saveErr;
+      setEditMode(false);
+      await load();
+      refreshDashboard?.();
+    } catch (err) {
+      console.warn('[DayDetailPanel] save failed:', err.message);
+    }
+    setSaving(false);
+  }
+
+  function enterEdit() {
+    setEditNotes(diary?.personal_notes || '');
+    setEditHours(diary?.study_hours?.toString() || '');
+    setEditGoals(diary?.goals_met || false);
+    setEditMode(true);
   }
 
   const fmtDate = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', {
@@ -62,77 +101,140 @@ export default function DayDetailPanel({ date, userId, onClose }) {
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ zIndex: Z.diary, background: 'rgba(0,0,0,0.4)' }}
       onClick={onClose}
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{
-          background: '#fff', borderRadius: 20, width: '100%', maxWidth: 480,
-          maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.25)', margin: '0 16px',
-        }}
+        className="bg-white rounded-2xl w-full max-h-[85vh] overflow-hidden flex flex-col mx-4"
+        style={{ maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}
       >
         {/* Header */}
-        <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div>
-            <div style={{ fontWeight: 800, fontSize: 15, color: '#111827' }}>📅 {fmtDate(date)}</div>
-            <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>
+            <div className="font-extrabold text-sm text-gray-900">📅 {fmtDate(date)}</div>
+            <div className="text-xs text-gray-400 mt-0.5">
               {actLogs.length} activit{actLogs.length !== 1 ? 'ies' : 'y'}
               {diary?.study_hours ? ` · ${diary.study_hours}h studied` : ''}
             </div>
           </div>
           <button
             onClick={onClose}
-            style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', fontSize: 15, color: '#6B7280' }}
+            className="bg-gray-100 border-0 rounded-lg w-8 h-8 cursor-pointer text-sm text-gray-500 hover:bg-gray-200 transition-colors"
           >✕</button>
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+        <div className="flex-1 overflow-y-auto px-5 py-4">
           {loading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid #E5E7EB', borderTopColor: '#4F46E5', animation: 'spin 0.8s linear infinite' }} />
+            <div className="flex justify-center py-10">
+              <div className="w-7 h-7 rounded-full border-[3px] border-gray-200 border-t-indigo-600 animate-spin" />
+            </div>
+          ) : error ? (
+            <div className="text-center py-8 px-4">
+              <div className="text-3xl mb-2.5">⚠️</div>
+              <div className="text-sm text-red-600 mb-3.5">{error}</div>
+              <button
+                onClick={() => { setError(null); load(); }}
+                className="bg-indigo-600 text-white border-0 rounded-lg px-4 py-2 text-xs font-semibold cursor-pointer hover:bg-indigo-700 transition-colors"
+              >Retry</button>
             </div>
           ) : (
             <>
-              {/* Diary note */}
-              {diary?.personal_notes && (
-                <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 14px', marginBottom: 14 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', marginBottom: 4 }}>📔 Diary Note</div>
-                  <div style={{ fontSize: 13, color: '#78350F', lineHeight: 1.6 }}>{diary.personal_notes}</div>
-                  {diary.goals_met && (
-                    <div style={{ marginTop: 6, fontSize: 11, color: '#065F46', fontWeight: 600 }}>✅ Goals met today</div>
+              {/* Diary section */}
+              {editMode ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 mb-3.5">
+                  <div className="text-xs font-bold text-amber-800 mb-2.5">📔 Edit Diary Entry</div>
+                  <textarea
+                    value={editNotes}
+                    onChange={e => setEditNotes(e.target.value)}
+                    rows={4}
+                    placeholder="How did your study session go today?"
+                    autoFocus
+                    className="w-full rounded-lg border border-amber-200 px-2.5 py-2 text-sm resize-y outline-none box-border bg-yellow-50 font-[inherit] leading-relaxed"
+                  />
+                  <div className="flex gap-3 mt-2.5 items-center flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs text-amber-900 font-semibold">⏱ Hours studied:</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="24"
+                        step="0.5"
+                        value={editHours}
+                        onChange={e => setEditHours(e.target.value)}
+                        className="w-16 rounded-md border border-amber-200 px-2 py-1 text-sm outline-none bg-yellow-50"
+                      />
+                    </div>
+                    <label className="flex items-center gap-1.5 text-xs text-amber-900 font-semibold cursor-pointer">
+                      <input type="checkbox" checked={editGoals} onChange={e => setEditGoals(e.target.checked)} />
+                      Goals met today
+                    </label>
+                  </div>
+                  <div className="flex gap-2 mt-3 justify-end">
+                    <button
+                      onClick={() => setEditMode(false)}
+                      className="px-3.5 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold cursor-pointer text-gray-700 hover:bg-gray-50 transition-colors"
+                    >Cancel</button>
+                    <button
+                      onClick={saveDiary}
+                      disabled={saving}
+                      className={`px-4 py-1.5 rounded-lg border-0 text-xs font-bold cursor-pointer transition-colors ${saving ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                    >{saving ? 'Saving…' : '✓ Save'}</button>
+                  </div>
+                </div>
+              ) : diary?.personal_notes ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-3 mb-3.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-xs font-bold text-amber-800">📔 Diary Note</div>
+                    <button
+                      onClick={enterEdit}
+                      className="bg-transparent border-0 cursor-pointer text-sm text-amber-700 px-1 hover:text-amber-900 transition-colors"
+                      title="Edit diary entry"
+                    >✏️</button>
+                  </div>
+                  <div className="text-sm text-amber-900 leading-relaxed">{diary.personal_notes}</div>
+                  {diary.study_hours > 0 && (
+                    <div className="mt-1.5 text-xs text-amber-800">⏱ {diary.study_hours}h studied</div>
                   )}
+                  {diary.goals_met && (
+                    <div className="mt-1 text-xs text-emerald-800 font-semibold">✅ Goals met today</div>
+                  )}
+                </div>
+              ) : (
+                <div className="mb-3.5">
+                  <button
+                    onClick={enterEdit}
+                    className="w-full py-3 rounded-xl border-2 border-dashed border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold cursor-pointer flex items-center justify-center gap-1.5 hover:bg-amber-100 transition-colors"
+                  >
+                    📔 Add diary entry for this day
+                  </button>
                 </div>
               )}
 
               {/* Activity list */}
               {actLogs.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '24px 0', color: '#9CA3AF', fontSize: 13 }}>
+                <div className="text-center py-6 text-gray-400 text-sm">
                   No activities logged on this day.
                 </div>
               ) : (
                 <>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: '0.5px', marginBottom: 8 }}>ACTIVITY LOG</div>
+                  <div className="text-xs font-bold text-gray-400 tracking-wide mb-2">ACTIVITY LOG</div>
                   {actLogs.map((log, i) => (
-                    <div key={i} style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '9px 12px', borderRadius: 10, marginBottom: 6,
-                      background: '#F9FAFB', border: '1px solid #F3F4F6',
-                    }}>
-                      <div style={{ fontSize: 18, width: 28, textAlign: 'center', flexShrink: 0 }}>
+                    <div key={i} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl mb-1.5 bg-gray-50 border border-gray-100">
+                      <div className="text-lg w-7 text-center shrink-0">
                         {ACT_ICONS[log.activity_type] || '📌'}
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', textTransform: 'capitalize' }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-gray-900 capitalize">
                           {log.activity_type.replace(/_/g, ' ')}
                         </div>
                         {log.duration_minutes > 0 && (
-                          <div style={{ fontSize: 11, color: '#6B7280' }}>{log.duration_minutes} min</div>
+                          <div className="text-xs text-gray-500">{log.duration_minutes} min</div>
                         )}
                       </div>
-                      <div style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>
+                      <div className="text-xs text-gray-400 shrink-0">
                         {relTime(log.created_at)}
                       </div>
                     </div>
@@ -142,21 +244,20 @@ export default function DayDetailPanel({ date, userId, onClose }) {
 
               {/* Content progress */}
               {contentState.length > 0 && (
-                <div style={{ marginTop: 14 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: '0.5px', marginBottom: 8 }}>CONTENT PROGRESS</div>
+                <div className="mt-3.5">
+                  <div className="text-xs font-bold text-gray-400 tracking-wide mb-2">CONTENT PROGRESS</div>
                   {contentState.map((c, i) => (
-                    <div key={i} style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '8px 12px', borderRadius: 10, marginBottom: 6,
-                      background: '#F0FDF4', border: '1px solid #D1FAE5',
-                    }}>
-                      <div style={{ fontSize: 16 }}>{c.content_type === 'video' ? '🎬' : '📄'}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ height: 4, background: '#E5E7EB', borderRadius: 4, overflow: 'hidden' }}>
-                          <div style={{ height: 4, borderRadius: 4, background: '#10B981', width: `${c.progress_pct || 0}%`, transition: 'width .3s' }} />
+                    <div key={i} className="flex items-center gap-2.5 px-3 py-2 rounded-xl mb-1.5 bg-green-50 border border-green-100">
+                      <div className="text-base">{c.content_type === 'video' ? '🎬' : '📄'}</div>
+                      <div className="flex-1">
+                        <div className="h-1 bg-gray-200 rounded overflow-hidden">
+                          <div
+                            className="h-1 rounded bg-emerald-500 transition-all duration-300"
+                            style={{ width: `${c.progress_pct || 0}%` }}
+                          />
                         </div>
                       </div>
-                      <div style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>{c.progress_pct || 0}%</div>
+                      <div className="text-xs text-emerald-600 font-semibold">{c.progress_pct || 0}%</div>
                     </div>
                   ))}
                 </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Z } from '../styles/zIndex';
 
 function Spinner() {
   return (
@@ -47,7 +48,7 @@ export default function AdminLoginModal({ email, label, onClose, onLogin }) {
       <div
         onClick={onClose}
         style={{
-          position: 'fixed', inset: 0, zIndex: 1000,
+          position: 'fixed', inset: 0, zIndex: Z.chatOverlay,
           background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: 16,
