@@ -5,6 +5,7 @@ import ActivityHeatmapClickable from './Activity/ActivityHeatmapClickable';
 import JournalModal from './JournalModal';
 import { useAuth } from '../context/AuthContext';
 import { useAppStore } from '../stores/useAppStore';
+import { wowVariance, peakFocusTime, weeklyBuckets, trendColor, trendArrow } from '../lib/analytics';
 
 // ── Activity colour classification ────────────────────────────────────────
 const PRODUCTIVE = new Set(['quiz_passed','article_read','clinical_case_logged','study_plan_completed','spaced_rep_reviewed','exam_set_completed','quiz_complete']);
@@ -71,6 +72,9 @@ export default function ActivityPage({ addToast }) {
   // Diary state
   const [selectedDate, setSelectedDate] = useState(null);
   const [diaryDates, setDiaryDates] = useState(new Set());
+  // Analytics insights
+  const [wowInsight, setWowInsight] = useState(null);
+  const [peakTime, setPeakTime] = useState(null);
 
   // ── Cross-page sync: merge any diary saves from Dashboard into diaryDates ─
   // diaryCache is updated by JournalModal whenever a save completes, even if
@@ -141,6 +145,14 @@ export default function ActivityPage({ addToast }) {
         const roundedWeekly = weekly.map(h => Math.round(h * 10) / 10);
         setWeeklyHours(roundedWeekly);
         setActivityFeed(feedRes.data || []);
+
+        // ── Analytics insights ───────────────────────────────────
+        const logs90 = logsRes.data || [];
+        const buckets4 = weeklyBuckets(logs90, 4);
+        const thisW = buckets4[3]?.count ?? 0;
+        const lastW = buckets4[2]?.count ?? 0;
+        setWowInsight(wowVariance(thisW, lastW));
+        setPeakTime(peakFocusTime(logs90));
 
         let qTarget = 5, rTarget = 7;
         (targetsRes.data || []).forEach(t => {
@@ -235,7 +247,18 @@ export default function ActivityPage({ addToast }) {
         </div>
 
         <div className="card">
-          <div className="ct" style={{ marginBottom: 14 }}>📊 Weekly Progress</div>
+          <div className="ch" style={{ marginBottom: 14 }}>
+            <div className="ct">📊 Weekly Progress</div>
+            {wowInsight && wowInsight.direction !== 'flat' && (
+              <span style={{
+                fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
+                background: wowInsight.direction === 'up' ? '#DCFCE7' : '#FEE2E2',
+                color: trendColor(wowInsight.direction),
+              }}>
+                {trendArrow(wowInsight.direction)} {wowInsight.pct}% WoW
+              </span>
+            )}
+          </div>
           {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((d, i) => {
             const hrs = weeklyHours[i];
             const maxHrs = Math.max(...weeklyHours, 1);
@@ -252,10 +275,16 @@ export default function ActivityPage({ addToast }) {
             );
           })}
           <div className="divider" />
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 12, color: '#6B7280' }}>Total this week</span>
             <span style={{ fontWeight: 700, color: '#2563EB' }}>{weeklyHours.reduce((a, b) => a + b, 0).toFixed(1)}h</span>
           </div>
+          {peakTime && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+              <span style={{ fontSize: 12, color: '#6B7280' }}>Peak focus time</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#2563EB' }}>⚡ {peakTime.label} ({peakTime.pct}%)</span>
+            </div>
+          )}
           <div className="divider" />
           <div className="ct" style={{ marginBottom: 10, marginTop: 4 }}>🎯 Learning Targets</div>
           {[

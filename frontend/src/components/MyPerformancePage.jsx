@@ -1,6 +1,16 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import GoalRingShared from './dashboard/GoalRing';
+import {
+  wowVariance,
+  momVariance,
+  peakFocusTime,
+  weeklyBuckets,
+  movingAverage,
+  trendColor,
+  trendArrow,
+  trendBadge,
+} from '../lib/analytics';
 
 // ── Shared sub-components ──────────────────────────────────────
 function ActivityHeatmap({ data }) {
@@ -90,6 +100,12 @@ export default function MyPerformancePage({ userId }) {
   const [heatmapData, setHeatmapData] = useState(Array(35).fill(0));
   const [weeklyMins, setWeeklyMins] = useState(0);
   const [trendData, setTrendData] = useState([]);
+  // Analytics insights
+  const [wowCountInsight,  setWowCountInsight]  = useState(null);
+  const [wowMinsInsight,   setWowMinsInsight]   = useState(null);
+  const [momCountInsight,  setMomCountInsight]  = useState(null);
+  const [peakTime,         setPeakTime]         = useState(null);
+  const [maData,           setMaData]           = useState([]);
 
   useEffect(() => {
     async function load() {
@@ -136,52 +152,65 @@ export default function MyPerformancePage({ userId }) {
           setBooksRead(logs.filter(l => l.activity_type === 'article_read').length);
           setRecentActivity(logs.slice(0, 10));
 
-          // Build 7-day chart — Mon to today, count activities per calendar day
           const now = new Date();
+
+          // ── 7-day activity chart ─────────────────────────────────
           const days = Array.from({ length: 7 }, (_, i) => {
             const d = new Date(now);
             d.setDate(now.getDate() - (6 - i));
-            return {
-              label: d.toLocaleDateString('en-IN', { weekday: 'short' }),
-              date: d.toDateString(),
-              count: 0,
-            };
+            return { label: d.toLocaleDateString('en-IN', { weekday: 'short' }), date: d.toDateString(), count: 0 };
           });
           logs.forEach(l => {
-            const dDate = new Date(l.created_at).toDateString();
-            const slot = days.find(d => d.date === dDate);
+            const slot = days.find(d => d.date === new Date(l.created_at).toDateString());
             if (slot) slot.count++;
           });
           setWeeklyData(days);
 
-          // 35-day heatmap
+          // ── 35-day heatmap ───────────────────────────────────────
           const heatmap = Array(35).fill(0);
           logs.forEach(l => {
-            const diffDays = Math.floor((now - new Date(l.created_at)) / 86400000);
+            const diffDays = Math.floor((now - new Date(l.created_at)) / 86_400_000);
             if (diffDays < 35) heatmap[34 - diffDays]++;
           });
           setHeatmapData(heatmap);
 
-          // 4-week trend (group by week, newest last)
-          const weeks = Array.from({ length: 4 }, (_, i) => {
-            const weekEnd = new Date(now - i * 7 * 86400000);
-            const weekStart = new Date(now - (i + 1) * 7 * 86400000);
-            const label = i === 0 ? 'This week' : i === 1 ? 'Last week' : `-${i + 1}w`;
-            return { label, start: weekStart, end: weekEnd, count: 0, mins: 0 };
-          }).reverse();
-          logs.forEach(l => {
-            const d = new Date(l.created_at);
-            const slot = weeks.find(w => d >= w.start && d < w.end);
-            if (slot) { slot.count++; slot.mins += l.duration_minutes || 30; }
-          });
-          setTrendData(weeks);
+          // ── 4-week trend (via analytics.weeklyBuckets) ───────────
+          const buckets4 = weeklyBuckets(logs, 4);
+          setTrendData(buckets4.map(b => ({
+            label: b.label, count: b.count, mins: b.mins,
+            weekStart: b.weekStart, weekEnd: b.weekEnd,
+          })));
 
-          // Weekly learning minutes (last 7 days)
-          const weekStart = new Date(now - 7 * 86400000);
+          // ── Weekly learning minutes (last 7 days) ────────────────
+          const wkStart = new Date(now - 7 * 86_400_000);
           const wMins = logs
-            .filter(l => new Date(l.created_at) >= weekStart)
+            .filter(l => new Date(l.created_at) >= wkStart)
             .reduce((acc, l) => acc + (l.duration_minutes || 30), 0);
           setWeeklyMins(wMins);
+
+          // ── Analytics insights via analytics.js ──────────────────
+          // Week-over-week (activity count)
+          const thisW  = buckets4[3]?.count ?? 0;
+          const lastW  = buckets4[2]?.count ?? 0;
+          setWowCountInsight(wowVariance(thisW, lastW));
+
+          // Week-over-week (study minutes)
+          const thisWm = buckets4[3]?.mins ?? 0;
+          const lastWm = buckets4[2]?.mins ?? 0;
+          setWowMinsInsight(wowVariance(thisWm, lastWm));
+
+          // Month-over-month (activity count using 4-week proxy)
+          const b12 = weeklyBuckets(logs, 8);          // last 8 weeks
+          const thisMonth = b12.slice(4).reduce((a, b) => a + b.count, 0);
+          const lastMonth = b12.slice(0, 4).reduce((a, b) => a + b.count, 0);
+          setMomCountInsight(momVariance(thisMonth, lastMonth));
+
+          // Peak focus hour
+          setPeakTime(peakFocusTime(logs));
+
+          // 3-point moving average over daily activity counts (for trend smoothing)
+          const dailyCounts = heatmap.slice(-14); // last 14 days
+          setMaData(movingAverage(dailyCounts, 3));
         }
 
         // ── Exam attempts ─────────────────────────────────────────
@@ -423,7 +452,6 @@ export default function MyPerformancePage({ userId }) {
               const barPct = w.count === 0 ? 4 : Math.max(10, Math.round((w.count / maxCount) * 100));
               const isLatest = i === trendData.length - 1;
               const prevCount = i > 0 ? trendData[i - 1].count : null;
-              const delta = prevCount !== null ? w.count - prevCount : null;
               return (
                 <div key={i} style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: isLatest ? '#2563EB' : '#6B7280', marginBottom: 8 }}>{w.label}</div>
@@ -437,14 +465,60 @@ export default function MyPerformancePage({ userId }) {
                     }} />
                   </div>
                   <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 4 }}>{Math.round(w.mins / 60 * 10) / 10}h</div>
-                  {delta !== null && (
-                    <div style={{ fontSize: 10, fontWeight: 700, color: delta > 0 ? '#059669' : delta < 0 ? '#DC2626' : '#9CA3AF', marginTop: 2 }}>
-                      {delta > 0 ? `+${delta}` : delta === 0 ? '=' : delta} vs prev
+                  {prevCount !== null && (
+                    <div style={{ fontSize: 10, fontWeight: 700, color: trendColor(wowVariance(w.count, prevCount).direction), marginTop: 2 }}>
+                      {trendBadge(wowVariance(w.count, prevCount))}
                     </div>
                   )}
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* ── ANALYTICS INSIGHTS ───────────────────────────────────── */}
+      {(wowCountInsight || peakTime) && (
+        <div className="card" style={{ marginBottom: 24 }}>
+          <div className="ch" style={{ marginBottom: 16 }}>
+            <div className="ct">🔍 Analytics Insights</div>
+            <span style={{ fontSize: 12, color: '#9CA3AF' }}>Based on your activity patterns</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+            {wowCountInsight && (
+              <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activity WoW</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: trendColor(wowCountInsight.direction), lineHeight: 1 }}>
+                  {trendArrow(wowCountInsight.direction)} {wowCountInsight.direction !== 'flat' ? `${wowCountInsight.pct}%` : '—'}
+                </div>
+                <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>vs last week</div>
+              </div>
+            )}
+            {wowMinsInsight && (
+              <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Study Time WoW</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: trendColor(wowMinsInsight.direction), lineHeight: 1 }}>
+                  {trendArrow(wowMinsInsight.direction)} {wowMinsInsight.direction !== 'flat' ? `${wowMinsInsight.pct}%` : '—'}
+                </div>
+                <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>mins studied vs last week</div>
+              </div>
+            )}
+            {momCountInsight && (
+              <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activity MoM</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: trendColor(momCountInsight.direction), lineHeight: 1 }}>
+                  {trendArrow(momCountInsight.direction)} {momCountInsight.direction !== 'flat' ? `${momCountInsight.pct}%` : '—'}
+                </div>
+                <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>vs last 4 weeks</div>
+              </div>
+            )}
+            {peakTime && (
+              <div style={{ background: '#EFF6FF', borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#1D4ED8', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Peak Focus</div>
+                <div style={{ fontSize: 24, fontWeight: 900, color: '#2563EB', lineHeight: 1 }}>{peakTime.label}</div>
+                <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>{peakTime.pct}% of activity</div>
+              </div>
+            )}
           </div>
         </div>
       )}

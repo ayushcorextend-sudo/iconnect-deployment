@@ -6,18 +6,43 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-03-25 — State-Sync Sprint: NA-022 + NA-024 complete (JournalModal + Zustand diary sync)
+2026-03-25 — Analytics Sprint: NA-025 + NA-026 complete (analytics engine + comparative insights)
 
 ---
 
 ## Current State
-✅ **JournalModal built and wired. Full diary sync implemented.** Commit `76d7a65` was V1/V2/V3 fixes. This session's work is uncommitted.
-- Build: zero errors, 5.08s, 51 PWA entries
+✅ **Analytics engine built. WoW/MoM/peak focus insights injected into ActivityPage and MyPerformancePage.** All work in this session is uncommitted.
+- Build: zero errors, 4.54s, 52 PWA entries
 - **Ready for: Next task from next-actions-production.md**
 
 ---
 
-## What Changed This Session (NA-022 + NA-024)
+## What Changed This Session (NA-025 + NA-026)
+
+### NA-025 — Weekly Progress Analytics ✅
+**Modified:** `frontend/src/components/ActivityPage.jsx`
+- Added imports: `wowVariance, peakFocusTime, weeklyBuckets, trendColor, trendArrow` from `analytics.js`
+- Added state: `wowInsight`, `peakTime`
+- In `loadAll()`: calls `weeklyBuckets(logs90, 4)` to compute WoW activity count; calls `peakFocusTime(logs90)` for peak hour
+- Weekly Progress card header: shows WoW % badge (green/red pill) when direction is not flat
+- Below "Total this week": added "Peak focus time" row with hour label + % of activity
+
+### NA-026 — My Performance Analytics Insights ✅
+**Modified:** `frontend/src/components/MyPerformancePage.jsx`
+- Added imports: all analytics.js exports
+- Added state: `wowCountInsight`, `wowMinsInsight`, `momCountInsight`, `peakTime`, `maData`
+- 4-week trend computation now uses `weeklyBuckets(logs, 4)` via analytics.js
+- WoW count + mins, MoM count (8-week proxy), peak focus, 3-pt moving average all computed
+- 4-week trend bars: replaced `+N vs prev` raw delta with `trendBadge(wowVariance(count, prevCount))` + `trendColor()` inline
+- NEW "Analytics Insights" card (after trend, before calendar): 4 insight panels — Activity WoW %, Study Time WoW %, Activity MoM %, Peak Focus time
+
+**New file (from prior session):** `frontend/src/lib/analytics.js`
+- Pure utility: `movingAverage`, `wowVariance`, `momVariance`, `weeklyBuckets`, `peakFocusTime`, `trendColor`, `trendArrow`, `trendBadge`
+- No side effects, no DB calls — consumers pass pre-fetched data
+
+---
+
+## What Changed Earlier (NA-022 + NA-024)
 
 ### NA-022 — Dashboard Activity Calendar Drill-Down ✅
 **New file:** `frontend/src/components/JournalModal.jsx`
@@ -99,7 +124,7 @@ Two bugs fixed:
 
 **→ Pick next task from `.agent/next-actions-production.md`**
 
-NA-022 and NA-024 are complete. The journal/diary system is now unified.
+NA-025 and NA-026 are complete. Analytics engine is live.
 
 Suggested next: **NA-003 / NA-013** (PageTransition latency) or **NA-009** (initial app load query reduction) — both P2/P3 quality-of-life improvements that are low-risk.
 
@@ -118,7 +143,9 @@ Suggested next: **NA-003 / NA-013** (PageTransition latency) or **NA-009** (init
 | `frontend/src/components/Sidebar.jsx` | useTransition in NavItem, My Notes nav item |
 | `frontend/src/components/TopBar.jsx` | setDarkMode(!darkMode) fix |
 | `frontend/src/components/DoctorDashboard.jsx` | weekActivity fix, error banner, useAuth, ForYou cache key, refreshForYou cleanup; +diaryCache sync; V1-V3 fixes |
-| `frontend/src/components/MyPerformancePage.jsx` | percentile badge, 4-week trend chart |
+| `frontend/src/lib/analytics.js` | NEW — pure analytics utilities (movingAverage, wowVariance, weeklyBuckets, peakFocusTime, trendColor/Arrow/Badge) |
+| `frontend/src/components/MyPerformancePage.jsx` | percentile badge, 4-week trend chart → trendBadge %; new Analytics Insights card |
+| `frontend/src/components/ActivityPage.jsx` | WoW badge in Weekly Progress header; peak focus time row |
 | `frontend/src/components/NotesPage.jsx` | NEW — unified Notes page |
 | `frontend/src/components/ui/PageErrorBoundary.jsx` | NEW — error boundary with resetKey |
 | `frontend/src/components/dashboard/ActivityDots.jsx` | normalized bar heights |
