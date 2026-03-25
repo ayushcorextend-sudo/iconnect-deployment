@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { supabase, getUserContentStates, toggleBookmark } from '../lib/supabase';
+import { supabase, getUserContentStates, toggleBookmark, getDiaryEntriesRange } from '../lib/supabase';
 import { getPersonalizedSuggestions } from '../lib/aiService';
 import { getCached, setCached, invalidate } from '../lib/dataCache';
 import { defaultSuggestions } from '../mocks';
@@ -149,11 +149,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
           });
           // Merge diary entries into heatmap
           const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
-          const { data: diaryEntries } = await supabase.from('calendar_diary')
-            .select('date, study_hours')
-            .eq('user_id', uid)
-            .gte('date', ninetyDaysAgo)
-            .order('date');
+          const { data: diaryEntries } = await getDiaryEntriesRange(uid, ninetyDaysAgo);
           (diaryEntries || []).forEach(d => {
             if (d.study_hours) byDate[d.date] = (byDate[d.date] || 0) + 1;
           });
@@ -239,15 +235,19 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
   const refreshForYou = useCallback(async () => {
     if (!currentUserId) return;
     setAiForYou({ loading: true, items: [], error: null });
-    // mySpeciality is already in state from load() — no redundant profile fetch needed
-    const { suggestions, error } = await getPersonalizedSuggestions({
-      speciality: mySpeciality,
-      ...dashDataRef.current,
-    });
-    const items = suggestions || defaultSuggestions;
-    const { booksRead: br, totalScore: ts } = dashDataRef.current;
-    setCached(`forYou_${currentUserId}_${br}_${ts}`, items, 5 * 60 * 1000);
-    setAiForYou({ loading: false, items, error: error || null });
+    try {
+      // mySpeciality is already in state from load() — no redundant profile fetch needed
+      const { suggestions, error } = await getPersonalizedSuggestions({
+        speciality: mySpeciality,
+        ...dashDataRef.current,
+      });
+      const items = suggestions || defaultSuggestions;
+      const { booksRead: br, totalScore: ts } = dashDataRef.current;
+      setCached(`forYou_${currentUserId}_${br}_${ts}`, items, 5 * 60 * 1000);
+      setAiForYou({ loading: false, items, error: error || null });
+    } catch (_) {
+      setAiForYou({ loading: false, items: defaultSuggestions, error: 'Could not refresh suggestions.' });
+    }
   }, [currentUserId, mySpeciality]);
 
   const handleBookmarkToggle = async (e, artifactId) => {
@@ -316,11 +316,11 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
       </div>
 
       {dashError && (
-        <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <span style={{ fontSize: 13, color: '#DC2626' }}>⚠️ {dashError}</span>
+        <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
+          <span className="text-sm text-red-600">⚠️ {dashError}</span>
           <button
             onClick={() => { setDashError(null); setRefreshKey(k => k + 1); }}
-            style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            className="bg-red-600 text-white border-0 rounded-md px-3 py-1 text-xs font-semibold cursor-pointer whitespace-nowrap hover:bg-red-700 transition-colors"
           >Retry</button>
         </div>
       )}

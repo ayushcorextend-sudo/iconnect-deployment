@@ -558,6 +558,22 @@ export const getDiaryEntry = async (userId, date) => {
   }
 };
 
+export const getDiaryEntriesRange = async (userId, fromDate) => {
+  try {
+    const { data, error } = await supabase
+      .from('calendar_diary')
+      .select('date, study_hours')
+      .eq('user_id', userId)
+      .gte('date', fromDate)
+      .order('date');
+    if (error) throw error;
+    return { data: data || [], error: null };
+  } catch (err) {
+    console.error('Error fetching diary entries range:', err);
+    return { data: [], error: err };
+  }
+};
+
 export const upsertDiaryEntry = async (userId, date, { mood, personal_notes, study_hours, goals_met }) => {
   try {
     const { error } = await supabase.from('calendar_diary').upsert({

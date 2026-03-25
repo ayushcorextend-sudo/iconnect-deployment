@@ -1,0 +1,20 @@
+// Centralized z-index scale — never use magic numbers inline
+export const Z = {
+  base:          0,
+  raised:        1,
+  local:         10,
+  topBar:        50,
+  sidebar:       100,
+  dropdown:      150,
+  modal:         200,
+  readingModal:  300,
+  smartNotes:    400,
+  diary:         500,
+  confirmModal:  600,
+  userMgmtMenu:  900,
+  toast:         999,
+  chatOverlay:   1000,
+  chatBtn:       1001,
+  chatPanel:     1002,
+  loginBanner:   9999,
+};
