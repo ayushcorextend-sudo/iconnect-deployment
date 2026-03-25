@@ -31,6 +31,11 @@ export const useOfflineStore = create((set, get) => ({
     const handleOffline = () => { set({ isOnline: false }); };
     window.addEventListener('online',  handleOnline);
     window.addEventListener('offline', handleOffline);
+    // Re-check immediately — navigator.onLine at store-creation time can be
+    // stale (PWA SW install, page restore, brief network transition).
+    // The 'online' event only fires on a *change*, so without this correction
+    // the banner stays stuck showing "You're offline" for users who are online.
+    set({ isOnline: navigator.onLine });
     return () => {
       window.removeEventListener('online',  handleOnline);
       window.removeEventListener('offline', handleOffline);
