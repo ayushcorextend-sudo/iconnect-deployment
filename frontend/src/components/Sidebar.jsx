@@ -7,7 +7,7 @@ import {
   Activity, BarChart3, Bell, User, Users, MessageSquare, Target,
   Building2, FileText, Microscope, Swords, Upload, Settings,
   Radio, Megaphone, LogOut, Download, ChevronRight,
-  Bookmark, Globe, Video, Brain, Sparkles, ClipboardList, ClipboardCheck, StickyNote
+  Bookmark, Globe, Video, Brain, Sparkles, ClipboardList, ClipboardCheck
 } from 'lucide-react';
 
 const iconMap = {
@@ -39,7 +39,6 @@ const iconMap = {
   webinars: Video,
   quiz: Brain,
   rewards: Sparkles,
-  notes: StickyNote,
 };
 
 function NavGroup({ label, children }) {
@@ -128,7 +127,6 @@ export default function Sidebar({
   ];
   const drMore = [
     { k: 'performance', l: 'My Performance' },
-    { k: 'notes', l: 'My Notes' },
     { k: 'social', l: 'Social Features' },
     { k: 'groups', l: 'Interest Groups' },
     { k: 'profile', l: 'My Profile' },

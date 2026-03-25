@@ -60,7 +60,7 @@ const LearnHub              = lazy(() => import('./components/content/LearnHub')
 const LiveArenaHost         = lazy(() => import('./components/arena/LiveArenaHost'));
 const LiveArenaStudent      = lazy(() => import('./components/arena/LiveArenaStudent'));
 const StudyCalendar         = lazy(() => import('./components/StudyCalendar'));
-const NotesPage             = lazy(() => import('./components/NotesPage'));
+const NotesPage             = lazy(() => import('./pages/Notes'));
 
 function PageLoader() {
   return (

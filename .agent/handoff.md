@@ -6,14 +6,42 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-03-25 — Analytics Sprint: NA-025 + NA-026 complete (analytics engine + comparative insights)
+2026-03-25 — Notes Sprint: NA-027 complete (centralized notes architecture, hidden release)
 
 ---
 
 ## Current State
-✅ **Analytics engine built. WoW/MoM/peak focus insights injected into ActivityPage and MyPerformancePage.** All work in this session is uncommitted.
-- Build: zero errors, 4.54s, 52 PWA entries
+✅ **Centralized notes page built and wired as a hidden release.** Committed.
+- Build: zero errors, 4.33s, 52 PWA entries
 - **Ready for: Next task from next-actions-production.md**
+
+---
+
+## What Changed This Session (NA-027)
+
+### NA-027 — Centralized Notes Architecture (Hidden Release) ✅
+**New file:** `frontend/src/lib/supabase/notes.js`
+- Domain-scoped DB module for all notes operations
+- Pure helper: `buildHierarchy(notes)` — groups flat notes into `[{ subject, books: [{ artifactId, title, notes }] }]`
+- All 8 DB functions: getUserNotesHierarchy, getSmartNotesHierarchy, getUserNoteById, createNote, updateNote, deleteNote, toggleSmartNoteStar, deleteSmartNote
+
+**New file:** `frontend/src/pages/Notes.jsx`
+- Three-level hierarchy: Subject cards → Book cards → Notes list
+- URL deep-links: `?tab=my|ai`, `?subject=X`, `?book=artifactId`, `?id=noteId`
+- `?id=noteId` auto-resolves subject+book then scrolls to the highlighted note
+- Inline note editing (click Edit → textarea → Save/Cancel)
+- New Note composer at Subject level (book selector + textarea)
+- Search bar at Book level (filters note content + highlights)
+- AI notes: star/unstar, delete
+- Back button + breadcrumb for navigation
+
+**Modified:** `frontend/src/App.jsx`
+- Lazy import changed from `./components/NotesPage` to `./pages/Notes`
+
+**Modified:** `frontend/src/components/Sidebar.jsx`
+- Removed `{ k: 'notes', l: 'My Notes' }` from drMore
+- Removed `StickyNote` icon import and iconMap entry
+- Zero visible nav links to Notes — strictly hidden release
 
 ---
 
@@ -124,7 +152,7 @@ Two bugs fixed:
 
 **→ Pick next task from `.agent/next-actions-production.md`**
 
-NA-025 and NA-026 are complete. Analytics engine is live.
+NA-025, NA-026, NA-027 are complete.
 
 Suggested next: **NA-003 / NA-013** (PageTransition latency) or **NA-009** (initial app load query reduction) — both P2/P3 quality-of-life improvements that are low-risk.
 
