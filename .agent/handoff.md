@@ -6,14 +6,36 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-03-25 — Notes Sprint: NA-027 complete (centralized notes architecture, hidden release)
+2026-03-25 — Activity Page Sprint: NA-029 + NA-030 complete (KPI fixes + heatmap polish)
 
 ---
 
 ## Current State
-✅ **Centralized notes page built and wired as a hidden release.** Committed.
-- Build: zero errors, 4.33s, 52 PWA entries
+✅ **Activity Page KPI aggregation fixed, duplicate header removed, heatmap centered with better diary dots.** Committed.
+- Build: zero errors, 5.71s, 52 PWA entries
 - **Ready for: Next task from next-actions-production.md**
+
+---
+
+## What Changed This Session (NA-029 + NA-030)
+
+### NA-029 — Fix Activity Page UI Redundancy & KPI Aggregation ✅
+**Modified:** `frontend/src/components/ActivityPage.jsx`
+- Removed `.ph` header block ("My Activity" title + subtitle) — duplicate of TopBar title
+- Added 3 new state vars (`activeDays`, `booksRead`, `quizzesDone`) set from fresh logsRes data — eliminates stale-cache drift where KPIs diverged from heatmap
+- logsRes query now selects `activity_type, reference_id` in addition to `created_at, duration_minutes`
+- `activeDays`: unique ISO dates in the 90-day map (Object.keys count) — matches heatmap exactly
+- `booksRead`: distinct `reference_id` values for `article_read` events — no more row-count inflation
+- `quizzesDone`: distinct `reference_id` values for `quiz*` events — no more row-count inflation
+- KPI cards show `0` instead of `'—'` for zero values
+- Cache structure updated to store/restore the 3 new KPI fields
+- Removed the 3 stale render-time derived const lines
+
+### NA-030 — 90-Day Heatmap UI Polish & Alignment ✅
+**Modified:** `frontend/src/components/Activity/ActivityHeatmapClickable.jsx`
+- Heatmap now centers inside its card: outer `textAlign: center` + inner `display: inline-block` wrapper eliminates dead space on wider screens
+- Diary dots: enlarged 4→6px, repositioned from bottom-right corner to centered (`top: 50%, left: 50%, transform: translate(-50%,-50%)`), white border ring + indigo outline shadow for visibility on both light and dark cell backgrounds
+- Legend diary dot updated with matching `border: 1.5px solid #4338CA`
 
 ---
 
@@ -152,7 +174,7 @@ Two bugs fixed:
 
 **→ Pick next task from `.agent/next-actions-production.md`**
 
-NA-025, NA-026, NA-027 are complete.
+NA-025 through NA-030 complete.
 
 Suggested next: **NA-003 / NA-013** (PageTransition latency) or **NA-009** (initial app load query reduction) — both P2/P3 quality-of-life improvements that are low-risk.
 

@@ -31,7 +31,8 @@ export default function ActivityHeatmapClickable({ data, diaryDates = new Set(),
   const todayIso = now.toISOString().split('T')[0];
 
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div style={{ overflowX: 'auto', textAlign: 'center' }}>
+      <div style={{ display: 'inline-block', textAlign: 'left' }}>
       {/* Month label row */}
       <div style={{ display: 'flex', gap: 3, marginBottom: 4, paddingLeft: 20 }}>
         {weeks.map((week, wi) => {
@@ -77,12 +78,17 @@ export default function ActivityHeatmapClickable({ data, diaryDates = new Set(),
                     transform: isSelected ? 'scale(1.3)' : 'scale(1)',
                   }}
                 >
-                  {/* Diary dot */}
+                  {/* Diary dot — centered, larger, high-contrast border */}
                   {hasDiary && (
                     <div style={{
-                      position: 'absolute', bottom: 0, right: 0,
-                      width: 4, height: 4, borderRadius: '50%',
-                      background: '#6366F1', border: '1px solid #fff',
+                      position: 'absolute',
+                      top: '50%', left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      width: 6, height: 6, borderRadius: '50%',
+                      background: '#6366F1',
+                      border: '1.5px solid #fff',
+                      boxShadow: '0 0 0 1px #4338CA',
+                      pointerEvents: 'none',
                     }} />
                   )}
                 </div>
@@ -100,8 +106,9 @@ export default function ActivityHeatmapClickable({ data, diaryDates = new Set(),
         ))}
         <span>More</span>
         <span style={{ marginLeft: 8 }}>·</span>
-        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#6366F1' }} />
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#6366F1', border: '1.5px solid #4338CA' }} />
         <span>Diary</span>
+      </div>
       </div>
     </div>
   );
