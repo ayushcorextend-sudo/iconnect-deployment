@@ -574,6 +574,44 @@ export const getDiaryEntriesRange = async (userId, fromDate) => {
   }
 };
 
+// Returns activity_logs for a specific day — used by JournalModal to show the activity timeline.
+export const getActivityLogsForDay = async (userId, date) => {
+  try {
+    const { data, error } = await supabase
+      .from('activity_logs')
+      .select('activity_type, duration_minutes, score_delta, created_at')
+      .eq('user_id', userId)
+      .gte('created_at', `${date}T00:00:00`)
+      .lte('created_at', `${date}T23:59:59`)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    return { data: data || [], error: null };
+  } catch (err) {
+    console.warn('[supabase] getActivityLogsForDay:', err.message);
+    return { data: [], error: err };
+  }
+};
+
+// Returns user_content_state rows updated on a specific day — used by JournalModal.
+export const getContentProgressForDay = async (userId, date) => {
+  try {
+    const { data, error } = await supabase
+      .from('user_content_state')
+      .select('content_type, progress_pct, updated_at')
+      .eq('user_id', userId)
+      .gte('updated_at', `${date}T00:00:00`)
+      .lte('updated_at', `${date}T23:59:59`)
+      .order('updated_at', { ascending: false })
+      .limit(10);
+    if (error) throw error;
+    return { data: data || [], error: null };
+  } catch (err) {
+    console.warn('[supabase] getContentProgressForDay:', err.message);
+    return { data: [], error: err };
+  }
+};
+
 export const upsertDiaryEntry = async (userId, date, { mood, personal_notes, study_hours, goals_met }) => {
   try {
     const { error } = await supabase.from('calendar_diary').upsert({

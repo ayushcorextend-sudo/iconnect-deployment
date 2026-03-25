@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getCached, setCached } from '../lib/dataCache';
 import ActivityHeatmapClickable from './Activity/ActivityHeatmapClickable';
-import DiaryPanel from './Activity/DiaryPanel';
+import JournalModal from './JournalModal';
 import { useAuth } from '../context/AuthContext';
+import { useAppStore } from '../stores/useAppStore';
 
 // ── Activity colour classification ────────────────────────────────────────
 const PRODUCTIVE = new Set(['quiz_passed','article_read','clinical_case_logged','study_plan_completed','spaced_rep_reviewed','exam_set_completed','quiz_complete']);
@@ -57,6 +58,7 @@ const relTime = d => {
 
 export default function ActivityPage({ addToast }) {
   const { user } = useAuth();
+  const diaryCache = useAppStore(s => s.diaryCache);
   const [activityByDate, setActivityByDate] = useState({});
   const [weeklyHours, setWeeklyHours] = useState([0, 0, 0, 0, 0, 0, 0]);
   const [activityFeed, setActivityFeed] = useState([]);
@@ -69,6 +71,19 @@ export default function ActivityPage({ addToast }) {
   // Diary state
   const [selectedDate, setSelectedDate] = useState(null);
   const [diaryDates, setDiaryDates] = useState(new Set());
+
+  // ── Cross-page sync: merge any diary saves from Dashboard into diaryDates ─
+  // diaryCache is updated by JournalModal whenever a save completes, even if
+  // that save happened on the Dashboard page. When ActivityPage next mounts
+  // (or if it's already mounted), this effect merges the cached dates in.
+  useEffect(() => {
+    if (Object.keys(diaryCache).length === 0) return;
+    setDiaryDates(prev => {
+      const next = new Set(prev);
+      Object.keys(diaryCache).forEach(date => next.add(date));
+      return next;
+    });
+  }, [diaryCache]);
 
   useEffect(() => {
     async function loadAll() {
@@ -320,14 +335,15 @@ export default function ActivityPage({ addToast }) {
         )}
       </div>
 
-      {/* Diary panel */}
+      {/* Journal modal — slide-in panel from right */}
       {selectedDate && uid && (
-        <DiaryPanel
+        <JournalModal
           date={selectedDate}
           userId={uid}
           onClose={() => setSelectedDate(null)}
           addToast={addToast}
-          onDiarySaved={date => setDiaryDates(prev => new Set([...prev, date]))}
+          onSave={(date) => setDiaryDates(prev => new Set([...prev, date]))}
+          mode="panel"
         />
       )}
     </div>

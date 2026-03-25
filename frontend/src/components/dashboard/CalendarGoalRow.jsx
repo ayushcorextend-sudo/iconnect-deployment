@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import MonthlyCalendar from './MonthlyCalendar';
 import GoalRing from './GoalRing';
-import DayDetailPanel from './DayDetailPanel';
+import JournalModal from '../JournalModal';
+import { useAppStore } from '../../stores/useAppStore';
 
 export default function CalendarGoalRow({ dashLoading, activityByDate, weeklyMins, currentUserId, refreshDashboard }) {
   const [selectedDate, setSelectedDate] = useState(null);
+  const addToast = useAppStore(s => s.addToast);
 
   if (dashLoading) return null;
 
@@ -28,12 +30,14 @@ export default function CalendarGoalRow({ dashLoading, activityByDate, weeklyMin
         <GoalRing mins={weeklyMins} userId={currentUserId} />
       </div>
     </div>
-    {selectedDate && (
-      <DayDetailPanel
+    {selectedDate && currentUserId && (
+      <JournalModal
         date={selectedDate}
         userId={currentUserId}
         onClose={() => setSelectedDate(null)}
-        refreshDashboard={refreshDashboard}
+        addToast={addToast}
+        onSave={() => { setSelectedDate(null); refreshDashboard?.(); }}
+        mode="modal"
       />
     )}
     </>

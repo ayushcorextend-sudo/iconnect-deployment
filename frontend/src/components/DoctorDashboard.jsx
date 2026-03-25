@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase, getUserContentStates, toggleBookmark, getDiaryEntriesRange } from '../lib/supabase';
+import { useAppStore } from '../stores/useAppStore';
 import { getPersonalizedSuggestions } from '../lib/aiService';
 import { getCached, setCached, invalidate } from '../lib/dataCache';
 import { defaultSuggestions } from '../mocks';
@@ -51,6 +52,26 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
 
   // Ref so refreshForYou can access latest computed values without stale closure
   const dashDataRef = useRef({ booksRead: 0, quizScore: 0, totalScore: 0, weeklyMins: 0, lastActive: null, recentSubjects: [] });
+
+  // ── Cross-page diary sync via Zustand diaryCache ─────────────────────────
+  // When JournalModal saves a diary entry (from any page), it writes to
+  // diaryCache. We watch that here and merge new dates into activityByDate
+  // immediately, so the heatmap reflects the change without a full reload.
+  const diaryCache = useAppStore(s => s.diaryCache);
+  useEffect(() => {
+    if (Object.keys(diaryCache).length === 0) return;
+    setActivityByDate(prev => {
+      let changed = false;
+      const next = { ...prev };
+      Object.entries(diaryCache).forEach(([date, data]) => {
+        if (data.study_hours > 0 && !next[date]) {
+          next[date] = 1;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [diaryCache]);
 
   useEffect(() => {
     async function load() { // eslint-disable-line no-shadow

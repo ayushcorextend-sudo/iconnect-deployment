@@ -6,127 +6,153 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-03-25 — Session: NA-021 + NA-023 complete (ForYou refresh redundancy + GoalRing sizing)
+2026-03-25 — State-Sync Sprint: NA-022 + NA-024 complete (JournalModal + Zustand diary sync)
 
-## What We Worked On
-Executed all 18 production action items from `.agent/next-actions-production.md`:
-
-**NA-007** — Unified Notes page (My Notes + AI Notes)
-  - NEW: `frontend/src/components/NotesPage.jsx` (two-tab UI, lazy-loaded)
-  - `supabase.js`: added `getAllUserNotes`, `getSmartNotes`, `toggleSmartNoteStar`, `deleteSmartNote`
-  - `App.jsx`: added lazy import, route case, 'notes' to doctor ROLE_PAGES
-  - `Sidebar.jsx`: added StickyNote icon + My Notes nav item to drMore
-
-**NA-008** — Percentile + 4-week activity trend
-  - `MyPerformancePage.jsx`: percentile badge (Top X% of users), 4-week bar chart with delta vs prior week
-
-**NA-009** — Parallel post-login data fetching
-  - `App.jsx`: parallelized fetchNotifs + fetchArtifacts with Promise.all; fetchUsers gated to admin roles only
-
-**NA-010** — PageErrorBoundary component
-  - NEW: `frontend/src/components/ui/PageErrorBoundary.jsx`
-  - `App.jsx`: wrapped Suspense in PageErrorBoundary with resetKey={page}
-
-**NA-011** — weekActivity bar height fix
-  - `DoctorDashboard.jsx`: fixed `Math.min(1, weekDays[dow] + 0.4)` → `weekDays[dow] += 1`
-  - `ActivityDots.jsx`: normalize bars against max value (was always same height)
-
-**NA-012** — StudyPlanCard empty state CTAs
-  - `StudyPlanCard.jsx`: added "Create Study Plan" + "✨ Quick AI Plan" buttons to empty state
-
-**NA-014** — Replace supabase.auth.getUser() with useAuth() hook in all components
-  - Fixed 14+ components: LeaderboardPage, ActivityPage, ProfilePage, NotificationsPage, SettingsPage,
-    TopBar, EBooksPage, ReadingQuizModal, ExamPage, SADashboard, StudyPlanPage, SuperAdminApprovals,
-    UploadPage, SmartNotesPanel, DoctorDashboard
-  - Zero `supabase.auth.getUser/getSession` calls remain in frontend/src/components/
-
-**NA-015** — Error states with retry buttons
-  - `DayDetailPanel.jsx`: error state + retry button
-  - `DoctorDashboard.jsx`: dashError banner + retry via refreshKey increment
-
-**NA-016** — ForYou AI caching deduplication + randomization
-  - `DoctorDashboard.jsx`: cache key already uses `forYou_${uid}_${readCount}_${meScore?.total_score || 0}`
-  - `aiService.js`: added date-based variation seed to getPersonalizedSuggestions prompt
-
-**NA-017** — Inline styles → Tailwind classes
-  - `GoalRing.jsx`: fully converted to Tailwind (no inline styles except SVG transitions)
-  - `ForYouWidget.jsx`: fully converted to Tailwind + extracted SuggestionRow component; rgba kept for tag colors
-  - `DayDetailPanel.jsx`: fully converted to Tailwind (no inline styles except dynamic progress bar widths)
-
-**NA-018** — DiaryPanel ↔ DayDetailPanel data model alignment
-  - `supabase.js`: added `getDiaryEntry(userId, date)` and `upsertDiaryEntry(userId, date, data)` helpers
-  - `DiaryPanel.jsx`: migrated to use `getDiaryEntry` + `upsertDiaryEntry`; removed direct supabase.from calls
-  - `DayDetailPanel.jsx`: migrated to use `getDiaryEntry` + `upsertDiaryEntry`; now preserves `mood` on save
+---
 
 ## Current State
-✅ ALL 18 NA TASKS COMPLETE
-- Build: zero errors (2677 modules, 3.48s)
-- NOT YET COMMITTED — ready to commit with: `fix: production action items NA-001 through NA-018`
+✅ **JournalModal built and wired. Full diary sync implemented.** Commit `76d7a65` was V1/V2/V3 fixes. This session's work is uncommitted.
+- Build: zero errors, 5.08s, 51 PWA entries
+- **Ready for: Next task from next-actions-production.md**
 
-## Files Changed This Session
-- `frontend/src/lib/supabase.js` — added 4 note helpers (NA-007) + 2 diary helpers (NA-018)
-- `frontend/src/lib/aiService.js` — date-based variation seed in getPersonalizedSuggestions (NA-016)
-- `frontend/src/components/NotesPage.jsx` — NEW (NA-007)
-- `frontend/src/components/ui/PageErrorBoundary.jsx` — NEW (NA-010)
-- `frontend/src/components/App.jsx` — parallel fetches, route, error boundary (NA-007/009/010)
-- `frontend/src/components/Sidebar.jsx` — My Notes nav item (NA-007)
-- `frontend/src/components/MyPerformancePage.jsx` — percentile + 4-week trend (NA-008)
-- `frontend/src/components/DoctorDashboard.jsx` — weekActivity fix, error banner, useAuth, ForYou key (NA-011/014/015/016)
-- `frontend/src/components/dashboard/ActivityDots.jsx` — normalized bar heights (NA-011)
-- `frontend/src/components/dashboard/StudyPlanCard.jsx` — empty state CTAs (NA-012)
-- `frontend/src/components/dashboard/DayDetailPanel.jsx` — error state + Tailwind + diary helper (NA-015/017/018)
-- `frontend/src/components/dashboard/GoalRing.jsx` — Tailwind conversion (NA-017)
-- `frontend/src/components/dashboard/ForYouWidget.jsx` — Tailwind conversion + SuggestionRow (NA-017)
-- `frontend/src/components/Activity/DiaryPanel.jsx` — diary helper migration (NA-018)
-- 14+ components: useAuth() migration replacing supabase.auth.getUser (NA-014)
+---
 
-## NA-021 + NA-023 (This Session)
+## What Changed This Session (NA-022 + NA-024)
 
-**NA-021: Fix "For You" Refresh Redundancy**
-- `DoctorDashboard.jsx`: Removed direct `supabase.from('profiles').select('speciality')` call from `refreshForYou` callback. Used `mySpeciality` state (already fetched in `load()`) instead. Eliminates CLAUDE.md violation and one redundant network round-trip per refresh click.
+### NA-022 — Dashboard Activity Calendar Drill-Down ✅
+**New file:** `frontend/src/components/JournalModal.jsx`
+- Unified diary component replacing both `DayDetailPanel` and `DiaryPanel`
+- `mode="modal"` → centered overlay (Dashboard); `mode="panel"` → slide-in from right (Activity)
+- Features: mood picker (5 emoji), debounced auto-save notes (1000ms debounce), study hours, goals-met toggle, activity log (from `getActivityLogsForDay`), content progress (from `getContentProgressForDay`)
+- All DB access via supabase.js helpers — zero raw `supabase.from()` calls in component
+- Writes to `useAppStore.diaryCache` on every save for cross-page sync
 
-**NA-023: Fix Weekly Learning Target Widget Sizing**
-- `GoalRing.jsx`: `style={{ maxWidth: 120 }}` → `className="max-w-44"` (176px standard Tailwind scale). Ring is now larger and better proportioned in its card. Inline style fully eliminated.
-- `CalendarGoalRow.jsx`: Grid container converted from inline `style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 20 }}` → `className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5"`. GoalRing card flex layout converted to Tailwind classes. Kept `style={{ margin: 0 }}` on `.card` divs since the CSS class applies margin.
+**Modified:** `frontend/src/components/dashboard/CalendarGoalRow.jsx`
+- Replaced `DayDetailPanel` import with `JournalModal`
+- Gets `addToast` from `useAppStore` directly (no prop drilling)
+- `onSave` closes modal AND calls `refreshDashboard()` → triggers full heatmap re-fetch
 
-**Build:** ✅ Zero errors, 3.77s.
+### NA-024 — 90-Day Activity Heatmap Editability & Synchronization ✅
+**Modified:** `frontend/src/components/ActivityPage.jsx`
+- Replaced `DiaryPanel` with `JournalModal mode="panel"`
+- `onSave` handler: adds saved date to local `diaryDates` Set immediately
+- Subscribes to `useAppStore.diaryCache` → merges any diary saves from Dashboard into `diaryDates` without re-fetch
 
-## NA-019 + NA-020 (Previous Session)
+**Modified:** `frontend/src/components/DoctorDashboard.jsx`
+- Added `import { useAppStore }`
+- `useEffect` on `diaryCache`: merges dates with `study_hours > 0` into `activityByDate` → heatmap updates immediately when Activity page saves a diary
 
-**NA-019: Sidebar Navigation Latency**
-- `Sidebar.jsx`: Added `useTransition` import from React; NavItem now wraps `setPage` call in `startTransition()`. Current page stays visible during lazy load instead of showing spinner. Pending dot indicator on the active nav item.
+**Modified:** `frontend/src/stores/useAppStore.js`
+- Added `diaryCache: {}` — map of date → saved diary payload
+- Added `setDiaryCache(date, data)` action — called by JournalModal on every save
 
-**NA-020: Theme Toggle State Synchronization — TWO bugs fixed**
-- `useAppStore.js`: Store initialization now applies `classList.toggle('dark', isDark)` + `setAttribute('data-theme', ...)` synchronously, eliminating FOUC for dark-mode users on page load.
-- `useAppStore.js`: `setDarkMode` action also applies HTML class immediately on toggle.
-- `TopBar.jsx`: Fixed `setDarkMode(d => !d)` → `setDarkMode(!darkMode)`. The old call passed a function as the argument to a plain Zustand action (not useState), causing the class to always resolve to `'dark'` (functions are truthy).
+**Modified:** `frontend/src/lib/supabase.js`
+- Added `getActivityLogsForDay(userId, date)` — activity timeline for JournalModal
+- Added `getContentProgressForDay(userId, date)` — content progress for JournalModal
 
-**Build:** ✅ Zero errors, 3.34s, 2677 modules.
+---
 
-## Next Session Should Start With
-1. **Commit all changes** with message: `fix: production action items NA-001 through NA-023`
-2. **Deploy edge functions** (if not done):
-   ```
-   supabase functions deploy generate-embeddings query-embedding submit-exam send-approval-email send-notification-email
-   ```
-3. **Run migrations**: `supabase db push` for any pending migration files
-4. **E2E smoke test**: doctor login → exam → leaderboard → calendar click → diary write → verify DayDetailPanel shows same data
+## What Changed Earlier (NA-019 → NA-023)
 
-## Decisions Made
-- DiaryPanel.jsx still uses `supabase` directly for activity_logs (not diary) — this is correct, no change needed
-- ForYouWidget SuggestionRow extracted as local component to reduce duplication (3 near-identical blocks → 1)
-- DayDetailPanel preserves mood on save by passing `diary?.mood ?? null` — no UI for mood editing but data is not lost
-- Variation seed in aiService.js is date-based (daily) so cached results are stable within a day but refresh daily
-- GoalRing maxWidth=120 kept as inline style (no Tailwind equivalent without arbitrary value)
+### NA-019 — Sidebar Navigation Latency ✅
+**File:** `frontend/src/components/Sidebar.jsx`
+- Added `useTransition` from React 18 to `NavItem`.
+- `setPage(item.k)` is now called inside `startTransition()`.
+- Effect: React suppresses the Suspense spinner during page transitions — the current page stays visible until the lazy bundle finishes loading, then swaps atomically. A small pulsing dot on the nav item gives immediate feedback.
+- Previously: every first navigation showed a full-page spinner (jarring).
+
+### NA-020 — Theme Toggle State Synchronisation ✅
+**Files:** `frontend/src/stores/useAppStore.js`, `frontend/src/components/TopBar.jsx`
+
+Two bugs fixed:
+
+1. **FOUC (Flash of Unstyled Content):** `darkMode` HTML class was only applied inside a `useEffect` — after React's first render — causing dark-mode users to see a flash of light mode on every page load.
+   - Fix: Applied `document.documentElement.classList.toggle('dark', isDark)` and `setAttribute('data-theme', ...)` **synchronously** inside the store's IIFE initializer, before React renders anything.
+   - `setDarkMode` action also now applies the HTML class immediately on every toggle.
+
+2. **Function-updater bug:** `TopBar.jsx` called `setDarkMode(d => !d)` — passing a function to a plain Zustand action (not useState). Functions are truthy, so `localStorage` always received `'dark'` and the `darkMode` state was set to a function reference.
+   - Fix: Changed to `setDarkMode(!darkMode)` — passes the concrete boolean.
+
+### NA-021 — Fix "For You" Refresh Redundancy ✅
+**File:** `frontend/src/components/DoctorDashboard.jsx`
+- `refreshForYou` callback was making a direct `supabase.from('profiles').select('speciality')` call inside the component — a CLAUDE.md violation ("NEVER write raw supabase.from() calls inside components").
+- `mySpeciality` is already fetched and held in state by `load()` (line 100: `if (profileData?.speciality) setMySpeciality(profileData.speciality)`).
+- Fix: Removed the profile re-fetch entirely. `refreshForYou` now uses `mySpeciality` from state. `dashDataRef.current` already holds all other AI input data (booksRead, quizScore, totalScore, weeklyMins, lastActive, recentSubjects).
+- Net: one fewer network round-trip per refresh click; rule violation eliminated.
+
+### NA-023 — Fix Weekly Learning Target Widget Sizing ✅
+**Files:** `frontend/src/components/dashboard/GoalRing.jsx`, `frontend/src/components/dashboard/CalendarGoalRow.jsx`
+
+**GoalRing.jsx:**
+- NA-017 Tailwind conversion had left `style={{ maxWidth: 120 }}` as an unavoidable inline style (120px has no exact standard Tailwind 3 scale value).
+- Changed to `className="max-w-44"` (11rem / 176px — standard Tailwind scale).
+- Ring is now 47% larger, proportioned correctly inside its card, and has zero inline styles.
+
+**CalendarGoalRow.jsx:**
+- Grid container: `style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 20 }}` → `className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5"`
+- GoalRing card: `style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}` → `className="card flex flex-col items-center justify-center" style={{ margin: 0 }}`
+- Kept `style={{ margin: 0 }}` on both `.card` divs — the `.card` CSS class applies margin that must be overridden inline.
+
+---
+
+## Next Session Must Start With
+
+**→ Pick next task from `.agent/next-actions-production.md`**
+
+NA-022 and NA-024 are complete. The journal/diary system is now unified.
+
+Suggested next: **NA-003 / NA-013** (PageTransition latency) or **NA-009** (initial app load query reduction) — both P2/P3 quality-of-life improvements that are low-risk.
+
+---
+
+## Cumulative File Change Log (all sessions)
+
+| File | Changes |
+|------|---------|
+| `frontend/src/components/JournalModal.jsx` | NEW — unified diary/journal modal (NA-022, NA-024) |
+| `frontend/src/lib/supabase.js` | +getDiaryEntry, +upsertDiaryEntry, +getDiaryEntriesRange, +getActivityLogsForDay, +getContentProgressForDay, +getAllUserNotes, +getSmartNotes, +toggleSmartNoteStar, +deleteSmartNote |
+| `frontend/src/components/ActivityPage.jsx` | JournalModal replaces DiaryPanel; diaryCache sync |
+| `frontend/src/lib/aiService.js` | date-based variation seed in getPersonalizedSuggestions |
+| `frontend/src/stores/useAppStore.js` | FOUC fix; setDarkMode; +diaryCache, +setDiaryCache |
+| `frontend/src/components/App.jsx` | parallel fetches, lazy routes, PageErrorBoundary, ROLE_PAGES |
+| `frontend/src/components/Sidebar.jsx` | useTransition in NavItem, My Notes nav item |
+| `frontend/src/components/TopBar.jsx` | setDarkMode(!darkMode) fix |
+| `frontend/src/components/DoctorDashboard.jsx` | weekActivity fix, error banner, useAuth, ForYou cache key, refreshForYou cleanup; +diaryCache sync; V1-V3 fixes |
+| `frontend/src/components/MyPerformancePage.jsx` | percentile badge, 4-week trend chart |
+| `frontend/src/components/NotesPage.jsx` | NEW — unified Notes page |
+| `frontend/src/components/ui/PageErrorBoundary.jsx` | NEW — error boundary with resetKey |
+| `frontend/src/components/dashboard/ActivityDots.jsx` | normalized bar heights |
+| `frontend/src/components/dashboard/StudyPlanCard.jsx` | empty-state CTAs |
+| `frontend/src/components/dashboard/DayDetailPanel.jsx` | error state, full Tailwind, diary helper |
+| `frontend/src/components/dashboard/GoalRing.jsx` | full Tailwind, max-w-44 sizing |
+| `frontend/src/components/dashboard/ForYouWidget.jsx` | full Tailwind, SuggestionRow extraction |
+| `frontend/src/components/dashboard/CalendarGoalRow.jsx` | Tailwind grid + flex, sizing fix; JournalModal (NA-022) |
+| `frontend/src/components/Activity/DiaryPanel.jsx` | getDiaryEntry/upsertDiaryEntry migration |
+| 14+ other components | useAuth() replacing supabase.auth.getUser() |
+
+---
+
+## Architectural Decisions Made
+
+- `DiaryPanel.jsx` retains direct `supabase` import for `activity_logs` (not diary table) — correct, no change needed
+- `ForYouWidget.SuggestionRow` extracted as local component to eliminate 3 near-identical blocks
+- `DayDetailPanel` preserves `mood` on save via `diary?.mood ?? null` — no mood UI in dashboard, but field is never overwritten
+- Variation seed in `aiService.js` is date-based (daily) — cached results stable within a day, refresh daily
+- `GoalRing` `maxWidth` inline style replaced with `max-w-44` — old `120px` was below the 7rem Tailwind minimum; 176px is the right visual size
+- `ROLE_PAGES.superadmin = []` (empty = unrestricted) — easier to maintain than explicit list
+
+---
 
 ## Do NOT Touch Until Discussed
-- `frontend/src/migrations/` — reference only, do not run or delete
+- `frontend/src/migrations/` — reference only, never run or delete
 - `*.bak` files — backups, leave alone
-- `server/` — needs audit before any refactor
+- `server/` — needs audit before any changes
 - `supabase/migrations/20260301071219_remote_schema.sql` — master schema dump, do not modify
 
+---
+
 ## Known Issues / Open Questions
-- supabase db diff still fails locally (profiles ordering in 2024xxxx migrations) — cosmetic, prod fine
-- server/ Express backend redundancy vs Supabase — audit still pending
-- Chunk size warning (index-*.js ~664kB) — pre-existing, non-blocking; consider code-splitting in future session
-- NA-013 (if it existed between 012 and 014) was skipped — check the NA doc if there's a gap
+- `supabase db diff` still fails locally (profiles ordering in 2024xxxx migrations) — cosmetic only, prod is fine
+- `server/` Express backend vs Supabase redundancy — audit still pending
+- Chunk size warning (`index-*.js` ~664kB gzip 211kB) — pre-existing, non-blocking; candidate for manual chunk splitting in a later session
+- NA-022 spec not yet written — check if it's in next-actions-production.md or needs to be defined before implementation begins

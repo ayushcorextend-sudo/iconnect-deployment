@@ -111,4 +111,12 @@ export const useAppStore = create((set, get) => ({
   // User helpers
   updateUser: (id, patch) =>
     set(s => ({ users: s.users.map(u => u.id === id ? { ...u, ...patch } : u) })),
+
+  // ── Diary cache — shared between Dashboard and Activity page ────────────
+  // Maps date string ('YYYY-MM-DD') → saved diary payload.
+  // Written by JournalModal on every save; read by both calendar pages to
+  // reflect edits immediately without waiting for a full re-fetch.
+  diaryCache: {},
+  setDiaryCache: (date, data) =>
+    set(s => ({ diaryCache: { ...s.diaryCache, [date]: { ...data, _savedAt: Date.now() } } })),
 }));
