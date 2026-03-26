@@ -53,7 +53,7 @@ export default function PersonaBuilder({ userId, addToast }) {
           });
           setSaved(true);
         }
-      } catch (_) {}
+      } catch (e) { console.warn('PersonaBuilder: failed to load study persona:', e.message); }
       setLoading(false);
     }
     load();

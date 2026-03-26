@@ -266,7 +266,8 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
       const { booksRead: br, totalScore: ts } = dashDataRef.current;
       setCached(`forYou_${currentUserId}_${br}_${ts}`, items, 5 * 60 * 1000);
       setAiForYou({ loading: false, items, error: error || null });
-    } catch (_) {
+    } catch (e) {
+      console.warn('DoctorDashboard: refreshForYou failed:', e.message);
       setAiForYou({ loading: false, items: defaultSuggestions, error: 'Could not refresh suggestions.' });
     }
   }, [currentUserId, mySpeciality]);
@@ -282,7 +283,8 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
     }));
     try {
       await toggleBookmark(currentUserId, artifactId, newVal);
-    } catch (_) {
+    } catch (e) {
+      console.warn('DoctorDashboard: failed to toggle bookmark:', e.message);
       setContentStates(prev => ({
         ...prev,
         [key]: { ...prev[key], isBookmarked: !newVal },
@@ -306,7 +308,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         channels: reminderChannels,
       }]);
       setReminderPopover(false);
-    } catch (_) {}
+    } catch (e) { console.warn('DoctorDashboard: failed to set reminder:', e.message); }
     setReminderSaving(false);
   };
 
@@ -321,6 +323,17 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
 
   // Resolve userId: prefer prop (passed from App), fallback to state
   const resolvedUserId = userIdProp || currentUserId;
+
+  // Stable callback for CalendarGoalRow — no new ref each render
+  const refreshDashboard = useCallback(() => {
+    _dashCache.delete(resolvedUserId);
+    setRefreshKey(k => k + 1);
+  }, [resolvedUserId]);
+
+  // Stable callback for handleBookmarkToggle
+  const stableBookmarkToggle = useCallback((e, artifactId) => {
+    handleBookmarkToggle(e, artifactId);
+  }, [currentUserId, contentStates]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="page">
@@ -385,7 +398,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         activityByDate={activityByDate}
         weeklyMins={weeklyMins}
         currentUserId={currentUserId}
-        refreshDashboard={() => { _dashCache.delete(resolvedUserId); setRefreshKey(k => k + 1); }}
+        refreshDashboard={refreshDashboard}
       />
 
       <WebinarLeaderboardRow
@@ -410,7 +423,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
       <LatestContentSection
         latestContent={latestContent}
         contentStates={contentStates}
-        handleBookmarkToggle={handleBookmarkToggle}
+        handleBookmarkToggle={stableBookmarkToggle}
         setPage={setPage}
       />
 

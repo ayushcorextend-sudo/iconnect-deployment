@@ -132,10 +132,7 @@ export default function ExamPage({ addToast }) {
   // ── Subject grid ────────────────────────────────────────────
   if (!selected) return (
     <div className="page">
-      <div className="ph">
-        <div className="pt">📝 NEET-PG Exam Prep</div>
-        <div className="ps">Practice MCQs organised by subject — track your score and improve</div>
-      </div>
+      <div className="ps" style={{ marginBottom: 12, color: '#9CA3AF' }}>Practice MCQs organised by subject — track your score and improve</div>
       {subjectsLoading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #E5E7EB', borderTopColor: '#4F46E5', animation: 'spin 0.8s linear infinite' }} />

@@ -82,7 +82,7 @@ export default function UsersPage({ addToast, role, userId }) {
         })));
         setTotalCount(count || 0);
       }
-    } catch (_) {}
+    } catch (e) { console.warn('UsersPage: failed to fetch user page:', e.message); }
     setPageLoading(false);
   }, [pageNum, debouncedSearch, districtFilter, stateFilter]);
 
@@ -104,7 +104,7 @@ export default function UsersPage({ addToast, role, userId }) {
           pending: pend.count || 0,
           admin: adm.count || 0,
         });
-      } catch (_) {}
+      } catch (e) { console.warn('UsersPage: failed to fetch user stats:', e.message); }
     }
     fetchStats();
   }, []);

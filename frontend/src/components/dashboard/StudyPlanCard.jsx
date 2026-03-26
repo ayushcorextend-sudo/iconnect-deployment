@@ -1,7 +1,8 @@
+import { memo } from 'react';
 import AIResponseBox from '../AIResponseBox';
 import { generateStudyPlan } from '../../lib/aiService';
 
-export default function StudyPlanCard({ dashLoading, studyPlan, setStudyPlan, mySpeciality, booksRead, myQuizPts, myScore, setPage, activePlan }) {
+function StudyPlanCard({ dashLoading, studyPlan, setStudyPlan, mySpeciality, booksRead, myQuizPts, myScore, setPage, activePlan }) {
   if (dashLoading) return null;
 
   // If there's a structured active plan in DB, show task progress
@@ -120,3 +121,5 @@ export default function StudyPlanCard({ dashLoading, studyPlan, setStudyPlan, my
     </div>
   );
 }
+
+export default memo(StudyPlanCard);

@@ -20,7 +20,7 @@ export default function ManageAdminsTab({ addToast, setPendingRevokeUser }) {
           .in('role', ['superadmin', 'contentadmin'])
           .order('role');
         setAdmins(data || []);
-      } catch (_) {}
+      } catch (e) { console.warn('ManageAdminsTab: failed to load admins:', e.message); }
       setAdminsLoading(false);
     })();
   }, []);
@@ -36,7 +36,8 @@ export default function ManageAdminsTab({ addToast, setPendingRevokeUser }) {
         .ilike('email', adminSearchEmail.trim())
         .maybeSingle();
       setAdminSearchResult(data || 'notfound');
-    } catch (_) {
+    } catch (e) {
+      console.warn('ManageAdminsTab: failed to search admin candidate:', e.message);
       setAdminSearchResult('notfound');
     }
     setAdminSearching(false);

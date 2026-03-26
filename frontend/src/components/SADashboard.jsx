@@ -53,7 +53,7 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
           .eq('role', 'doctor')
           .eq('status', 'pending');
         setPendingCount(count || 0);
-      } catch (_) {}
+      } catch (e) { console.warn('SADashboard: failed to fetch pending count:', e.message); }
     };
     fetchPending();
 
@@ -79,7 +79,7 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
           .order('created_at', { ascending: false })
           .limit(50);
         setSystemAlerts(data || []);
-      } catch (_) {}
+      } catch (e) { console.warn('SADashboard: failed to load system alerts:', e.message); }
     })();
   }, [tab]);
 
@@ -103,7 +103,7 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
           ...(fd || []).map(r => ({ ...r, _type: 'flashcard', _icon: '🃏' })),
         ].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
         setApprovalItems(items);
-      } catch (_) {}
+      } catch (e) { console.warn('SADashboard: failed to load unified approval items:', e.message); }
     })();
   }, [tab]);
 

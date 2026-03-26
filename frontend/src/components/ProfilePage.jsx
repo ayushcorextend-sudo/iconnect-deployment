@@ -5,8 +5,8 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
 const ROLE_LABELS = {
-  superadmin:   { label: 'Super Admin',   icon: '🛡️', color: '#7C3AED', bg: '#F5F3FF' },
-  contentadmin: { label: 'Content Admin', icon: '📚', color: '#0369A1', bg: '#E0F2FE' },
+  superadmin:   { label: 'Super Admin',   icon: '🛡️', color: '#7C3AED', bg: 'rgba(124,58,237,0.1)' },
+  contentadmin: { label: 'Content Admin', icon: '📚', color: '#0369A1', bg: 'rgba(3,105,161,0.1)' },
 };
 
 export default function ProfilePage({ addToast }) {
@@ -49,7 +49,7 @@ export default function ProfilePage({ addToast }) {
         if (profile) {
           setForm({
             name: profile.name || '',
-            email: profile.email || authData.user.email || '',
+            email: profile.email || user?.email || '', // FIX: PROF-001 — was authData.user.email (undefined)
             phone: profile.phone || '',
             program: profile.program || 'MD',
             speciality: profile.speciality || '',
@@ -62,7 +62,7 @@ export default function ProfilePage({ addToast }) {
             verified: profile.verified || false,
           });
         } else {
-          setForm(f => ({ ...f, email: authData.user.email || '' }));
+          setForm(f => ({ ...f, email: user?.email || '' })); // FIX: PROF-001
         }
 
         if (admin) {
@@ -85,7 +85,7 @@ export default function ProfilePage({ addToast }) {
               approved: appRes.count  || 0,
               pending:  pendRes.count || 0,
             });
-          } catch (_) {}
+          } catch (e) { console.warn('ProfilePage: failed to load admin artifact stats:', e.message); }
 
         } else {
           // Load doctor-specific stats
@@ -110,7 +110,7 @@ export default function ProfilePage({ addToast }) {
               rank = (higherCount || 0) + 1;
             }
             setStats({ rank, score, books: booksCount || 0 });
-          } catch (_) {}
+          } catch (e) { console.warn('ProfilePage: failed to load doctor stats:', e.message); }
         }
 
       } catch (e) {
@@ -134,7 +134,16 @@ export default function ProfilePage({ addToast }) {
   const complete = isAdmin || !!(form.name && form.phone && form.hometown && form.homeState && form.speciality && form.college && form.joining && form.program);
 
   const save = async () => {
-    if (!form.hometown || !form.homeState) { addToast('error', 'Hometown and Home State are mandatory!'); return; }
+    // FIX: PROF-003 — input validation
+    const name = form.name.trim();
+    if (!name || name.length < 2) { addToast('error', 'Full name must be at least 2 characters.'); return; }
+    if (name.length > 100) { addToast('error', 'Full name must be under 100 characters.'); return; }
+    if (!isAdmin) {
+      if (!form.hometown || !form.homeState) { addToast('error', 'Hometown and Home State are mandatory!'); return; }
+      if (form.phone && !/^[6-9]\d{9}$/.test(form.phone.replace(/\s/g, ''))) {
+        addToast('error', 'Enter a valid 10-digit Indian mobile number.'); return;
+      }
+    }
     setSaving(true);
     try {
       const base = {
@@ -168,7 +177,7 @@ export default function ProfilePage({ addToast }) {
 
   if (loading) return (
     <div className="page" style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-      <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid #E5E7EB', borderTopColor: '#2563EB', animation: 'spin 0.8s linear infinite' }} />
+      <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: '#2563EB', animation: 'spin 0.8s linear infinite' }} />
     </div>
   );
 
@@ -214,7 +223,7 @@ export default function ProfilePage({ addToast }) {
 
       {/* Incomplete banner — doctors only */}
       {!isAdmin && !complete && (
-        <div style={{ background: '#FFFBEB', border: '1px solid rgba(255,179,71,.3)', borderRadius: 12, padding: '12px 16px', fontSize: 13, color: '#92400E', marginBottom: 16 }}>
+        <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 12, padding: '12px 16px', fontSize: 13, color: '#F59E0B', marginBottom: 16 }}>
           ⚠️ <strong>Profile incomplete.</strong> Fill all required fields to unlock verification. Mandatory: Name, Phone, Hometown, Home State, Speciality, College.
         </div>
       )}
@@ -227,7 +236,7 @@ export default function ProfilePage({ addToast }) {
           {editing ? (
             <>
               <div className="fg"><label className="fl">Full Name <span className="req">*</span></label><input className="fi-in" value={form.name} onChange={e => set('name', e.target.value)} /></div>
-              <div className="fg"><label className="fl">Email Address</label><input className="fi-in" value={form.email} readOnly style={{ background: '#F9FAFB', color: '#6B7280' }} /></div>
+              <div className="fg"><label className="fl">Email Address</label><input className="fi-in" value={form.email} readOnly style={{ background: 'var(--surf)', color: 'var(--muted)' }} /></div>
               <div className="fg"><label className="fl">Phone <span className="req">*</span></label><input className="fi-in" value={form.phone} onChange={e => set('phone', e.target.value)} /></div>
               <div className="fg2">
                 <div className="fg"><label className="fl">Hometown <span className="req">*</span></label><input className="fi-in" placeholder="Mandatory" value={form.hometown} onChange={e => set('hometown', e.target.value)} /></div>
@@ -258,9 +267,9 @@ export default function ProfilePage({ addToast }) {
                 ['📍 Home State', form.homeState  || 'Not provided'],
                 ['🏘 District',   form.district   || '—'],
               ].map(([l, v]) => (
-                <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #F9FAFB' }}>
-                  <span style={{ fontSize: 13, color: '#6B7280' }}>{l}</span>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: v === 'Not provided' ? '#92400E' : '#111827' }}>{v}</span>
+                <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--muted)' }}>{l}</span>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: v === 'Not provided' ? '#F59E0B' : 'var(--text)' }}>{v}</span>
                 </div>
               ))}
             </>
@@ -313,9 +322,9 @@ export default function ProfilePage({ addToast }) {
                   ['🎓 Expected Completion', form.joining ? completion + ' ✨' : '—'],
                   ['🏆 NEET-PG Rank',        form.neet_rank ? 'AIR ' + form.neet_rank : '—'],
                 ].map(([l, v]) => (
-                  <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #F9FAFB' }}>
-                    <span style={{ fontSize: 13, color: '#6B7280' }}>{l}</span>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: String(v).includes('✨') ? '#1D4ED8' : '#111827' }}>{v}</span>
+                  <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: 13, color: 'var(--muted)' }}>{l}</span>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: String(v).includes('✨') ? '#60A5FA' : 'var(--text)' }}>{v}</span>
                   </div>
                 ))}
               </>
@@ -337,11 +346,11 @@ export default function ProfilePage({ addToast }) {
           ].map((s, i) => (
             <div key={i} className={`vstep ${s.done ? 'done' : complete && i === 4 ? 'pend' : 'miss'}`}>
               <div className="vstep-ic">{s.done ? '✅' : complete && i === 4 ? '⏳' : '○'}</div>
-              <div style={{ fontSize: 13, fontWeight: 500, color: s.done ? '#1D4ED8' : complete && i === 4 ? '#92400E' : '#6B7280' }}>{s.label}</div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: s.done ? '#60A5FA' : complete && i === 4 ? '#F59E0B' : 'var(--muted)' }}>{s.label}</div>
             </div>
           ))}
           {form.joining && (
-            <div style={{ marginTop: 12, padding: '10px 12px', background: '#F9FAFB', borderRadius: 10, fontSize: 12, color: '#6B7280' }}>
+            <div style={{ marginTop: 12, padding: '10px 12px', background: 'var(--surf)', borderRadius: 10, fontSize: 12, color: 'var(--muted)' }}>
               ⏰ Platform access: 2 years from passing out year ({completion}). Access expires: <strong>{typeof completion === 'number' ? completion + 2 : '—'}</strong>.
             </div>
           )}
@@ -356,13 +365,13 @@ export default function ProfilePage({ addToast }) {
             {completedSubjects.map(cs => (
               <div key={cs.subject} style={{
                 display: 'flex', alignItems: 'center', gap: 8,
-                background: 'linear-gradient(135deg,#EFF6FF,#EDE9FE)',
-                border: '1px solid #C7D2FE', borderRadius: 12, padding: '8px 14px',
+                background: 'rgba(99,102,241,0.08)',
+                border: '1px solid rgba(99,102,241,0.2)', borderRadius: 12, padding: '8px 14px',
               }}>
                 <span style={{ fontSize: 18 }}>🏅</span>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1D4ED8' }}>{cs.subject}</div>
-                  <div style={{ fontSize: 10, color: '#6B7280' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#60A5FA' }}>{cs.subject}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>
                     Completed {cs.completed_at ? new Date(cs.completed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
                   </div>
                 </div>
@@ -385,10 +394,10 @@ export default function ProfilePage({ addToast }) {
             ['⭐', 'Score',      stats.score.toLocaleString()],
             ['📚', 'Books Read', stats.books],
           ]).map(([ic, label, val]) => (
-            <div key={label} style={{ textAlign: 'center', background: '#F9FAFB', borderRadius: 12, padding: 14 }}>
+            <div key={label} style={{ textAlign: 'center', background: 'var(--surf)', borderRadius: 12, padding: 14 }}>
               <div style={{ fontSize: 26 }}>{ic}</div>
-              <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 18, fontWeight: 800, color: '#2563EB', margin: '5px 0 2px' }}>{val}</div>
-              <div style={{ fontSize: 11, color: '#6B7280', fontWeight: 600 }}>{label}</div>
+              <div style={{ fontFamily: 'Inter,sans-serif', fontSize: 18, fontWeight: 800, color: '#60A5FA', margin: '5px 0 2px' }}>{val}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>{label}</div>
             </div>
           ))}
         </div>

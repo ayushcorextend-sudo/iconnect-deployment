@@ -67,7 +67,7 @@ const resolveIdentifier = async (identifier) => {
       supabase.from('profiles').select('email').eq('mci_number', identifier).maybeSingle()
     )
     if (data?.email) return data.email
-  } catch (_) {}
+  } catch (e) { console.warn('supabase: MCI lookup failed:', e.message); }
   // If lookup fails, return as-is (let Supabase reject it)
   return identifier
 }
@@ -102,7 +102,7 @@ export const authVerifyOtp = async (email, token) => {
       .from('profiles').select('*')
       .eq('id', data.user.id).maybeSingle()
     profile = p
-  } catch (_) {}
+  } catch (e) { console.warn('supabase: authVerifyOtp profile fetch failed:', e.message); }
 
   const role = profile?.role || 'doctor'
   const name = profile?.name || data.user.email
@@ -171,7 +171,7 @@ export const authSignIn = async (email, password) => {
           .maybeSingle()
       )
       profile = p
-    } catch (_) {}
+    } catch (e) { console.warn('supabase: authSignIn profile fetch failed:', e.message); }
 
     const role = profile?.role || 'doctor'
     const name = profile?.name || email
@@ -213,14 +213,15 @@ export const authSignOut = async () => {
   Object.keys(localStorage)
     .filter(k => k.startsWith('iconnect_') && !keep.includes(k))
     .forEach(k => localStorage.removeItem(k))
-  try { await supabase.auth.signOut() } catch (_) {}
+  try { await supabase.auth.signOut() } catch (e) { /* signOut — safe to ignore */ }
 }
 
 export const getStoredSession = () => {
   try {
     const raw = localStorage.getItem('iconnect_session')
     return raw ? JSON.parse(raw) : null
-  } catch (_) {
+  } catch (e) {
+    console.warn('supabase: getStoredSession parse failed:', e.message);
     return null
   }
 }
@@ -325,12 +326,14 @@ export const fetchArtifacts = async (role = 'doctor') => {
     // Cache for offline fallback
     localStorage.setItem('iconnect_artifacts', JSON.stringify(mapped))
     return mapped
-  } catch (_) {
+  } catch (e) {
     // Return cached data if available
+    console.warn('supabase: fetchArtifacts failed:', e.message);
     try {
       const cached = localStorage.getItem('iconnect_artifacts')
       return cached ? JSON.parse(cached) : []
-    } catch (_) {
+    } catch (e2) {
+      console.warn('supabase: fetchArtifacts cache parse failed:', e2.message);
       return []
     }
   }
@@ -341,7 +344,7 @@ export const approveArtifact = async (id) => {
     await withTimeout(
       supabase.from('artifacts').update({ status: 'approved' }).eq('id', id)
     )
-  } catch (_) {}
+  } catch (e) { console.warn('supabase: approveArtifact failed:', e.message); }
 }
 
 export const rejectArtifact = async (id, reason = '') => {
@@ -352,7 +355,7 @@ export const rejectArtifact = async (id, reason = '') => {
         rejection_reason: reason.trim() || 'No reason provided.',
       }).eq('id', id)
     )
-  } catch (_) {}
+  } catch (e) { console.warn('supabase: rejectArtifact failed:', e.message); }
 }
 
 /** Insert a new artifact row and return it */
@@ -420,7 +423,8 @@ export const getUserContentStates = async (userId) => {
       }
       return acc
     }, {})
-  } catch (_) {
+  } catch (e) {
+    console.warn('supabase: getUserContentStates failed:', e.message);
     return {}
   }
 }
@@ -464,8 +468,9 @@ export const uploadArtifact = async (artifact) => {
     )
     if (error) throw error
     return mapRow(data)
-  } catch (_) {
+  } catch (e) {
     // Return a local artifact so the UI still updates
+    console.warn('supabase: uploadArtifact failed:', e.message);
     return { ...artifact, id: Date.now(), status: 'pending' }
   }
 }

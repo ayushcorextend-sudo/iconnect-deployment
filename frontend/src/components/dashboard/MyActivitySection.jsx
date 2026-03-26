@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import ActivityDots, { ACTIVITY_ICON, ACTIVITY_LABEL, relTime } from './ActivityDots';
 
-export default function MyActivitySection({
+function MyActivitySection({
   dashLoading,
   myScore, booksRead, hoursStudied, myQuizPts, myReadPts,
   weekActivity, recentActivities,
@@ -126,3 +127,5 @@ export default function MyActivitySection({
     </>
   );
 }
+
+export default memo(MyActivitySection);

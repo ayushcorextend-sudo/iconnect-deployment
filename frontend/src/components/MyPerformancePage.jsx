@@ -106,27 +106,35 @@ export default function MyPerformancePage({ userId }) {
   const [momCountInsight,  setMomCountInsight]  = useState(null);
   const [peakTime,         setPeakTime]         = useState(null);
   const [maData,           setMaData]           = useState([]);
+  const [loadError, setLoadError] = useState(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     async function load() {
       const uid = userId;
       if (!uid) return;
       setLoading(true);
+      setLoadError(null);
       try {
-        // ── Profile ──────────────────────────────────────────────
-        const { data: prof } = await supabase
-          .from('profiles')
-          .select('name, speciality, college, joining_year')
-          .eq('id', uid)
-          .maybeSingle();
+        // ── Parallel fetch: profile + scores + activity logs ──────
+        const [profRes, scoresRes, logsRes] = await Promise.all([
+          supabase.from('profiles')
+            .select('name, speciality, college, joining_year')
+            .eq('id', uid).maybeSingle(),
+          supabase.from('user_scores')
+            .select('user_id, total_score, quiz_score, reading_score')
+            .order('total_score', { ascending: false }),
+          supabase.from('activity_logs')
+            .select('activity_type, duration_minutes, created_at')
+            .eq('user_id', uid)
+            .order('created_at', { ascending: false })
+            .limit(200),
+        ]);
+
+        const prof = profRes.data;
         setProfile(prof);
 
-        // ── Scores + rank ─────────────────────────────────────────
-        const { data: allScores } = await supabase
-          .from('user_scores')
-          .select('user_id, total_score, quiz_score, reading_score')
-          .order('total_score', { ascending: false });
-
+        const allScores = scoresRes.data;
         if (allScores?.length) {
           const idx = allScores.findIndex(s => s.user_id === uid);
           if (idx !== -1) {
@@ -138,13 +146,7 @@ export default function MyPerformancePage({ userId }) {
           }
         }
 
-        // ── Activity logs ─────────────────────────────────────────
-        const { data: logs } = await supabase
-          .from('activity_logs')
-          .select('activity_type, duration_minutes, created_at')
-          .eq('user_id', uid)
-          .order('created_at', { ascending: false })
-          .limit(200);
+        const logs = logsRes.data;
 
         if (logs) {
           const totalMins = logs.reduce((acc, l) => acc + (l.duration_minutes || 30), 0);
@@ -227,12 +229,13 @@ export default function MyPerformancePage({ userId }) {
 
       } catch (e) {
         console.warn('MyPerformancePage load failed:', e.message);
+        setLoadError('Could not load performance data. Please try again.');
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [userId]);
+  }, [userId, retryKey]);
 
   const maxCount = Math.max(...(weeklyData.map(d => d.count)), 1);
   const scoreMax = Math.max(scores.total, 1);
@@ -244,6 +247,22 @@ export default function MyPerformancePage({ userId }) {
       <div style={{ textAlign: 'center', color: '#9CA3AF' }}>
         <div style={{ fontSize: 36, marginBottom: 10 }}>⏳</div>
         <div style={{ fontSize: 14, fontWeight: 500 }}>Loading your analytics…</div>
+      </div>
+    </div>
+  );
+
+  if (loadError) return (
+    <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: 36, marginBottom: 10 }}>⚠️</div>
+        <div style={{ fontSize: 14, fontWeight: 500, color: '#DC2626', marginBottom: 12 }}>{loadError}</div>
+        <button
+          onClick={() => { setLoadError(null); setRetryKey(k => k + 1); }}
+          style={{
+            background: '#2563EB', color: '#fff', border: 'none', borderRadius: 8,
+            padding: '8px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          }}
+        >Retry</button>
       </div>
     </div>
   );

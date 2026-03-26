@@ -64,7 +64,7 @@ export default function ConferencesPage({ role, addToast }) {
 
   const handleDelete = async (id) => {
     setConferences(prev => prev.filter(c => c.id !== id));
-    try { await supabase.from('conferences').delete().eq('id', id); } catch (_) {}
+    try { await supabase.from('conferences').delete().eq('id', id); } catch (e) { console.warn('ConferencesPage: failed to delete conference:', e.message); }
     addToast('success', 'Conference removed.');
   };
 

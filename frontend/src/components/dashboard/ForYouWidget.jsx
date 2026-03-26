@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { defaultSuggestions } from '../../mocks';
 
 const TAG_COLORS = {
@@ -40,7 +41,7 @@ function SuggestionRow({ s, onClick, compact }) {
   );
 }
 
-export default function ForYouWidget({ aiForYou, recommendations, refreshForYou, openChatBotDoubt, setPage }) {
+function ForYouWidget({ aiForYou, recommendations, refreshForYou, openChatBotDoubt, setPage }) {
   return (
     <div
       className="rounded-2xl p-5 mb-5 text-white"
@@ -140,3 +141,5 @@ export default function ForYouWidget({ aiForYou, recommendations, refreshForYou,
     </div>
   );
 }
+
+export default memo(ForYouWidget);

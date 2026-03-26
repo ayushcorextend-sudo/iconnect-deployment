@@ -74,7 +74,7 @@ export default function ReadingQuizModal({ artifact, onClose, onComplete }) {
           await supabase.rpc('increment_user_score', { p_user_id: user.id, p_points: pts }).catch(() => {});
         }
       }
-    } catch (_) {}
+    } catch (e) { console.warn('ReadingQuizModal: failed to save reading progress:', e.message); }
     setSaving(false);
 
     if (onComplete) onComplete({ score: correct, total, pts });

@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import MonthlyCalendar from './MonthlyCalendar';
 import GoalRing from './GoalRing';
 import JournalModal from '../JournalModal';
 import { useAppStore } from '../../stores/useAppStore';
 
-export default function CalendarGoalRow({ dashLoading, activityByDate, weeklyMins, currentUserId, refreshDashboard }) {
+function CalendarGoalRow({ dashLoading, activityByDate, weeklyMins, currentUserId, refreshDashboard }) {
   const [selectedDate, setSelectedDate] = useState(null);
   const addToast = useAppStore(s => s.addToast);
 
@@ -43,3 +43,5 @@ export default function CalendarGoalRow({ dashLoading, activityByDate, weeklyMin
     </>
   );
 }
+
+export default memo(CalendarGoalRow);

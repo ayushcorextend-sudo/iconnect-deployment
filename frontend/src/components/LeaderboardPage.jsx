@@ -188,11 +188,8 @@ export default function LeaderboardPage({ setPage }) {
 
   return (
     <div className="page" style={{ paddingBottom: me ? 80 : 0 }}>
-      <div className="ph-row ph">
-        <div>
-          <div className="pt">🏆 My Leaderboard</div>
-          <div className="ps">Academic progress ranking — not just gamification</div>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div className="ps" style={{ color: '#9CA3AF' }}>Academic progress ranking — not just gamification</div>
         <div className="tabs" style={{ margin: 0 }}>
           {['weekly', 'monthly', 'alltime'].map(p => (
             <button key={p} className={`tab ${period === p ? 'act' : ''}`} onClick={() => setPeriod(p)}>

@@ -53,7 +53,7 @@ export default function MCIVerificationQueue({ addToast = () => {} }) {
         .eq('status', dbStatus)
         .order('created_at', { ascending: false });
       if (!error) setProfiles(data || []);
-    } catch (_) {}
+    } catch (e) { console.warn('MCIVerificationQueue: failed to fetch profiles:', e.message); }
     setLoading(false);
   };
 

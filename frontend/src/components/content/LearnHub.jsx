@@ -26,7 +26,7 @@ function getEmbedUrl(url) {
       const id = u.pathname.replace('/', '');
       return `https://player.vimeo.com/video/${id}`;
     }
-  } catch (_) {}
+  } catch (e) { console.warn('LearnHub: getEmbedUrl parsing failed:', e.message); }
   return null;
 }
 

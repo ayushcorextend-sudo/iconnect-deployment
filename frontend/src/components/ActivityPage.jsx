@@ -79,6 +79,8 @@ export default function ActivityPage({ addToast }) {
   // Analytics insights
   const [wowInsight, setWowInsight] = useState(null);
   const [peakTime, setPeakTime] = useState(null);
+  // Error + loading
+  const [loadError, setLoadError] = useState(null);
 
   // ── Cross-page sync: merge any diary saves from Dashboard into diaryDates ─
   // diaryCache is updated by JournalModal whenever a save completes, even if
@@ -119,11 +121,21 @@ export default function ActivityPage({ addToast }) {
         since90.setDate(since90.getDate() - 89);
         since90.setHours(0, 0, 0, 0);
 
-        const [logsRes, feedRes, targetsRes, quizRes, readRes, diaryRes] = await Promise.all([
+        // Pre-compute monday ISO for weekly progress queries (no dependency on query results)
+        const now = new Date();
+        const dow = now.getDay();
+        const monday = new Date(now);
+        monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+        monday.setHours(0, 0, 0, 0);
+        const mondayISO = monday.toISOString();
+
+        // ALL queries in a single parallel batch — no waterfall
+        const [logsRes, feedRes, targetsRes, quizLogsRes, readLogsRes, diaryRes] = await Promise.all([
           supabase.from('activity_logs').select('created_at, duration_minutes, activity_type, reference_id').eq('user_id', userId).gte('created_at', since90.toISOString()).limit(5000),
           supabase.from('activity_logs').select('activity_type, reference_id, score_delta, created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(30),
           supabase.from('personal_targets').select('target_type, target_value').eq('user_id', userId),
-          null, null,
+          supabase.from('activity_logs').select('id').eq('user_id', userId).in('activity_type', ['quiz_attempted','quiz_passed','quiz_complete']).gte('created_at', mondayISO),
+          supabase.from('activity_logs').select('id').eq('user_id', userId).in('activity_type', ['article_read','note_viewed']).gte('created_at', mondayISO),
           supabase.from('calendar_diary').select('date').eq('user_id', userId).gte('date', since90.toISOString().split('T')[0]),
         ]);
 
@@ -151,11 +163,7 @@ export default function ActivityPage({ addToast }) {
         setBooksRead(newBooksRead);
         setQuizzesDone(newQuizzesDone);
 
-        const now = new Date();
-        const dow = now.getDay();
-        const monday = new Date(now);
-        monday.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
-        monday.setHours(0, 0, 0, 0);
+        // monday already computed above Promise.all — reuse it for weekly chart
         const weekly = [0, 0, 0, 0, 0, 0, 0];
         (logsRes.data || []).forEach(log => {
           const d = new Date(log.created_at);
@@ -181,11 +189,7 @@ export default function ActivityPage({ addToast }) {
           if (t.target_type === 'articles_per_week') { setReadTarget(t.target_value); rTarget = t.target_value; }
         });
 
-        const mondayISO = monday.toISOString();
-        const [quizLogsRes, readLogsRes] = await Promise.all([
-          supabase.from('activity_logs').select('id').eq('user_id', userId).in('activity_type', ['quiz_attempted','quiz_passed','quiz_complete']).gte('created_at', mondayISO),
-          supabase.from('activity_logs').select('id').eq('user_id', userId).in('activity_type', ['article_read','note_viewed']).gte('created_at', mondayISO),
-        ]);
+        // quizLogsRes & readLogsRes already fetched in the initial parallel batch above
         const qProg = (quizLogsRes.data || []).length;
         const rProg = (readLogsRes.data || []).length;
         setQuizProgress(qProg);
@@ -204,10 +208,11 @@ export default function ActivityPage({ addToast }) {
 
       } catch (e) {
         console.warn('ActivityPage load failed:', e.message);
+        setLoadError('Could not load activity data. Please try again.');
       }
     }
     loadAll();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveTargets = async () => {
     try {
@@ -228,6 +233,15 @@ export default function ActivityPage({ addToast }) {
 
   return (
     <div className="page">
+      {loadError && (
+        <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
+          <span className="text-sm text-red-600">⚠️ {loadError}</span>
+          <button
+            onClick={() => { setLoadError(null); window.location.reload(); }}
+            className="bg-red-600 text-white border-0 rounded-md px-3 py-1 text-xs font-semibold cursor-pointer whitespace-nowrap hover:bg-red-700 transition-colors"
+          >Retry</button>
+        </div>
+      )}
       {/* Stat cards */}
       <div className="sg4">
         {[

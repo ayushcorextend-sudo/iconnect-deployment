@@ -145,7 +145,7 @@ export default function ChatBot({ chatBotMode = null, setChatBotMode }) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (_) {}
+    } catch (e) { console.warn('ChatBot: failed to download notes:', e.message); }
 
     setNotesDownloading(false);
   };

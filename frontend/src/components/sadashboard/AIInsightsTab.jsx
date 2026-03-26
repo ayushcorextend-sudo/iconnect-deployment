@@ -32,7 +32,7 @@ export default function AIInsightsTab({ users, approved }) {
           result[subj] = Math.round(sum / count);
         });
         setSubjectScoreMap(result);
-      } catch (_) {}
+      } catch (e) { console.warn('AIInsightsTab: failed to load subject scores:', e.message); }
     })();
   }, []);
 

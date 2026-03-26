@@ -73,7 +73,7 @@ export default function DiaryPanel({ date, userId, onClose, addToast, onDiarySav
         setMood(null); setNotes(''); setStudyHours(0); setGoalsMet(false); setIsNew(true);
       }
       setDayLogs(logsRes.data || []);
-    } catch (_) {}
+    } catch (e) { console.warn('DiaryPanel: failed to load diary entry:', e.message); }
     setLoading(false);
   }
 

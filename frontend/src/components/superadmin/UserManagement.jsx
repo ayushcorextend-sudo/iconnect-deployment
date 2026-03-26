@@ -46,16 +46,19 @@ export default function UserManagement({ addToast }) {
   const [generatingReport, setGeneratingReport] = useState(null);
   // Batch-fetched quiz_attempts — loaded alongside profiles, no N+1
   const [attempts, setAttempts] = useState([]);
+  const [changingStatus, setChangingStatus] = useState(false); // FIX: USER-001
 
   // ── LAYER 0: Batch data fetching — profiles + quiz_attempts in one round-trip ──
   const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
+      // FIX: DASH-001 — cap at 1000 rows to prevent unbounded load
       const [{ data: profileData, error: profileErr }, { data: attData, error: attErr }] = await Promise.all([
         supabase
           .from('profiles')
           .select('id, name, email, role, status, created_at, state, zone, speciality, hometown, is_verified')
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false })
+          .limit(1000),
         supabase
           .from('quiz_attempts')
           .select('user_id, score, total, finished_at'),
@@ -300,6 +303,28 @@ export default function UserManagement({ addToast }) {
     }
   };
 
+  // ── FIX: USER-001 — Suspend / Activate selected users (soft status change) ──
+  const changeStatus = async (newStatus) => {
+    if (selectedIds.length === 0) return;
+    setChangingStatus(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ status: newStatus })
+        .in('id', selectedIds);
+      if (error) throw error;
+      setUsers(prev => prev.map(u =>
+        selectedIds.includes(u.id) ? { ...u, status: newStatus } : u
+      ));
+      addToast('success', `${selectedIds.length} user${selectedIds.length !== 1 ? 's' : ''} marked as ${newStatus}.`);
+      setSelectedIds([]);
+    } catch (e) {
+      addToast('error', 'Status change failed: ' + e.message);
+    } finally {
+      setChangingStatus(false);
+    }
+  };
+
   // ── Broadcast notification ────────────────────────────────────────────────
   const sendBroadcast = async () => {
     if (!form.title.trim()) { addToast('error', 'Title is required.'); return; }
@@ -334,31 +359,31 @@ export default function UserManagement({ addToast }) {
     {
       key: 'zone', icon: '🗺️', label: 'Zone-wise Report',
       desc: 'Users grouped by geographic zone',
-      color: '#4F46E5', bg: '#EEF2FF', border: '#C7D2FE',
+      color: '#818CF8', bg: 'rgba(79,70,229,0.08)', border: 'rgba(79,70,229,0.2)',
       action: reportZone,
     },
     {
       key: 'state', icon: '📍', label: 'State-wise Report',
       desc: 'Users grouped by state with emails',
-      color: '#0891B2', bg: '#ECFEFF', border: '#A5F3FC',
+      color: '#22D3EE', bg: 'rgba(8,145,178,0.08)', border: 'rgba(8,145,178,0.2)',
       action: reportState,
     },
     {
       key: 'speciality', icon: '🩺', label: 'Speciality Report',
       desc: 'Doctors grouped by medical speciality',
-      color: '#059669', bg: '#ECFDF5', border: '#A7F3D0',
+      color: '#34D399', bg: 'rgba(5,150,105,0.08)', border: 'rgba(5,150,105,0.2)',
       action: reportSpeciality,
     },
     {
       key: 'verification', icon: '🔍', label: 'Verification Report',
       desc: 'All unverified users pending action',
-      color: '#D97706', bg: '#FFFBEB', border: '#FDE68A',
+      color: '#F59E0B', bg: 'rgba(217,119,6,0.08)', border: 'rgba(217,119,6,0.2)',
       action: reportVerification,
     },
     {
       key: 'activity', icon: '📊', label: 'Activity Report',
       desc: 'Quiz engagement & scores per user',
-      color: '#DC2626', bg: '#FEF2F2', border: '#FECACA',
+      color: '#F87171', bg: 'rgba(220,38,38,0.08)', border: 'rgba(220,38,38,0.2)',
       action: reportActivity,
     },
   ];
@@ -371,7 +396,7 @@ export default function UserManagement({ addToast }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: 15 }}>👥 User Management</div>
-          <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>{users.length} total users</div>
+          <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>{users.length} total users</div>
         </div>
         <button className="btn btn-s btn-sm" onClick={loadUsers} disabled={loading}>
           {loading ? '⟳ Loading…' : '⟳ Refresh'}
@@ -408,7 +433,7 @@ export default function UserManagement({ addToast }) {
                     {busy && <BtnSpinner />}
                     {busy ? 'Generating…' : r.label}
                   </div>
-                  <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2, lineHeight: 1.35 }}>{r.desc}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, lineHeight: 1.35 }}>{r.desc}</div>
                 </div>
               </button>
             );
@@ -447,6 +472,7 @@ export default function UserManagement({ addToast }) {
           <option value="active">Active</option>
           <option value="pending">Pending</option>
           <option value="rejected">Rejected</option>
+          <option value="suspended">Suspended</option>{/* FIX: USER-001 */}
         </select>
       </div>
 
@@ -454,10 +480,10 @@ export default function UserManagement({ addToast }) {
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid #E5E7EB', borderTopColor: '#4F46E5', animation: 'spin 0.8s linear infinite' }} />
+            <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: '#818CF8', animation: 'spin 0.8s linear infinite' }} />
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
             No users match the current filters.
           </div>
         ) : (
@@ -474,12 +500,12 @@ export default function UserManagement({ addToast }) {
                       style={{ cursor: 'pointer', width: 15, height: 15 }}
                     />
                   </th>
-                  <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: '#374151' }}>User</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: '#374151' }}>Role</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: '#374151' }}>Status</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: '#374151' }}>Speciality</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: '#374151' }}>Avg Score</th>
-                  <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: '#374151' }}>Joined</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text)' }}>User</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text)' }}>Role</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text)' }}>Status</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text)' }}>Speciality</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text)' }}>Avg Score</th>
+                  <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: 600, color: 'var(--text)' }}>Joined</th>
                 </tr>
               </thead>
               <tbody>
@@ -509,15 +535,15 @@ export default function UserManagement({ addToast }) {
                           <Avatar name={u.name || u.email} size={32} />
                           <div>
                             <div style={{ fontWeight: 600, color: 'var(--text)' }}>{u.name || '—'}</div>
-                            <div style={{ fontSize: 11, color: '#6B7280' }}>{u.email}</div>
+                            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{u.email}</div>
                           </div>
                         </div>
                       </td>
                       <td style={{ padding: '12px 14px' }}>
                         <span style={{
                           fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
-                          background: u.role === 'superadmin' ? '#FEF3C7' : u.role === 'contentadmin' ? '#EFF6FF' : '#F0FDF4',
-                          color: u.role === 'superadmin' ? '#D97706' : u.role === 'contentadmin' ? '#2563EB' : '#16A34A',
+                          background: u.role === 'superadmin' ? 'rgba(217,119,6,0.12)' : u.role === 'contentadmin' ? 'rgba(37,99,235,0.1)' : 'rgba(22,163,74,0.1)',
+                          color: u.role === 'superadmin' ? '#F59E0B' : u.role === 'contentadmin' ? '#60A5FA' : '#34D399',
                         }}>
                           {ROLES[u.role] || u.role}
                         </span>
@@ -528,8 +554,8 @@ export default function UserManagement({ addToast }) {
                           {(u.status || 'unknown').charAt(0).toUpperCase() + (u.status || 'unknown').slice(1)}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 14px', color: '#6B7280', fontSize: 12 }}>
-                        {u.speciality || <span style={{ color: '#D1D5DB' }}>—</span>}
+                      <td style={{ padding: '12px 14px', color: 'var(--muted)', fontSize: 12 }}>
+                        {u.speciality || <span style={{ color: 'var(--light)' }}>—</span>}
                       </td>
                       <td style={{ padding: '12px 14px' }}>
                         {u.role === 'doctor' ? (() => {
@@ -546,7 +572,7 @@ export default function UserManagement({ addToast }) {
                           );
                         })() : <span style={{ color: '#D1D5DB', fontSize: 11 }}>—</span>}
                       </td>
-                      <td style={{ padding: '12px 14px', color: '#6B7280' }}>{relDate(u.created_at)}</td>
+                      <td style={{ padding: '12px 14px', color: 'var(--muted)' }}>{relDate(u.created_at)}</td>
                     </tr>
                   );
                 })}
@@ -573,6 +599,21 @@ export default function UserManagement({ addToast }) {
             style={{ background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
           >
             📣 Send Notification
+          </button>
+          {/* FIX: USER-001 — Soft status change (no hard delete) */}
+          <button
+            onClick={() => changeStatus('suspended')}
+            disabled={changingStatus}
+            style={{ background: '#374151', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          >
+            🚫 Suspend
+          </button>
+          <button
+            onClick={() => changeStatus('active')}
+            disabled={changingStatus}
+            style={{ background: '#059669', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          >
+            ✅ Activate
           </button>
           <button
             onClick={() => setSelectedIds([])}

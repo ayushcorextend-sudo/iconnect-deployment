@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { trackActivity } from '../../lib/trackActivity';
 import Avatar from '../Avatar';
@@ -7,7 +7,7 @@ const fmtDt = (d) => d
   ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
   : '—';
 
-export default function WebinarLeaderboardRow({
+function WebinarLeaderboardRow({
   nextWebinar,
   currentUserId,
   reminderPopover, setReminderPopover,
@@ -46,7 +46,7 @@ export default function WebinarLeaderboardRow({
         setIsInterested(true);
         trackActivity('webinar_interested', nextWebinar.id);
       }
-    } catch (_) {}
+    } catch (e) { console.warn('WebinarLeaderboardRow: failed to toggle webinar interest:', e.message); }
     setIntSaving(false);
   }
 
@@ -310,3 +310,5 @@ export default function WebinarLeaderboardRow({
     </div>
   );
 }
+
+export default memo(WebinarLeaderboardRow);

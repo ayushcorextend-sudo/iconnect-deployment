@@ -221,7 +221,7 @@ export default function NotificationsPage({ addToast, setPage }) {
                  : tab === 'alerts'   ? notifs.filter(n => ['warn', 'error'].includes(n.type))
                  : notifs;
 
-  const typeBg = { info: '#EFF6FF', success: '#EFF6FF', warn: '#FFFBEB', error: '#FEF2F2' };
+  const typeBg = { info: 'rgba(59,130,246,0.08)', success: 'rgba(16,185,129,0.08)', warn: 'rgba(245,158,11,0.08)', error: 'rgba(239,68,68,0.08)' };
 
   const CHANNEL_OPTS = [
     ['📱', 'In-App Notifications', 'Real-time alerts inside iConnect',      'in_app_enabled'],
@@ -241,11 +241,8 @@ export default function NotificationsPage({ addToast, setPage }) {
 
   return (
     <div className="page">
-      <div className="ph-row ph">
-        <div>
-          <div className="pt">🔔 Notifications</div>
-          <div className="ps">{unreadCount} unread</div>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div className="ps" style={{ color: 'var(--light)' }}>{unreadCount} unread</div>
         {unreadCount > 0 && (
           <button className="btn btn-s btn-sm" onClick={markAll}>✓ Mark all read</button>
         )}
@@ -268,7 +265,7 @@ export default function NotificationsPage({ addToast, setPage }) {
 
           {loading ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
-              <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid #E5E7EB', borderTopColor: '#2563EB', animation: 'spin 0.8s linear infinite' }} />
+              <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: '#2563EB', animation: 'spin 0.8s linear infinite' }} />
             </div>
           ) : filtered.length === 0 ? (
             <div className="empty">
@@ -282,34 +279,34 @@ export default function NotificationsPage({ addToast, setPage }) {
               if (items.length === 0) return null;
               return (
                 <div key={label}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: '#9CA3AF', letterSpacing: '0.8px', textTransform: 'uppercase', padding: '10px 4px 6px', marginTop: 4 }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--light)', letterSpacing: '0.8px', textTransform: 'uppercase', padding: '10px 4px 6px', marginTop: 4 }}>
                     {label}
                   </div>
                   {items.map(n => {
                     const isExpanded = expanded.has(n.id);
-                    const borderColor = TYPE_BORDER[n.type] || '#6B7280';
+                    const borderColor = TYPE_BORDER[n.type] || 'var(--muted)';
                     return (
                       <div
                         key={n.id}
                         onClick={() => { toggleExpand(n.id); handleClick(n); }}
                         style={{
                           cursor: 'pointer', marginBottom: 6, borderRadius: 10, overflow: 'hidden',
-                          background: isUnread(n) ? 'rgba(37,99,235,0.05)' : '#F9FAFB',
-                          border: `1px solid ${isUnread(n) ? borderColor + '44' : '#F3F4F6'}`,
+                          background: isUnread(n) ? 'rgba(37,99,235,0.05)' : 'var(--surf)',
+                          border: `1px solid ${isUnread(n) ? borderColor + '44' : 'var(--border)'}`,
                           borderLeft: `4px solid ${borderColor}`,
                           transition: 'background .15s',
                         }}
                         onMouseEnter={e => e.currentTarget.style.background = 'rgba(99,102,241,0.05)'}
-                        onMouseLeave={e => e.currentTarget.style.background = isUnread(n) ? 'rgba(37,99,235,0.05)' : '#F9FAFB'}
+                        onMouseLeave={e => e.currentTarget.style.background = isUnread(n) ? 'rgba(37,99,235,0.05)' : 'var(--surf)'}
                       >
                         {/* Header row */}
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px' }}>
                           <div style={{
                             width: 8, height: 8, borderRadius: '50%', flexShrink: 0, marginTop: 4,
                             background: isUnread(n) ? borderColor : 'transparent',
-                            border: isUnread(n) ? 'none' : '1px solid #E5E7EB',
+                            border: isUnread(n) ? 'none' : '1px solid var(--border)',
                           }} />
-                          <div className="ni-ic" style={{ background: typeBg[n.type] || '#F9FAFB', flexShrink: 0 }}>{n.icon}</div>
+                          <div className="ni-ic" style={{ background: typeBg[n.type] || 'var(--surf)', flexShrink: 0 }}>{n.icon}</div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                               <div className="ni-t" style={{ fontWeight: isUnread(n) ? 700 : 500 }}>{n.title}</div>
@@ -317,10 +314,10 @@ export default function NotificationsPage({ addToast, setPage }) {
                                 {isUnread(n) && (
                                   <button
                                     onClick={e => { e.stopPropagation(); markRead(n.id); }}
-                                    style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 11, color: '#6B7280', whiteSpace: 'nowrap' }}
+                                    style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: '2px 8px', fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}
                                   >✓</button>
                                 )}
-                                <span style={{ fontSize: 12, color: '#9CA3AF' }}>{isExpanded ? '▲' : '▼'}</span>
+                                <span style={{ fontSize: 12, color: 'var(--light)' }}>{isExpanded ? '▲' : '▼'}</span>
                               </div>
                             </div>
                             <div className="ni-time">{relTime(n.created_at)} · via {n.channel}</div>
@@ -328,7 +325,7 @@ export default function NotificationsPage({ addToast, setPage }) {
                         </div>
                         {/* Expanded body */}
                         {isExpanded && n.body && (
-                          <div style={{ padding: '0 12px 12px 42px', fontSize: 13, color: '#374151', lineHeight: 1.6, animation: 'fadeIn .15s ease' }}>
+                          <div style={{ padding: '0 12px 12px 42px', fontSize: 13, color: 'var(--text)', lineHeight: 1.6, animation: 'fadeIn .15s ease' }}>
                             {n.body}
                           </div>
                         )}
@@ -347,7 +344,7 @@ export default function NotificationsPage({ addToast, setPage }) {
           <div className="card">
             <div className="ct" style={{ marginBottom: 14 }}>🔔 Notification Channels</div>
             {!prefsLoaded ? (
-              <div style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>Loading preferences…</div>
+              <div style={{ color: 'var(--light)', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>Loading preferences…</div>
             ) : (
               CHANNEL_OPTS.map(([ic, label, desc, key]) => (
                 <div key={key} className="ch-toggle">
@@ -355,7 +352,7 @@ export default function NotificationsPage({ addToast, setPage }) {
                     <span style={{ fontSize: 20 }}>{ic}</span>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600 }}>{label}</div>
-                      <div style={{ fontSize: 11, color: '#6B7280' }}>{desc}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{desc}</div>
                     </div>
                   </div>
                   <Toggle on={channels[key]} onChange={() => toggleChannel(key)} />
@@ -368,7 +365,7 @@ export default function NotificationsPage({ addToast, setPage }) {
           <div className="card mt4">
             <div className="ct" style={{ marginBottom: 12 }}>⚡ Alert Triggers</div>
             {!prefsLoaded ? (
-              <div style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>Loading preferences…</div>
+              <div style={{ color: 'var(--light)', fontSize: 13, textAlign: 'center', padding: '12px 0' }}>Loading preferences…</div>
             ) : (
               TRIGGER_OPTS.map(([label, key]) => (
                 <div key={key} className="ch-toggle">

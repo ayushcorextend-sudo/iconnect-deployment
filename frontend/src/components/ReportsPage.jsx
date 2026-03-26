@@ -79,7 +79,7 @@ export default function ReportsPage({ addToast }) {
         .order('created_at', { ascending: false })
         .limit(100);
       setAuditLogs(data || []);
-    } catch (_) {}
+    } catch (e) { console.warn('ReportsPage: failed to load audit logs:', e.message); }
     setAuditLoading(false);
   };
 
@@ -124,7 +124,7 @@ export default function ReportsPage({ addToast }) {
       });
       setRecentDoctors(recentRes.data || []);
       setDoctorDataLoaded(true);
-    } catch (_) {}
+    } catch (e) { console.warn('ReportsPage: failed to load doctor data:', e.message); }
     setDoctorLoading(false);
   };
 
@@ -184,7 +184,7 @@ export default function ReportsPage({ addToast }) {
 
       setGeoData({ zones, districts, states, total: (data || []).length });
       setGeoLoaded(true);
-    } catch (_) {}
+    } catch (e) { console.warn('ReportsPage: failed to load geography data:', e.message); }
     setGeoLoading(false);
   };
 

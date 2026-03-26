@@ -25,7 +25,8 @@ export default function WebinarCalendarTab({ addToast }) {
       addToast('success', 'Webinar scheduled!');
       setShowWForm(false);
       setWForm({ title: '', speaker: '', scheduled_at: '', duration_min: 60, join_url: '', description: '' });
-    } catch (_) {
+    } catch (e) {
+      console.warn('WebinarCalendarTab: failed to add webinar:', e.message);
       setWebinars(prev => [...prev, { ...wForm, id: `local_${Date.now()}` }]);
       addToast('success', 'Webinar added (offline).');
       setShowWForm(false);
@@ -36,7 +37,7 @@ export default function WebinarCalendarTab({ addToast }) {
 
   const handleDeleteWebinar = async (id) => {
     setWebinars(prev => prev.filter(w => w.id !== id));
-    try { await supabase.from('admin_webinars').delete().eq('id', id); } catch (_) {}
+    try { await supabase.from('admin_webinars').delete().eq('id', id); } catch (e) { console.warn('WebinarCalendarTab: failed to delete webinar:', e.message); }
   };
 
   return (

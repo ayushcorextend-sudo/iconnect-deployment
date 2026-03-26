@@ -20,7 +20,7 @@ export default function ArtifactsTab({ pending, onApprove, onReject, addToast, s
       if (a?.uploaded_by_id) {
         sendNotification(a.uploaded_by_id, 'E-Book Rejected', `Your upload "${title}" was rejected. Reason: ${finalReason}`, 'error', '❌', 'in_app');
       }
-    } catch (_) {}
+    } catch (e) { console.warn('ArtifactsTab: failed to send rejection notification:', e.message); }
   }
 
   return (
@@ -56,10 +56,10 @@ export default function ArtifactsTab({ pending, onApprove, onReject, addToast, s
                       }))
                     );
                   }
-                } catch (_) {}
+                } catch (e) { console.warn('ArtifactsTab: failed to send approval notifications:', e.message); }
                 try {
                   await supabase.functions.invoke('generate-embeddings', { body: { artifact_id: a.id } });
-                } catch (e) { console.warn('Embeddings generation failed:', e.message); }
+                } catch (e) { console.warn('ArtifactsTab: embeddings generation failed:', e.message); }
               }}>✅ Approve</button>
               <button className="btn btn-d btn-sm" onClick={() => { setRejectPending({ id: a.id, title: a.title }); setRejectReason(''); }}>✗ Reject</button>
               <div style={{ position: 'relative' }}>

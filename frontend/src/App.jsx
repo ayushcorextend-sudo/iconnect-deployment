@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useCallback } from 'react';
+import { lazy, Suspense, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   supabase,
@@ -16,7 +16,6 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import OnboardingBanner from './components/OnboardingBanner';
 import { titles } from './data/constants';
 
-import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from './stores/useAuthStore';
 import { useAppStore }  from './stores/useAppStore';
 import { useChatStore } from './stores/useChatStore';
@@ -89,33 +88,62 @@ function MainApp() {
   const navigate  = useNavigate();
   const location  = useLocation();
 
-  // Auth store
-  const {
-    role, userName, userId, needsProfile,
-    pendingUserId, pendingEmail, pendingMessage,
-    setRole, setUserName, setUserId, setNeedsProfile,
-    setPendingUserId, setPendingEmail, setPendingMessage, clearAuth,
-  } = useAuthStore(useShallow(s => s));
+  // Auth store — granular selectors
+  const role           = useAuthStore(s => s.role);
+  const userName       = useAuthStore(s => s.userName);
+  const userId         = useAuthStore(s => s.userId);
+  const needsProfile   = useAuthStore(s => s.needsProfile);
+  const pendingUserId  = useAuthStore(s => s.pendingUserId);
+  const pendingEmail   = useAuthStore(s => s.pendingEmail);
+  const pendingMessage = useAuthStore(s => s.pendingMessage);
+  const setRole        = useAuthStore(s => s.setRole);
+  const setUserName    = useAuthStore(s => s.setUserName);
+  const setUserId      = useAuthStore(s => s.setUserId);
+  const setNeedsProfile  = useAuthStore(s => s.setNeedsProfile);
+  const setPendingUserId = useAuthStore(s => s.setPendingUserId);
+  const setPendingEmail  = useAuthStore(s => s.setPendingEmail);
+  const setPendingMessage = useAuthStore(s => s.setPendingMessage);
+  const clearAuth      = useAuthStore(s => s.clearAuth);
 
-  // App store
-  const {
-    page, setPage, darkMode, setDarkMode,
-    sidebarOpen, setSidebarOpen, notifPanel, setNotifPanel,
-    toasts, notifications, artifacts, users,
-    addToast, setNotifications, setArtifacts, setUsers,
-    updateArtifact, prependArtifact, updateUser, pushNotification,
-    subscribeToNotifications, unsubscribeAll,
-  } = useAppStore(useShallow(s => s));
+  // App store — GRANULAR selectors to prevent full-tree re-renders.
+  // Reactive state (only these trigger re-renders when they change):
+  const page          = useAppStore(s => s.page);
+  const darkMode      = useAppStore(s => s.darkMode);
+  const sidebarOpen   = useAppStore(s => s.sidebarOpen);
+  const notifPanel    = useAppStore(s => s.notifPanel);
+  const toasts        = useAppStore(s => s.toasts);
+  const notifications = useAppStore(s => s.notifications);
+  const artifacts     = useAppStore(s => s.artifacts);
+  const users         = useAppStore(s => s.users);
+  // Stable action refs (functions never change, so selectors are ~free):
+  const setPage       = useAppStore(s => s.setPage);
+  const setDarkMode   = useAppStore(s => s.setDarkMode);
+  const setSidebarOpen  = useAppStore(s => s.setSidebarOpen);
+  const setNotifPanel   = useAppStore(s => s.setNotifPanel);
+  const addToast        = useAppStore(s => s.addToast);
+  const setNotifications = useAppStore(s => s.setNotifications);
+  const setArtifacts     = useAppStore(s => s.setArtifacts);
+  const setUsers         = useAppStore(s => s.setUsers);
+  const updateArtifact   = useAppStore(s => s.updateArtifact);
+  const prependArtifact  = useAppStore(s => s.prependArtifact);
+  const updateUser       = useAppStore(s => s.updateUser);
+  const pushNotification = useAppStore(s => s.pushNotification);
+  const subscribeToNotifications = useAppStore(s => s.subscribeToNotifications);
+  const unsubscribeAll   = useAppStore(s => s.unsubscribeAll);
 
-  // Chat store
-  const { chatBotMode, setChatBotMode } = useChatStore(useShallow(s => s));
+  // Chat store — granular
+  const chatBotMode    = useChatStore(s => s.chatBotMode);
+  const setChatBotMode = useChatStore(s => s.setChatBotMode);
 
-  // Tenant store — load once on mount
-  const { tenant, loadTenant, clearTenant } = useTenantStore(useShallow(s => s));
+  // Tenant store — granular
+  const tenant      = useTenantStore(s => s.tenant);
+  const loadTenant  = useTenantStore(s => s.loadTenant);
+  const clearTenant = useTenantStore(s => s.clearTenant);
   useEffect(() => { loadTenant(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Wire React Router into the app store (once on mount, then sync on back/forward)
-  const { initRouter, syncFromLocation } = useAppStore(useShallow(s => ({ initRouter: s.initRouter, syncFromLocation: s.syncFromLocation })));
+  const initRouter       = useAppStore(s => s.initRouter);
+  const syncFromLocation = useAppStore(s => s.syncFromLocation);
   useEffect(() => { initRouter(navigate, location); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { syncFromLocation(location.pathname); }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -140,7 +168,7 @@ function MainApp() {
           score: 0,
         })));
       }
-    } catch (_) {}
+    } catch (e) { console.warn('App: fetchUsers failed:', e.message); }
   }, [setUsers]);
 
   const fetchNotifs = useCallback(async (uid) => {
@@ -158,7 +186,7 @@ function MainApp() {
           ? new Date(n.created_at).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })
           : 'Recently',
       })));
-    } catch (_) {}
+    } catch (e) { console.warn('App: fetchNotifs failed:', e.message); }
   }, [setNotifications]);
 
   // ── Core auth-reactive effect ─────────────────────────────────────────────
@@ -324,7 +352,7 @@ function MainApp() {
       const s = JSON.parse(localStorage.getItem('iconnect_session') || '{}');
       sendNotification(s.userId, 'Upload Submitted',
         `"${art.title}" is pending Super Admin approval.`, 'info', '📤', 'in_app');
-    } catch (_) {}
+    } catch (e) { console.warn('App: onUpload sendNotification failed:', e.message); }
   };
 
   // ── User management handlers ──────────────────────────────────────────────
@@ -334,7 +362,7 @@ function MainApp() {
     auditLog('approve_user', 'user', id, { name: u?.name, email: u?.email });
     try {
       await supabase.from('profiles').update({ status: 'active', verified: true }).eq('id', id);
-    } catch (_) {}
+    } catch (e) { console.warn('App: onApproveUser profile update failed:', e.message); }
     try {
       if (u?.email) {
         await supabase.functions.invoke('send-approval-email', {
@@ -347,7 +375,7 @@ function MainApp() {
           },
         });
       }
-    } catch (_) {}
+    } catch (e) { console.warn('App: onApproveUser send-approval-email function failed:', e.message); }
   };
 
   const onRejectUser = async (id, rejectionReason) => {
@@ -356,7 +384,7 @@ function MainApp() {
     auditLog('reject_user', 'user', id, { name: u?.name, email: u?.email });
     try {
       await supabase.from('profiles').update({ status: 'rejected' }).eq('id', id);
-    } catch (_) {}
+    } catch (e) { console.warn('App: onRejectUser profile update failed:', e.message); }
     try {
       if (u?.email) {
         await supabase.functions.invoke('send-approval-email', {
@@ -370,7 +398,7 @@ function MainApp() {
           },
         });
       }
-    } catch (_) {}
+    } catch (e) { console.warn('App: onRejectUser send-approval-email function failed:', e.message); }
   };
 
   const onRegisterSuccess = (newUser) => {
@@ -420,14 +448,20 @@ function MainApp() {
     </>
   );
 
-  // Props passed explicitly to components that haven't been store-wired yet
-  const sharedProps = {
+  // Stable callback for chatbot — avoids new function ref on every render
+  const openChatBotDoubt = useCallback(() => setChatBotMode('doubt'), [setChatBotMode]);
+
+  // Props passed explicitly to components that haven't been store-wired yet.
+  // Memoized to prevent unnecessary child re-renders.
+  const sharedProps = useMemo(() => ({
     artifacts, setArtifacts, setPage, addToast, notifications,
     setNotifications, role, onApprove, onReject, onUpload,
     userName, userId, users, onApproveUser, onRejectUser,
-    openChatBotDoubt: () => setChatBotMode('doubt'),
+    openChatBotDoubt,
     darkMode,
-  };
+  }), [artifacts, notifications, role, userName, userId, users, darkMode,
+       setArtifacts, setPage, addToast, setNotifications,
+       onApprove, onReject, onUpload, onApproveUser, onRejectUser, openChatBotDoubt]);
 
   // Role-based page access allowlists — prevents cross-role navigation via devtools.
   // Superadmin has no restrictions (empty array = bypass guard).

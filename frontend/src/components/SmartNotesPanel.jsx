@@ -13,6 +13,7 @@ export default function SmartNotesPanel({ onClose, currentArtifact }) {
   const userId = user?.id ?? null;
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [search, setSearch] = useState('');
 
   // Create-mode state
@@ -28,14 +29,19 @@ export default function SmartNotesPanel({ onClose, currentArtifact }) {
 
   const fetchNotes = async (uid) => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('smart_notes')
         .select('*')
         .eq('user_id', uid)
         .order('created_at', { ascending: false });
+      if (error) throw error;
       setNotes(data || []);
-    } catch (_) {}
+    } catch (e) {
+      console.warn('SmartNotesPanel fetch failed:', e.message);
+      setLoadError('Could not load notes. Tap retry.');
+    }
     setLoading(false);
   };
 
@@ -70,7 +76,10 @@ export default function SmartNotesPanel({ onClose, currentArtifact }) {
         setOriginalText('');
         setDraft(null);
       }
-    } catch (_) {}
+    } catch (e) {
+      console.warn('SmartNotesPanel save failed:', e.message);
+      setDraft(prev => prev ? { ...prev, error: 'Failed to save note. Please try again.' } : prev);
+    }
   };
 
   const handleStar = async (note) => {
@@ -87,7 +96,9 @@ export default function SmartNotesPanel({ onClose, currentArtifact }) {
     setNotes(prev => prev.filter(n => n.id !== id));
     try {
       await supabase.from('smart_notes').delete().eq('id', id);
-    } catch (_) {}
+    } catch (e) {
+      console.warn('SmartNotesPanel delete failed:', e.message);
+    }
   };
 
   const filteredNotes = notes.filter(n => {
@@ -238,6 +249,18 @@ export default function SmartNotesPanel({ onClose, currentArtifact }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
         {loading ? (
           <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, paddingTop: 24 }}>Loading notes…</div>
+        ) : loadError ? (
+          <div style={{ textAlign: 'center', paddingTop: 24 }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
+            <div style={{ fontSize: 13, color: '#DC2626', marginBottom: 10 }}>{loadError}</div>
+            <button
+              onClick={() => userId && fetchNotes(userId)}
+              style={{
+                background: '#4F46E5', color: '#fff', border: 'none', borderRadius: 8,
+                padding: '6px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              }}
+            >Retry</button>
+          </div>
         ) : filteredNotes.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, paddingTop: 24 }}>
             {search ? 'No notes match your search.' : 'No smart notes yet. Paste text above to create your first one!'}

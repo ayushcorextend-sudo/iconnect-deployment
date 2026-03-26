@@ -1,4 +1,6 @@
-export default function LatestAlerts({ notifications, setPage }) {
+import { memo } from 'react';
+
+function LatestAlerts({ notifications, setPage }) {
   const unread = notifications.filter(n => n.is_read === false);
   if (unread.length === 0) return null;
   return (
@@ -22,3 +24,5 @@ export default function LatestAlerts({ notifications, setPage }) {
     </div>
   );
 }
+
+export default memo(LatestAlerts);

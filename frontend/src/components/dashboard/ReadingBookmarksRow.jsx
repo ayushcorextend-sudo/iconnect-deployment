@@ -1,4 +1,6 @@
-export default function ReadingBookmarksRow({ recentlyRead, bookmarked, contentStates, setPage }) {
+import { memo } from 'react';
+
+function ReadingBookmarksRow({ recentlyRead, bookmarked, contentStates, setPage }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 20 }}>
 
@@ -83,3 +85,5 @@ export default function ReadingBookmarksRow({ recentlyRead, bookmarked, contentS
     </div>
   );
 }
+
+export default memo(ReadingBookmarksRow);

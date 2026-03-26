@@ -47,7 +47,8 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
         setWmName(name);
         const states = await getUserContentStates(user.id);
         setContentStates(states);
-      } catch (_) {
+      } catch (e) {
+        console.warn('EBooksPage: failed to load content states:', e.message);
       } finally {
         setLibLoading(false);
       }
@@ -71,7 +72,7 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
           ...prev,
           [String(viewer.id)]: { ...prev[String(viewer.id)], currentPage: pg },
         }));
-      } catch (_) {}
+      } catch (e) { console.warn('EBooksPage: failed to update reading progress:', e.message); }
     }, 2000);
     return () => { if (progressDebounceRef.current) clearTimeout(progressDebounceRef.current); };
   }, [pg, viewer, currentUserId]);
@@ -125,7 +126,7 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
   const handleClose = async () => {
     if (viewer && currentUserId) {
       if (progressDebounceRef.current) clearTimeout(progressDebounceRef.current);
-      try { await updateReadingProgress(currentUserId, viewer.id, pg); } catch (_) {}
+      try { await updateReadingProgress(currentUserId, viewer.id, pg); } catch (e) { console.warn('EBooksPage: handleClose failed to update progress:', e.message); }
       const duration = stopTimer('article_read', viewer.id);
       trackActivity('article_read', viewer.id, duration || null);
     }
@@ -141,7 +142,7 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
         completed: true, progress: 100,
         completed_at: new Date().toISOString(),
       }], { onConflict: 'user_id,subject' });
-    } catch (_) {}
+    } catch (e) { console.warn('EBooksPage: failed to mark subject complete:', e.message); }
   };
 
   useEffect(() => {
@@ -170,7 +171,8 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
     try {
       await toggleBookmark(currentUserId, viewer.id, newVal);
       addToast('success', newVal ? '🔖 Bookmarked!' : 'Bookmark removed');
-    } catch (_) {
+    } catch (e) {
+      console.warn('EBooksPage: failed to toggle bookmark:', e.message);
       setContentStates(prev => ({ ...prev, [key]: { ...prev[key], isBookmarked: !newVal } }));
       addToast('error', 'Could not update bookmark');
     }
@@ -198,13 +200,10 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
   // Library view
   return (
     <div className="page">
-      <div className="ph-row ph">
-        <div>
-          <div className="pt">📚 E-Book Library</div>
-          <div className="ps">
-            {filteredArtifacts.length} of {localArtifacts.length} document{localArtifacts.length !== 1 ? 's' : ''}
-            {activeFilterCount > 0 && <span style={{ color: '#7C3AED', fontWeight: 600 }}> · {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active</span>}
-          </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div className="ps" style={{ color: '#9CA3AF' }}>
+          {filteredArtifacts.length} of {localArtifacts.length} document{localArtifacts.length !== 1 ? 's' : ''}
+          {activeFilterCount > 0 && <span style={{ color: '#7C3AED', fontWeight: 600 }}> · {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active</span>}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className={`btn btn-sm ${viewMode === 'grid' ? 'btn-p' : 'btn-s'}`} onClick={() => setVM('grid')}>⊞</button>

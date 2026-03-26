@@ -1,4 +1,6 @@
-export default function LatestContentSection({ latestContent, contentStates, handleBookmarkToggle, setPage }) {
+import { memo } from 'react';
+
+function LatestContentSection({ latestContent, contentStates, handleBookmarkToggle, setPage }) {
   return (
     <div className="card">
       <div className="ch" style={{ marginBottom: 16 }}>
@@ -96,3 +98,5 @@ export default function LatestContentSection({ latestContent, contentStates, han
     </div>
   );
 }
+
+export default memo(LatestContentSection);

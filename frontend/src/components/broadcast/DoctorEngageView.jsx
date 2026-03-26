@@ -102,7 +102,7 @@ export default function DoctorEngageView({ userId, addToast, darkMode, onBack })
         const { data } = await supabase.from('admin_calendar_events')
           .select('*').order('date', { ascending: true }).limit(10);
         setRecentEvents(data || []);
-      } catch (_) {}
+      } catch (e) { console.warn('DoctorEngageView: failed to load events:', e.message); }
       setEventsLoading(false);
     };
     load();
