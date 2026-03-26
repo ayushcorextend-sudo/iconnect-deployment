@@ -8,7 +8,7 @@ import { captureException } from '../../lib/sentry';
 export default class AppErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error) {
@@ -17,6 +17,7 @@ export default class AppErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     captureException(error, { extra: errorInfo });
+    this.setState({ errorInfo });
   }
 
   render() {
@@ -56,6 +57,8 @@ export default class AppErrorBoundary extends Component {
               whiteSpace: 'pre-wrap', wordBreak: 'break-all',
             }}>
               {this.state.error.message}
+              {'\n\n--- Component Stack ---\n'}
+              {this.state.errorInfo?.componentStack}
             </pre>
           </details>
         )}
