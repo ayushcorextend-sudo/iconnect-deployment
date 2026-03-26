@@ -409,6 +409,22 @@ function MainApp() {
   const unreadCount  = notifications.filter(n => n.is_read === false).length;
   const pendingCount = artifacts.filter(a => a.status === 'pending').length;
 
+  // ── Stable memoized values — MUST be before any early returns (hooks rules) ─
+  // Stable callback for chatbot — avoids new function ref on every render
+  const openChatBotDoubt = useCallback(() => setChatBotMode('doubt'), [setChatBotMode]);
+
+  // Props passed explicitly to components that haven't been store-wired yet.
+  // Memoized to prevent unnecessary child re-renders.
+  const sharedProps = useMemo(() => ({
+    artifacts, setArtifacts, setPage, addToast, notifications,
+    setNotifications, role, onApprove, onReject, onUpload,
+    userName, userId, users, onApproveUser, onRejectUser,
+    openChatBotDoubt,
+    darkMode,
+  }), [artifacts, notifications, role, userName, userId, users, darkMode,
+       setArtifacts, setPage, addToast, setNotifications,
+       onApprove, onReject, onUpload, onApproveUser, onRejectUser, openChatBotDoubt]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ══════════════════════════════════════════════════════════════════════════
   if (isAuthLoading) {
     return (
@@ -447,21 +463,6 @@ function MainApp() {
       <Toasts toasts={toasts} />
     </>
   );
-
-  // Stable callback for chatbot — avoids new function ref on every render
-  const openChatBotDoubt = useCallback(() => setChatBotMode('doubt'), [setChatBotMode]);
-
-  // Props passed explicitly to components that haven't been store-wired yet.
-  // Memoized to prevent unnecessary child re-renders.
-  const sharedProps = useMemo(() => ({
-    artifacts, setArtifacts, setPage, addToast, notifications,
-    setNotifications, role, onApprove, onReject, onUpload,
-    userName, userId, users, onApproveUser, onRejectUser,
-    openChatBotDoubt,
-    darkMode,
-  }), [artifacts, notifications, role, userName, userId, users, darkMode,
-       setArtifacts, setPage, addToast, setNotifications,
-       onApprove, onReject, onUpload, onApproveUser, onRejectUser, openChatBotDoubt]);
 
   // Role-based page access allowlists — prevents cross-role navigation via devtools.
   // Superadmin has no restrictions (empty array = bypass guard).
