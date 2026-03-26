@@ -335,6 +335,15 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
     handleBookmarkToggle(e, artifactId);
   }, [currentUserId, contentStates]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Guard: if userId not yet available, show loading instead of crashing
+  if (!resolvedUserId) {
+    return (
+      <div className="page" style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: '#4F46E5', animation: 'spin 0.8s linear infinite' }} />
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       {/* SA Message Box — fixed floating, appears only when superadmin has broadcast */}
@@ -403,7 +412,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
 
       <WebinarLeaderboardRow
         nextWebinar={nextWebinar}
-        currentUserId={userId}
+        currentUserId={resolvedUserId}
         reminderPopover={reminderPopover}
         setReminderPopover={setReminderPopover}
         reminderLeadMins={reminderLeadMins}

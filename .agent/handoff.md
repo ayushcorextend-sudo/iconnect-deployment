@@ -6,18 +6,160 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-03-25 — Activity Page Sprint: NA-029 + NA-030 complete (KPI fixes + heatmap polish)
+2026-03-26 — CRITICAL stability fixes: auth re-fire, login flicker, beforeunload, dashboard crash
 
 ---
 
 ## Current State
-✅ **Activity Page KPI aggregation fixed, duplicate header removed, heatmap centered with better diary dots.** Committed.
-- Build: zero errors, 5.71s, 52 PWA entries
-- **Ready for: Next task from next-actions-production.md**
+✅ **Critical stability fixes applied. Build verified (zero errors).**
+- **AUTH-001:** Auth effect no longer re-fires setPage('dashboard') on token refresh (authBootedRef guard)
+- **AUTH-002:** Login page no longer flickers — spinner shown while session exists but role unresolved
+- **UX-001:** beforeunload "Leave site?" popup removed from all pages except active exams
+- **DASH-002:** DoctorDashboard shows spinner when userId not yet available (prevents crash)
+- Error states + retry UI: MyPerformancePage, SmartNotesPanel — complete
+- Empty catch blocks: 54 blocks across 21 files — complete
+- Duplicate page headers removed: ExamPage, NotificationsPage, EBooksPage, LeaderboardPage — complete
+- Duplicate search bar removed: LibraryFilterBar (kept SemanticSearch as sole search) — complete
+- **Dark mode pass 1:** NotificationsPage + ProfilePage (~25 hardcoded hex → CSS vars)
+- **Dark mode pass 2:** Remaining rgba() fixes — typeBg, ROLE_LABELS bg, incomplete banner, completion badges, "Not provided" text (#92400E → #F59E0B)
+- `.ni-t` class in index.css now has `color: var(--text)` for dark mode
+- NA-003 + NA-013: Already complete from prior session (popLayout, 0.18/0.1s, 9-query Promise.all, SWR cache)
+- `supabase db push` — ✅ DONE (migration 20260326032952 applied to prod)
+- Mega fix pass (this session): PROF-001 (authData undefined bug fixed), PROF-003 (name/phone validation), USER-001 (Suspend/Activate bulk action + suspended filter), DASH-001 (profiles query capped at 1000 rows), dark mode UserManagement (~15 hardcoded colors → CSS vars + rgba)
+- **Ready for: NA-009 (initial query reduction) or NA-014 (auth.getUser() cleanup)**
 
 ---
 
-## What Changed This Session (NA-029 + NA-030)
+## What Changed This Session — Error Handling + UI Sprint
+
+### FIX 8: Dark Mode Contrast — NotificationsPage.jsx
+- Replaced ~12 hardcoded hex colors (#F9FAFB, #F3F4F6, #E5E7EB, #D1D5DB, #6B7280, #9CA3AF, #374151) with CSS variables (var(--surf), var(--border), var(--muted), var(--light), var(--text))
+- Notification card backgrounds, borders, body text, mark-read button, date group labels all now respect dark theme
+
+### FIX 9: Dark Mode Contrast — ProfilePage.jsx
+- Replaced ~13 hardcoded hex colors with CSS variables
+- Personal info rows: label color → var(--muted), value color → var(--text), dividers → var(--border)
+- Academic info rows: same treatment
+- Verification steps: done color → #60A5FA (visible on dark), pending → #F59E0B, default → var(--muted)
+- Stats cards: background → var(--surf), value → #60A5FA, label → var(--muted)
+- Completion badges: subject text → #60A5FA, date → var(--muted)
+- Read-only email input: bg → var(--surf), color → var(--muted)
+- Loading spinner border: → var(--border)
+
+### FIX 10: .ni-t CSS class — index.css
+- Added `color: var(--text)` to `.ni-t` (notification title) — was inheriting from parent with no explicit color
+
+### FIX (earlier): Duplicate Page Headers Removed
+- ExamPage.jsx: removed .ph block, kept subtitle as standalone .ps
+- NotificationsPage.jsx: removed .ph-row, kept "unread" count + "Mark all read" button
+- EBooksPage.jsx: removed .ph-row with title, kept document count + view toggle
+- LeaderboardPage.jsx: removed .ph-row, kept subtitle + period tabs
+
+### FIX (earlier): Duplicate Search Bar — LibraryFilterBar.jsx
+- Removed "Search by title" text input (SemanticSearch is the primary search)
+
+---
+
+## What Changed Previous Session — Error Handling Sprint
+
+### FIX 5: Error State + Retry UI — MyPerformancePage.jsx
+- Added `loadError` + `retryKey` state variables
+- Catch block now sets `loadError` message
+- Renders error banner with retry button (increments retryKey to re-trigger useEffect)
+- useEffect dependency array now includes `retryKey`
+
+### FIX 6: Error State + Retry UI — SmartNotesPanel.jsx
+- Added `loadError` state
+- fetchNotes: now checks Supabase `error` response, throws if present, sets `loadError`
+- handleSave: catch now sets `draft.error` for inline error display
+- handleDelete: catch now logs warning
+- Notes list renders error banner with retry button between loading and empty states
+
+### FIX 7: Empty Catch Block Remediation (54 blocks across 21 files)
+All `catch (_) {}` blocks replaced with `catch (e) { console.warn('Context:', e.message); }`:
+- ProfilePage.jsx (2), ReportsPage.jsx (3), UsersPage.jsx (2)
+- supabase.js (6 — signOut kept as safe-to-ignore comment)
+- DoctorEngageView.jsx (1), ChatBot.jsx (1), App.jsx (7)
+- LearnHub.jsx (1), SADashboard.jsx (3), ConferencesPage.jsx (1)
+- ReadingQuizModal.jsx (1), MCIVerificationQueue.jsx (1), EBooksPage.jsx (4)
+- DiaryPanel.jsx (1), PersonaBuilder.jsx (1), WebinarLeaderboardRow.jsx (1)
+- ManageAdminsTab.jsx (1), ArtifactsTab.jsx (2), WebinarCalendarTab.jsx (1)
+- AIInsightsTab.jsx (1), DoctorDashboard.jsx (3)
+
+### Migration: Patch triggers + missing columns
+**New file:** `supabase/migrations/20260326032952_patch_missing_triggers_and_columns.sql`
+- Creates shared `set_updated_at()` trigger function
+- Attaches BEFORE UPDATE trigger to all 6 tables from the previous migration
+- Adds: `study_hours`, `goals_met` to calendar_diary; `weekly_target_mins` to user_study_persona; `updated_at` to clinical_logs and idempotency_keys
+- Includes commented-out DOWN migration
+
+---
+
+## What Changed Previous Session — Performance Sprint
+
+### FIX 1: App.jsx — Killed re-render hell (BIGGEST IMPACT)
+**Modified:** `frontend/src/App.jsx`
+- Replaced `useAppStore(useShallow(s => s))` (subscribed to ENTIRE store) with 14 individual granular selectors
+- Same for `useAuthStore(useShallow(s => s))` → 16 individual selectors
+- Same for `useChatStore(useShallow(s => s))` → 2 selectors
+- Same for `useTenantStore(useShallow(s => s))` → 3 selectors
+- Removed `useShallow` import entirely
+- Added `useMemo` for `sharedProps` object (was recreated every render, triggering all children)
+- Added `useCallback` for `openChatBotDoubt` (was inline lambda)
+- **Impact:** Before: ANY store change → full MainApp tree re-renders (Sidebar, TopBar, page, ChatBot, Toasts all re-paint). After: only the specific state consumers re-render.
+
+### FIX 2: Query Waterfall Elimination
+**Modified:** `frontend/src/components/MyPerformancePage.jsx`
+- Converted 3 sequential `await` queries (profiles → scores → logs) into single `Promise.all([...])` — 3 network round-trips → 1
+
+**Modified:** `frontend/src/components/ActivityPage.jsx`
+- Merged secondary waterfall `Promise.all([quizLogsRes, readLogsRes])` (lines 185-188) INTO the initial Promise.all batch
+- Pre-computed `mondayISO` before the batch (it only depends on `new Date()`, not query results)
+- Eliminated duplicate `now`/`monday` computation
+- **Impact:** ActivityPage: 5+2 queries in 2 batches → 6 queries in 1 batch. MyPerformancePage: 3 sequential → 3 parallel.
+
+### FIX 3: React.memo on 7 Dashboard Child Components
+**Modified (all wrapped in `React.memo`):**
+- `frontend/src/components/dashboard/ForYouWidget.jsx`
+- `frontend/src/components/dashboard/MyActivitySection.jsx`
+- `frontend/src/components/dashboard/LatestAlerts.jsx`
+- `frontend/src/components/dashboard/LatestContentSection.jsx`
+- `frontend/src/components/dashboard/CalendarGoalRow.jsx`
+- `frontend/src/components/dashboard/WebinarLeaderboardRow.jsx`
+- `frontend/src/components/dashboard/ReadingBookmarksRow.jsx`
+- `frontend/src/components/dashboard/StudyPlanCard.jsx`
+- **Impact:** When DoctorDashboard re-renders (e.g., diaryCache update), children with unchanged props skip re-render entirely.
+
+### FIX 4: Memoized Callbacks in DoctorDashboard
+**Modified:** `frontend/src/components/DoctorDashboard.jsx`
+- Replaced inline `refreshDashboard={() => {...}}` lambda with `useCallback`
+- Added `stableBookmarkToggle` via `useCallback`
+- **Impact:** CalendarGoalRow and LatestContentSection no longer receive new function references every render, making their React.memo effective.
+
+### Previously Applied (by earlier Sonnet sessions)
+- PageTransition.jsx: already optimized (mode="popLayout", 180ms/100ms durations)
+- GoalRing.jsx: already responsive SVG + DB persistence + Tailwind conversion
+- DoctorDashboard.jsx: already uses userIdProp (no auth.getUser call), has stale-while-revalidate cache, diary sync via Zustand
+
+---
+
+## Decisions Made
+- **Granular selectors over useShallow:** `useShallow(s => s)` is semantically "subscribe to everything" even though it shallow-compares. Individual selectors are more explicit and each only triggers on their specific slice.
+- **React.memo without custom comparator:** Sufficient because we memoized the callback props. Deep equality comparators add complexity with diminishing returns.
+- **Did NOT create new Zustand stores:** All optimizations used existing stores as per CLAUDE.md rules.
+- **Did NOT refactor supabase.js:** Query consolidation was done at the component level to minimize blast radius.
+
+---
+
+## DO NOT TOUCH
+- `.bak` files — backup files, read-only
+- `.agent/MASTER_AUDIT_AND_BLUEPRINT.md` — preserved as-is per user instruction
+- `.agent/MASTER_BLUEPRINT_COMPLETE.md` — reference document
+- `.agent/MASTER_EXECUTION_PROMPT.md` — Phase 1-6 complete, archived
+
+---
+
+## Previous Session (NA-029 + NA-030)
 
 ### NA-029 — Fix Activity Page UI Redundancy & KPI Aggregation ✅
 **Modified:** `frontend/src/components/ActivityPage.jsx`

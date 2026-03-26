@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useCallback, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   supabase,
@@ -87,6 +87,7 @@ function MainApp() {
   const { isAuthLoading, session, setAuthRole } = useAuth();
   const navigate  = useNavigate();
   const location  = useLocation();
+  const authBootedRef = useRef(false); // prevents re-firing setPage('dashboard') on token refresh
 
   // Auth store — granular selectors
   const role           = useAuthStore(s => s.role);
@@ -190,9 +191,15 @@ function MainApp() {
   }, [setNotifications]);
 
   // ── Core auth-reactive effect ─────────────────────────────────────────────
+  // IMPORTANT: This must NOT re-run on token refresh. The guard below prevents
+  // re-fetching the profile and re-calling setPage('dashboard') when only the
+  // access token changed (same user). authBootedRef tracks initial login.
   useEffect(() => {
     if (isAuthLoading) return;
     if (!session?.user) return;
+    // If we already booted this user, skip — prevents token-refresh re-fires
+    // from yanking the user back to dashboard or causing cross-tab glitches.
+    if (authBootedRef.current) return;
 
     const authUser = session.user;
     const uid = authUser.id;
@@ -230,6 +237,7 @@ function MainApp() {
         setNeedsProfile(true);
         setPendingUserId(uid);
         setPendingEmail(userEmail);
+        authBootedRef.current = true;
         return;
       }
 
@@ -241,7 +249,9 @@ function MainApp() {
       setAuthRole(r);
       setUser(uid, r);
 
+      // Only navigate to dashboard on FIRST login — not on token refresh
       setPage('dashboard');
+      authBootedRef.current = true;
 
       const todayKey = `iconnect_daily_login_${uid}_${new Date().toDateString()}`;
       if (!localStorage.getItem(todayKey)) {
@@ -261,13 +271,18 @@ function MainApp() {
     loadProfile();
   }, [isAuthLoading, session?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Warn user before closing tab ─────────────────────────────────────────
+  // ── Warn user before closing tab (ONLY during active exams) ──────────────
+  // Previously this blocked EVERY tab close/reload — causing "Leave site?"
+  // popups across all tabs on every refresh. Now only guards exam sessions.
   useEffect(() => {
     if (!role) return;
+    // Only intercept unload when user is actively taking an exam
+    const isExamActive = page === 'exam' || page === 'arena-student';
+    if (!isExamActive) return;
     const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [role]);
+  }, [role, page]);
 
   // ── Centralized realtime notification subscription (via useAppStore) ─────
   useEffect(() => {
@@ -312,7 +327,8 @@ function MainApp() {
   };
 
   const logout = async () => {
-    window.removeEventListener('beforeunload', () => {});
+    authBootedRef.current = false; // allow fresh login flow on next session
+    // Note: beforeunload handler is cleaned up by the useEffect when role/page changes
     cleanupActivityTracking(); // cancel pending flush timer + drain queue
     setUser(null, null);
     unsubscribeAll(); // tear down all realtime channels
@@ -447,6 +463,17 @@ function MainApp() {
       addToast={addToast}
     />
   );
+
+  // If session exists but role isn't resolved yet, show spinner (not Login page).
+  // This prevents the 1-second Login flash while loadProfile() is still running.
+  if (!role && session?.user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-4">
+        <div className="w-12 h-12 rounded-full border-4 border-gray-200 border-t-blue-600 animate-spin" />
+        <p className="text-sm text-gray-500 font-medium">Loading iConnect...</p>
+      </div>
+    );
+  }
 
   if (!role) return (
     <>
