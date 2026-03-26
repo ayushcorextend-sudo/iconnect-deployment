@@ -46,10 +46,10 @@ export default class AppErrorBoundary extends Component {
         >
           Reload App
         </button>
-        {this.state.error && (
+        {this.state.error && import.meta.env.DEV && (
           <details style={{ marginTop: 24, maxWidth: 500, width: '100%' }}>
             <summary style={{ fontSize: 12, color: '#9CA3AF', cursor: 'pointer' }}>
-              Error details
+              Error details (dev only)
             </summary>
             <pre style={{
               fontSize: 11, color: '#6B7280', background: '#F3F4F6',

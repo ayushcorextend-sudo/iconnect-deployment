@@ -313,9 +313,21 @@ function MainApp() {
     setRole(r);
     setUserName(name);
     setUserId(uid || null);
+    // Mark as booted so the auth useEffect's loadProfile() doesn't re-run and
+    // overwrite the role/userId we just set (race condition fix).
+    authBootedRef.current = true;
     if (uid) {
+      setAuthRole(r);
+      setUser(uid, r);
       fetchNotifs(uid);
       if (r === 'superadmin' || r === 'contentadmin') fetchUsers();
+      fetchArtifacts(r).then(data => { if (data?.length) setArtifacts(data); }).catch(() => {});
+      // Track daily login
+      const todayKey = `iconnect_daily_login_${uid}_${new Date().toDateString()}`;
+      if (!localStorage.getItem(todayKey)) {
+        localStorage.setItem(todayKey, '1');
+        trackActivity('daily_login', uid);
+      }
     }
     if (np) {
       setNeedsProfile(true);

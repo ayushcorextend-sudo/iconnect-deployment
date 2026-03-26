@@ -168,7 +168,7 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
     setResetError('');
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
-        redirectTo: 'https://iconnect-med.vercel.app',
+        redirectTo: window.location.origin,
       });
       if (error) throw error;
       setResetSent(true);

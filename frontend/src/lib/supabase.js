@@ -195,7 +195,7 @@ export const authSignIn = async (email, password) => {
         mode: 'online'
       })
     )
-    return { role, name, mode: 'online' }
+    return { role, name, userId: data.user.id, mode: 'online' }
 
   } catch (err) {
     if (err.message === 'timeout' || err.message?.toLowerCase().includes('failed to fetch')) {

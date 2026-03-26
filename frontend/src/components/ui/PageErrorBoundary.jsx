@@ -8,7 +8,7 @@ import { captureException } from '../../lib/sentry';
 export default class PageErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, errorInfo: null };
     this.reset = this.reset.bind(this);
   }
 
@@ -26,6 +26,7 @@ export default class PageErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     captureException(error, { extra: errorInfo });
+    this.setState({ errorInfo });
   }
 
   reset() {
@@ -61,6 +62,14 @@ export default class PageErrorBoundary extends Component {
         >
           {isChunkError ? 'Reload App' : 'Try Again'}
         </button>
+        {this.state.error && import.meta.env.DEV && (
+          <details style={{ marginTop: 16, maxWidth: 600, width: '100%', textAlign: 'left' }}>
+            <summary style={{ fontSize: 11, color: '#9CA3AF', cursor: 'pointer' }}>Error details (dev only)</summary>
+            <pre style={{ fontSize: 10, color: '#6B7280', background: '#F3F4F6', padding: 10, borderRadius: 6, marginTop: 6, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+              {this.state.error.message}{'\n\n'}{this.state.errorInfo?.componentStack}
+            </pre>
+          </details>
+        )}
       </div>
     );
   }
