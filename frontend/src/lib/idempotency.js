@@ -1,14 +1,19 @@
 /**
  * idempotency.js — Client-side idempotency key management.
  *
- * Generates a UUID key per mutation, stores it in idempotency_keys table,
- * and detects duplicate submissions (e.g. double-click, network retry).
+ * Prevents duplicate submissions (double-click, network retry) using
+ * a DB-level UNIQUE constraint on (user_id, endpoint, payload_hash).
+ *
+ * Strategy (atomic — eliminates TOCTOU race from Phase 1):
+ *   1. Attempt INSERT idempotency key with ON CONFLICT DO NOTHING
+ *   2. If 0 rows returned → duplicate; fetch and return cached result
+ *   3. If 1 row returned → new request; perform actual insert, store result
  *
  * Usage:
  *   const result = await idempotentInsert('quiz_attempt', { quiz_id, user_id, score, ... });
  */
 import { supabase } from './supabase';
-import { dbRun, dbInsert } from './dbService';
+import { dbRun, dbUpsert, dbSelect, dbUpdate } from './dbService';
 
 /**
  * Compute a stable hash of the payload for duplicate detection.
@@ -22,7 +27,7 @@ export async function hashPayload(payload) {
     const buf  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
     return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
   } catch {
-    // Fallback: use a simple string hash if SubtleCrypto unavailable
+    // Fallback: simple string hash if SubtleCrypto unavailable
     let hash = 0;
     const str = JSON.stringify(payload);
     for (let i = 0; i < str.length; i++) {
@@ -36,11 +41,6 @@ export async function hashPayload(payload) {
 /**
  * Idempotent insert wrapper.
  *
- * - Generates a UUID idempotency key
- * - Checks if a matching key + payload_hash already exists (duplicate)
- * - On duplicate: returns the stored result instead of re-inserting
- * - On new: inserts the row, stores the idempotency key with result
- *
  * @param {string} endpoint - Logical name e.g. 'quiz_attempt', 'exam_attempt'
  * @param {object} payload  - The data to insert
  * @param {{ table: string, returnColumns?: string }} options
@@ -50,54 +50,60 @@ export async function idempotentInsert(endpoint, payload, { table, returnColumns
   const idempotencyKey = crypto.randomUUID();
   const payloadHash    = await hashPayload(payload);
 
-  // ── Check for existing duplicate (same endpoint + hash for this user, last 24h)
   try {
     const { data: authData } = await supabase.auth.getUser();
     const userId = authData?.user?.id;
     if (!userId) throw new Error('not_authenticated');
 
-    const existingQuery = supabase
-      .from('idempotency_keys')
-      .select('result')
-      .eq('user_id', userId)
-      .eq('endpoint', endpoint)
-      .eq('payload_hash', payloadHash)
-      .gt('expires_at', new Date().toISOString())
-      .maybeSingle();
-    const { data: existing, status: existingStatus } = await dbRun(existingQuery);
+    // ── Step 1: Claim the idempotency slot atomically (ON CONFLICT DO NOTHING)
+    // If the UNIQUE constraint (user_id, endpoint, payload_hash) fires, 0 rows are inserted.
+    const { data: claimed } = await dbUpsert(
+      'idempotency_keys',
+      { key: idempotencyKey, userId, endpoint, payloadHash },
+      {
+        onConflict:       'user_id,endpoint,payload_hash',
+        ignoreDuplicates: true,
+        returning:        true,
+        returnColumns:    'id',
+      }
+    );
 
-    if (existingStatus === 'error') throw new Error('Idempotency check query failed');
-
-    if (existing?.result) {
+    // ── Step 2: If 0 rows → duplicate detected → return cached result
+    if (!claimed || claimed.length === 0) {
       console.info(`[idempotency] Duplicate ${endpoint} detected — returning cached result.`);
-      return { data: existing.result, error: null, isDuplicate: true };
+      const { data: existing } = await dbSelect('idempotency_keys', {
+        columns:     'result',
+        filters:     { user_id: userId, endpoint, payload_hash: payloadHash },
+        maybeSingle: true,
+      });
+      return { data: existing?.result ?? null, error: null, isDuplicate: true };
     }
 
-    // ── Perform the actual insert (dbRun for consistent error shape)
-    const insertQuery = supabase
-      .from(table)
-      .insert(payload)
-      .select(returnColumns)
-      .maybeSingle();
+    // ── Step 3: New request — perform the actual insert
+    const insertQuery = supabase.from(table).insert(payload).select(returnColumns).maybeSingle();
     const { data, error: insertErr, status: insertStatus } = await dbRun(insertQuery);
 
-    if (insertStatus === 'error') return { data: null, error: insertErr, isDuplicate: false };
+    if (insertStatus === 'error') {
+      // Clean up the claimed idempotency slot so the user can retry
+      await dbUpdate('idempotency_keys', { result: null }, {
+        user_id: userId, endpoint, payload_hash: payloadHash,
+      });
+      return { data: null, error: insertErr, isDuplicate: false };
+    }
 
-    // ── Store idempotency key — awaited, no longer fire-and-forget (IDEM-2)
-    const { error: keyErr } = await dbInsert('idempotency_keys', {
-      key:         idempotencyKey,
-      endpoint,
-      userId,
-      payloadHash,
-      result:      data,
-    });
-    if (keyErr) console.warn('[idempotency] Failed to store idempotency key:', keyErr);
+    // ── Step 4: Persist result for future duplicate checks
+    const { error: updateErr } = await dbUpdate(
+      'idempotency_keys',
+      { result: data },
+      { user_id: userId, endpoint, payload_hash: payloadHash }
+    );
+    if (updateErr) console.warn('[idempotency] Failed to store result:', updateErr);
 
     return { data, error: null, isDuplicate: false };
 
   } catch (err) {
-    // Fall back to a plain insert if idempotency layer fails
-    console.warn('[idempotency] Idempotency check failed, falling back to plain insert:', err.message);
+    // Idempotency layer unavailable — fall back to plain insert
+    console.warn('[idempotency] Layer failed, falling back to plain insert:', err.message);
     const fallbackQuery = supabase.from(table).insert(payload).select(returnColumns).maybeSingle();
     const { data, error } = await dbRun(fallbackQuery);
     return { data, error, isDuplicate: false };
