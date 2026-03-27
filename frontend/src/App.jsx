@@ -8,7 +8,7 @@ import {
 } from './lib/supabase';
 import { sendNotification } from './lib/sendNotification';
 import { auditLog } from './lib/auditLog';
-import { trackActivity, cleanupActivityTracking } from './lib/trackActivity';
+import { trackActivity, flushPendingFromStorage } from './lib/trackActivity';
 import { captureException, setUser } from './lib/sentry';
 import ErrorBoundary from './components/ErrorBoundary';
 import AppErrorBoundary from './components/ui/AppErrorBoundary';
@@ -259,6 +259,11 @@ function MainApp() {
         localStorage.setItem(todayKey, '1');
         trackActivity('daily_login', uid);
       }
+
+      // SEC-004: Flush any activity logs saved to localStorage during a previous
+      // page close (the beforeunload fallback in trackActivity.js).
+      // Auth is established at this point so the flush uses proper credentials.
+      flushPendingFromStorage().catch(() => {});
 
       // Kick off parallel post-login data fetches — none are blocking for render
       const parallelFetches = [
