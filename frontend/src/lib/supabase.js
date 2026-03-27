@@ -288,26 +288,11 @@ export const registerUser = async (email, password, profile) => {
     }
 
   } catch (e) {
-    // Re-throw "already exists" and profile insert failures — never fall to offline path for these
-    if (e.message?.includes('already') || e.isProfileError) throw e
-
-    // OFFLINE PATH: Save to localStorage
-    const localUsers = JSON.parse(
-      localStorage.getItem('iconnect_users') || '[]'
-    )
-    if (localUsers.find(u => u.email === email)) {
-      throw new Error('An account with this email already exists.')
-    }
-    localUsers.push({
-      id: `local_${Date.now()}`,
-      email,
-      role: 'doctor',
-      verified: false,
-      status: 'pending',
-      ...profile
-    })
-    localStorage.setItem('iconnect_users', JSON.stringify(localUsers))
-    return { success: true, mode: 'offline' }
+    // BUG-D: The offline localStorage path has been removed.
+    // Demo mode is disabled — all registration must go through Supabase.
+    // A localStorage-only account cannot be verified, approved, or used securely.
+    // Surface the real error to the user so they know to retry when online.
+    throw e
   }
 }
 
