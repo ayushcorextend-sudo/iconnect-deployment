@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { toSnake } from './dbService'
 
 export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321',
@@ -244,16 +245,19 @@ export const registerUser = async (email, password, profile) => {
     }
 
     // Step 3: Profile insert is now FATAL — a failure here must surface to the caller
+    // toSnake() converts any camelCase keys in `profile` spread to snake_case,
+    // preventing NULL inserts for fields like firstName → first_name (BUG-E).
+    const profileRow = toSnake({
+      id: data.user.id, email, role: 'doctor', status: 'pending', verified: false,
+      mci_number: profile.mci_number,
+      name: profile.name,
+      speciality: profile.speciality,
+      college: profile.college,
+      ...profile,
+    });
     const { error: profileError } = await supabase
       .from('profiles')
-      .insert([{
-        id: data.user.id, email, role: 'doctor', status: 'pending', verified: false,
-        mci_number: profile.mci_number,
-        name: profile.name,
-        speciality: profile.speciality,
-        college: profile.college,
-        ...profile,
-      }])
+      .insert([profileRow])
     if (profileError) {
       // Step 4: Throw a labelled error so the outer catch re-throws rather than falling to offline path
       const e = new Error('Profile setup failed. Your account was created but could not be saved. Please contact support@iconnect.in')

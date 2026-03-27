@@ -8,6 +8,7 @@
  *   const result = await idempotentInsert('quiz_attempt', { quiz_id, user_id, score, ... });
  */
 import { supabase } from './supabase';
+import { dbRun, dbInsert } from './dbService';
 
 /**
  * Compute a stable hash of the payload for duplicate detection.
@@ -55,7 +56,7 @@ export async function idempotentInsert(endpoint, payload, { table, returnColumns
     const userId = authData?.user?.id;
     if (!userId) throw new Error('not_authenticated');
 
-    const { data: existing } = await supabase
+    const existingQuery = supabase
       .from('idempotency_keys')
       .select('result')
       .eq('user_id', userId)
@@ -63,40 +64,42 @@ export async function idempotentInsert(endpoint, payload, { table, returnColumns
       .eq('payload_hash', payloadHash)
       .gt('expires_at', new Date().toISOString())
       .maybeSingle();
+    const { data: existing, status: existingStatus } = await dbRun(existingQuery);
+
+    if (existingStatus === 'error') throw new Error('Idempotency check query failed');
 
     if (existing?.result) {
       console.info(`[idempotency] Duplicate ${endpoint} detected — returning cached result.`);
       return { data: existing.result, error: null, isDuplicate: true };
     }
 
-    // ── Perform the actual insert
-    const { data, error } = await supabase
+    // ── Perform the actual insert (dbRun for consistent error shape)
+    const insertQuery = supabase
       .from(table)
       .insert(payload)
       .select(returnColumns)
       .maybeSingle();
+    const { data, error: insertErr, status: insertStatus } = await dbRun(insertQuery);
 
-    if (error) return { data: null, error, isDuplicate: false };
+    if (insertStatus === 'error') return { data: null, error: insertErr, isDuplicate: false };
 
-    // ── Store idempotency key (best-effort, don't fail if this errors)
-    supabase.from('idempotency_keys').insert({
-      key:          idempotencyKey,
+    // ── Store idempotency key — awaited, no longer fire-and-forget (IDEM-2)
+    const { error: keyErr } = await dbInsert('idempotency_keys', {
+      key:         idempotencyKey,
       endpoint,
-      user_id:      userId,
-      payload_hash: payloadHash,
-      result:       data,
-    }).then(() => {}).catch(() => {});
+      userId,
+      payloadHash,
+      result:      data,
+    });
+    if (keyErr) console.warn('[idempotency] Failed to store idempotency key:', keyErr);
 
     return { data, error: null, isDuplicate: false };
 
   } catch (err) {
     // Fall back to a plain insert if idempotency layer fails
     console.warn('[idempotency] Idempotency check failed, falling back to plain insert:', err.message);
-    const { data, error } = await supabase
-      .from(table)
-      .insert(payload)
-      .select(returnColumns)
-      .maybeSingle();
+    const fallbackQuery = supabase.from(table).insert(payload).select(returnColumns).maybeSingle();
+    const { data, error } = await dbRun(fallbackQuery);
     return { data, error, isDuplicate: false };
   }
 }

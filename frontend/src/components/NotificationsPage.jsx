@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Toggle from './Toggle';
 import { supabase } from '../lib/supabase';
+import { dbSelect } from '../lib/dbService';
 import { getCached, setCached } from '../lib/dataCache';
 import { useAuth } from '../context/AuthContext';
 
@@ -75,23 +76,22 @@ export default function NotificationsPage({ addToast, setPage }) {
         }
 
         // Fetch notifications (always fresh — new ones may have arrived)
-        const { data: rows, error: notifErr } = await supabase
-          .from('notifications')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (notifErr) throw notifErr;
-        setNotifs(rows || []);
+        const { data: rows, error: notifErr, status: notifStatus } = await dbSelect(
+          'notifications',
+          { filters: { user_id: user.id }, order: { column: 'created_at', ascending: false } }
+        );
+        if (notifStatus === 'error') throw new Error(notifErr);
+        // Deduplicate by id before setting (fixes BUG-H: duplicate notifications)
+        const seen = new Set();
+        const uniqueRows = (rows || []).filter(n => seen.has(n.id) ? false : seen.add(n.id));
+        setNotifs(uniqueRows);
 
         // Fetch preferences (always refresh in background)
-        const { data: prefs, error: prefsErr } = await supabase
-          .from('notification_preferences')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (prefsErr) throw prefsErr;
+        const { data: prefs, error: prefsErr, status: prefsStatus } = await dbSelect(
+          'notification_preferences',
+          { filters: { user_id: user.id }, maybeSingle: true }
+        );
+        if (prefsStatus === 'error') throw new Error(prefsErr);
 
         const freshChannels = {
           in_app_enabled:   prefs?.in_app_enabled   ?? true,
@@ -168,7 +168,7 @@ export default function NotificationsPage({ addToast, setPage }) {
     } catch (e) {
       addToast('error', 'Could not mark all read: ' + e.message);
       // Reload to restore accurate state
-      const { data } = await supabase.from('notifications').select('*').eq('user_id', uid).order('created_at', { ascending: false });
+      const { data } = await dbSelect('notifications', { filters: { user_id: uid }, order: { column: 'created_at', ascending: false } });
       if (data) setNotifs(data);
     }
   };

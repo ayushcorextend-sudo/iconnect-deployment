@@ -6,6 +6,7 @@
  * Uses navigator.sendBeacon on page unload to prevent data loss (Flaw #29).
  */
 import { supabase } from './supabase';
+import { dbInsert } from './dbService';
 
 const queue = [];
 let flushTimer = null;
@@ -82,11 +83,10 @@ export async function flushActivityQueue() {
   if (queue.length === 0) return;
 
   const batch = queue.splice(0, MAX_BATCH);
-  try {
-    const { error } = await supabase.from('activity_logs').insert(batch);
-    if (error) throw error;
-  } catch (e) {
-    console.warn('[trackActivity] batch insert failed:', e.message);
+  // dbInsert: normalizes errors, never throws, payload is already snake_case
+  const { error, status } = await dbInsert('activity_logs', batch);
+  if (status === 'error') {
+    console.warn('[trackActivity] batch insert failed:', error);
     // Don't re-queue to avoid infinite retry loops on persistent errors.
   }
 }

@@ -219,7 +219,15 @@ Needs further audit in Phase 1 to identify which are OTP rate limiting (BUG-T) v
 ---
 
 ## Phase 1 — Security & Service Layer
-*(entries will be added as work progresses)*
+
+| Date | Bug ID | File Changed | What Changed | Blast Radius | Verification |
+|------|--------|-------------|-------------|-------------|-------------|
+| 2026-03-28 | BUG-G, BUG-E, BUG-K | `src/lib/dbService.js` (NEW) | Created centralized data access layer: toSnake/toCamel transformers, dbSelect, dbInsert, dbUpsert, dbUpdate, dbDelete, dbRun, registerCache/clearAllCaches | All 52 files with direct supabase.from() calls — incremental migration | `npm run build` ✅ |
+| 2026-03-28 | BUG-E | `src/lib/supabase.js` | Profile insert now runs payload through `toSnake()` — fixes camelCase→snake_case NULL inserts on registration | Registration flow | `npm run build` ✅ |
+| 2026-03-28 | SEC-004 (partial) | `src/lib/trackActivity.js` | flushActivityQueue now uses `dbInsert` — consistent error logging, no more silent swallow | activity_logs insert path | `npm run build` ✅ |
+| 2026-03-28 | BUG-H | `src/components/NotificationsPage.jsx` | Notification + prefs fetch via `dbSelect`; added Set-based dedup on notification rows (BUG-H) | NotificationsPage only | `npm run build` ✅ |
+| 2026-03-28 | BUG-K | `src/components/DoctorDashboard.jsx` | All 9 concurrent queries wrapped in `dbRun(query, signal)` with AbortController; cleanup returns `controller.abort()` on unmount | DoctorDashboard useEffect | `npm run build` ✅ |
+| 2026-03-28 | IDEM-1, IDEM-2 | `src/lib/idempotency.js` | idempotency_keys check and insert via dbRun/dbInsert; key save now awaited (fixes IDEM-2 fire-and-forget); fallback insert via dbRun | Quiz/exam submission paths | `npm run build` ✅ |
 
 ## Phase 2 — Data Integrity & Typing
 *(entries will be added as work progresses)*
