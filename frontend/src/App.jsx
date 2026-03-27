@@ -31,6 +31,7 @@ import ProfileSetupPage from './components/ProfileSetupPage';
 import OfflineIndicator from './components/ui/OfflineIndicator';
 import PageTransition from './components/ui/PageTransition';
 import PageErrorBoundary from './components/ui/PageErrorBoundary';
+import { clearAllCaches } from './lib/dbService';
 
 // Page-level components — lazy loaded for code splitting
 const SADashboard           = lazy(() => import('./components/SADashboard'));
@@ -340,11 +341,13 @@ function MainApp() {
 
   const logout = async () => {
     authBootedRef.current = false; // allow fresh login flow on next session
+    // BUG-C: clearAllCaches() clears _dashCache, signedUrl CACHE, dataCache _store,
+    // tenantResolver _cached, and trackActivity queue — all registered via registerCache().
+    clearAllCaches();
     // Note: beforeunload handler is cleaned up by the useEffect when role/page changes
-    cleanupActivityTracking(); // cancel pending flush timer + drain queue
     setUser(null, null);
     unsubscribeAll(); // tear down all realtime channels
-    clearTenant();    // reset tenant cache
+    clearTenant();    // reset tenant cache (also cleared by clearAllCaches via registerCache)
     await authSignOut();
     clearAuth();
     setArtifacts([]);

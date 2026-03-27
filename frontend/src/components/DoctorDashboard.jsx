@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase, getUserContentStates, toggleBookmark, getDiaryEntriesRange } from '../lib/supabase';
-import { dbRun } from '../lib/dbService';
+import { dbRun, registerCache } from '../lib/dbService';
 import { useAppStore } from '../stores/useAppStore';
 import { getPersonalizedSuggestions } from '../lib/aiService';
 import { getCached, setCached, invalidate } from '../lib/dataCache';
@@ -16,9 +16,12 @@ import WebinarLeaderboardRow from './dashboard/WebinarLeaderboardRow';
 import LatestContentSection from './dashboard/LatestContentSection';
 import ReadingBookmarksRow from './dashboard/ReadingBookmarksRow';
 
-// Module-level stale-while-revalidate cache (2-min TTL, keyed by userId)
+// BUG-C: _dashCache moved to a registered cache so it is cleared on logout.
+// registerCache() ensures performLogout() will call _dashCache.clear() before
+// signing out — preventing cross-user data exposure on shared devices.
 const _dashCache = new Map(); // uid → { data, ts }
 const DASH_CACHE_TTL = 2 * 60 * 1000;
+registerCache(() => _dashCache.clear());
 
 export default function DoctorDashboard({ artifacts = [], notifications = [], setPage, userName, openChatBotDoubt, userId: userIdProp, darkMode }) {
   const approved = artifacts.filter(a => a.status === 'approved');

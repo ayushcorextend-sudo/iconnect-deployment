@@ -6,10 +6,13 @@
  * Uses navigator.sendBeacon on page unload to prevent data loss (Flaw #29).
  */
 import { supabase } from './supabase';
-import { dbInsert } from './dbService';
+import { dbInsert, registerCache } from './dbService';
 
 const queue = [];
 let flushTimer = null;
+// BUG-C: register activity queue for logout cleanup — prevents stale user's
+// pending events from flushing under the next user's session.
+registerCache(() => cleanupActivityTracking());
 const FLUSH_INTERVAL = 5000; // ms
 const MAX_BATCH = 20;
 const timers = {}; // { "activityType_referenceId": startTimestamp }

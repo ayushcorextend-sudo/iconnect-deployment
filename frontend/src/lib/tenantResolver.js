@@ -8,6 +8,7 @@
  * 4. Default public tenant
  */
 import { supabase } from './supabase';
+import { registerCache } from './dbService';
 
 const DEFAULT_TENANT = {
   id:              '00000000-0000-0000-0000-000000000001',
@@ -18,8 +19,9 @@ const DEFAULT_TENANT = {
   secondary_color: '#818CF8',
 };
 
-// In-memory cache
+// In-memory cache — registered for logout cleanup (BUG-C)
 let _cached = null;
+registerCache(() => { _cached = null; });
 
 /**
  * Resolve the current tenant.

@@ -1,120 +1,27 @@
-import { useState, useEffect } from 'react';
-import Avatar from './Avatar';
-import { supabase, getUserContentStates, toggleBookmark } from '../lib/supabase';
-import { generateStudyPlan } from '../lib/aiService';
-import AIResponseBox from './AIResponseBox';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { supabase, getUserContentStates, toggleBookmark, getDiaryEntriesRange } from '../lib/supabase';
+import { dbRun } from '../lib/dbService';
+import { useAppStore } from '../stores/useAppStore';
+import { getPersonalizedSuggestions } from '../lib/aiService';
+import { getCached, setCached, invalidate } from '../lib/dataCache';
+import { defaultSuggestions } from '../mocks';
+import { SAMessageBox } from './BroadcastPage';
 
-// ── 35-day GitHub-style heatmap ────────────────────────────────
-function ActivityHeatmap({ data }) {
-  const max = Math.max(...data, 1);
-  const COLORS = ['#F3F4F6', '#BFDBFE', '#93C5FD', '#3B82F6', '#1D4ED8'];
-  const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
-        {DAY_LABELS.map((d, i) => (
-          <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 9, color: '#9CA3AF', fontWeight: 600 }}>{d}</div>
-        ))}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
-        {data.map((v, i) => {
-          const intensity = v === 0 ? 0 : Math.min(4, Math.ceil((v / max) * 4));
-          return (
-            <div
-              key={i}
-              title={`${v} activit${v !== 1 ? 'ies' : 'y'}`}
-              style={{ width: '100%', aspectRatio: '1', background: COLORS[intensity], borderRadius: 3 }}
-            />
-          );
-        })}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8, justifyContent: 'flex-end' }}>
-        <span style={{ fontSize: 9, color: '#9CA3AF' }}>Less</span>
-        {COLORS.map((c, i) => <div key={i} style={{ width: 10, height: 10, background: c, borderRadius: 2 }} />)}
-        <span style={{ fontSize: 9, color: '#9CA3AF' }}>More</span>
-      </div>
-    </div>
-  );
-}
+import LatestAlerts from './dashboard/LatestAlerts';
+import MyActivitySection from './dashboard/MyActivitySection';
+import ForYouWidget from './dashboard/ForYouWidget';
+import StudyPlanCard from './dashboard/StudyPlanCard';
+import CalendarGoalRow from './dashboard/CalendarGoalRow';
+import WebinarLeaderboardRow from './dashboard/WebinarLeaderboardRow';
+import LatestContentSection from './dashboard/LatestContentSection';
+import ReadingBookmarksRow from './dashboard/ReadingBookmarksRow';
 
-// ── Weekly goal ring (SVG) ─────────────────────────────────────
-function GoalRing({ mins, targetMins = 300 }) {
-  const r = 38;
-  const circ = 2 * Math.PI * r;
-  const pct = Math.min(mins / Math.max(targetMins, 1), 1);
-  const offset = circ * (1 - pct);
-  const hours = Math.floor(mins / 60);
-  const m = mins % 60;
-  const label = hours > 0 ? `${hours}h${m > 0 ? ` ${m}m` : ''}` : `${mins}m`;
-  const color = pct >= 1 ? '#059669' : pct >= 0.6 ? '#D97706' : '#2563EB';
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-      <svg width={96} height={96} viewBox="0 0 96 96">
-        <circle cx={48} cy={48} r={r} fill="none" stroke="#F3F4F6" strokeWidth={8} />
-        <circle
-          cx={48} cy={48} r={r} fill="none" stroke={color} strokeWidth={8}
-          strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset}
-          transform="rotate(-90 48 48)"
-          style={{ transition: 'stroke-dashoffset 0.8s ease' }}
-        />
-        <text x={48} y={44} textAnchor="middle" fontSize={13} fontWeight="700" fill={color}>{Math.round(pct * 100)}%</text>
-        <text x={48} y={58} textAnchor="middle" fontSize={9} fill="#6B7280">{label || '0m'}</text>
-      </svg>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>Weekly Goal</div>
-      <div style={{ fontSize: 10, color: '#9CA3AF' }}>{Math.round(mins / 60 * 10) / 10}h of 5h target</div>
-      {pct >= 1 && <div style={{ fontSize: 11, color: '#059669', fontWeight: 600 }}>🎉 Goal achieved!</div>}
-    </div>
-  );
-}
+// Module-level stale-while-revalidate cache (2-min TTL, keyed by userId)
+const _dashCache = new Map(); // uid → { data, ts }
+const DASH_CACHE_TTL = 2 * 60 * 1000;
 
-const fmtDt = (d) => d
-  ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-  : '—';
-
-const ACTIVITY_ICON = {
-  quiz_attempted: '📝', quiz_passed: '🏆', article_read: '📖',
-  note_viewed: '📋', document_downloaded: '📥', webinar_attended: '🎥', daily_login: '👋',
-};
-const ACTIVITY_LABEL = {
-  quiz_attempted: 'Attempted a quiz', quiz_passed: 'Passed a quiz',
-  article_read: 'Read an article', note_viewed: 'Viewed notes',
-  document_downloaded: 'Downloaded a document', webinar_attended: 'Attended a webinar',
-  daily_login: 'Logged in',
-};
-function relTime(ts) {
-  if (!ts) return '';
-  const s = Math.floor((Date.now() - new Date(ts)) / 1000);
-  if (s < 60) return 'just now';
-  if (s < 3600) return Math.floor(s / 60) + 'm ago';
-  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
-  if (s < 172800) return 'Yesterday';
-  return Math.floor(s / 86400) + 'd ago';
-}
-
-// 7-day mini activity heatmap dots
-function ActivityDots({ days }) {
-  const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-  return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
-      {labels.map((l, i) => (
-        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-          <div style={{
-            width: 28, borderRadius: 4,
-            height: Math.max(8, (days[i] || 0) * 24),
-            background: days[i] > 0 ? '#2563EB' : '#E5E7EB',
-            transition: 'height .3s',
-            minHeight: 8,
-          }} />
-          <span style={{ fontSize: 9, color: '#9CA3AF', fontWeight: 600 }}>{l}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export default function DoctorDashboard({ artifacts = [], notifications = [], setPage, userName, openChatBotDoubt }) {
+export default function DoctorDashboard({ artifacts = [], notifications = [], setPage, userName, openChatBotDoubt, userId: userIdProp, darkMode }) {
   const approved = artifacts.filter(a => a.status === 'approved');
-  // Latest 4 approved, most recently added first (higher id = newer)
   const latestContent = [...approved].sort((a, b) => b.id - a.id).slice(0, 4);
 
   const [myScore, setMyScore] = useState(0);
@@ -127,51 +34,109 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
   const [recommendations, setRecommendations] = useState([]);
   const [nextWebinar, setNextWebinar] = useState(null);
   const [miniLB, setMiniLB] = useState([]);
-  const [contentStates, setContentStates] = useState({}); // { [String(artifactId)]: { isBookmarked, currentPage } }
+  const [contentStates, setContentStates] = useState({});
   const [currentUserId, setCurrentUserId] = useState(null);
   const [dashLoading, setDashLoading] = useState(true);
-  const [heatmapData, setHeatmapData] = useState(Array(35).fill(0));
+  const [activityByDate, setActivityByDate] = useState({});
   const [weeklyMins, setWeeklyMins] = useState(0);
   const [recentActivities, setRecentActivities] = useState([]);
   const [studyPlan, setStudyPlan] = useState({ loading: false, text: null, error: null });
   const [mySpeciality, setMySpeciality] = useState('');
+  const [aiForYou, setAiForYou] = useState({ loading: true, items: [], error: null });
   const [reminderPopover, setReminderPopover] = useState(false);
   const [reminderLeadMins, setReminderLeadMins] = useState(60);
   const [reminderChannels, setReminderChannels] = useState(['in_app']);
   const [reminderSaving, setReminderSaving] = useState(false);
+  const [activePlan, setActivePlan] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [dashError, setDashError] = useState(null);
+
+  // Ref so refreshForYou can access latest computed values without stale closure
+  const dashDataRef = useRef({ booksRead: 0, quizScore: 0, totalScore: 0, weeklyMins: 0, lastActive: null, recentSubjects: [] });
+
+  // ── Cross-page diary sync via Zustand diaryCache ─────────────────────────
+  // When JournalModal saves a diary entry (from any page), it writes to
+  // diaryCache. We watch that here and merge new dates into activityByDate
+  // immediately, so the heatmap reflects the change without a full reload.
+  const diaryCache = useAppStore(s => s.diaryCache);
+  useEffect(() => {
+    if (Object.keys(diaryCache).length === 0) return;
+    setActivityByDate(prev => {
+      let changed = false;
+      const next = { ...prev };
+      Object.entries(diaryCache).forEach(([date, data]) => {
+        if (data.study_hours > 0 && !next[date]) {
+          next[date] = 1;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [diaryCache]);
 
   useEffect(() => {
-    async function load() {
+    const controller = new AbortController();
+    const { signal } = controller;
+
+    async function load() { // eslint-disable-line no-shadow
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        const uid = authData?.user?.id;
+        // Use userId passed from parent (via AuthStore in App.jsx) — no extra auth round-trip
+        const uid = userIdProp;
         if (!uid) return;
         setCurrentUserId(uid);
 
-        // ── Profile speciality ────────────────────────────
-        const { data: profileData } = await supabase.from('profiles').select('speciality').eq('id', uid).maybeSingle();
-        if (profileData?.speciality) setMySpeciality(profileData.speciality);
+        // ── Skip re-fetch if cache is fresh (< 2 min) ───────
+        const cached = _dashCache.get(uid);
+        if (cached && Date.now() - cached.ts < DASH_CACHE_TTL) {
+          // Data already in state from previous mount — nothing to do
+          setDashLoading(false);
+          return;
+        }
 
-        // ── Content states (bookmarks + progress) ─────────
-        const states = await getUserContentStates(uid);
+        // ── Fire all independent queries in parallel ───────
+        // dbRun wraps each query with AbortSignal so they cancel cleanly on unmount (BUG-K).
+        const [profileRes, statesRes, scoresRes, logsRes, actLogsRes, artsRes, wbRes, planRes, lbProfilesRes] = await Promise.all([
+          dbRun(supabase.from('profiles').select('speciality').eq('id', uid).maybeSingle(), signal),
+          getUserContentStates(uid),
+          dbRun(supabase.from('user_scores').select('user_id, total_score, quiz_score, reading_score')
+            .order('total_score', { ascending: false }).limit(5), signal),
+          dbRun(supabase.from('activity_logs').select('activity_type, duration_minutes, created_at')
+            .eq('user_id', uid).order('created_at', { ascending: false }).limit(2000), signal),
+          dbRun(supabase.from('activity_logs').select('reference_id')
+            .eq('user_id', uid).eq('activity_type', 'article_read'), signal),
+          dbRun(supabase.from('artifacts').select('id, title, subject, emoji, pages')
+            .eq('status', 'approved').limit(20), signal),
+          dbRun(supabase.from('admin_webinars').select('*')
+            .gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(1), signal),
+          dbRun(supabase.from('study_plan_history').select('id, plan, completed_tasks')
+            .eq('user_id', uid).eq('is_active', true).order('created_at', { ascending: false }).limit(1), signal),
+          dbRun(supabase.from('profiles').select('id, name, speciality, college').limit(20), signal),
+        ]);
+
+        // If any query was aborted (component unmounted mid-fetch), bail out silently.
+        if ([profileRes, scoresRes, logsRes, actLogsRes, artsRes, wbRes, planRes, lbProfilesRes]
+          .some(r => r.status === 'aborted')) return;
+
+        const profileData = profileRes.data;
+        const states      = statesRes;
+        const scoreData   = scoresRes.data;
+        const logs        = logsRes.data;
+        const actLogs     = actLogsRes.data;
+        const arts        = artsRes.data;
+        const wb          = wbRes.data;
+        // planRes.data is an array (dbRun returns camelCase); grab first active plan
+        const activePlanData = Array.isArray(planRes.data) ? planRes.data[0] || null : planRes.data || null;
+
+        // ── Profile ────────────────────────────────────────
+        if (profileData?.speciality) setMySpeciality(profileData.speciality);
         setContentStates(states);
 
         // ── Scores & Leaderboard ──────────────────────────
-        const { data: scoreData } = await supabase
-          .from('user_scores')
-          .select('user_id, total_score, quiz_score, reading_score')
-          .order('total_score', { ascending: false })
-          .limit(5);
-
+        const lbProfiles = lbProfilesRes.data;
         if (scoreData?.length) {
-          const userIds = scoreData.map(d => d.user_id);
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, name, speciality, college')
-            .in('id', userIds);
-          const profileMap = (profiles || []).reduce((acc, p) => { acc[p.id] = p; return acc; }, {});
+          const profileMap = (lbProfiles || []).reduce((acc, p) => { acc[p.id] = p; return acc; }, {});
 
-          const mapped = scoreData.map((row, i) => ({
+          const mapped = scoreData.map(row => ({
             id: row.user_id,
             name: profileMap[row.user_id]?.name || 'Anonymous',
             speciality: profileMap[row.user_id]?.speciality || '—',
@@ -180,94 +145,143 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
           }));
           setMiniLB(mapped);
 
-          const meRow = mapped.find(r => r.isMe);
-          if (meRow) {
-            const meScore = scoreData.find(d => d.user_id === uid);
-            setMyScore(meRow.score);
-            setMyQuizPts(meScore?.quiz_score || 0);
-            setMyReadPts(meScore?.reading_score || 0);
+          const meScore = scoreData.find(d => d.user_id === uid);
+          if (meScore) {
+            setMyScore(meScore.total_score || 0);
+            setMyQuizPts(meScore.quiz_score || 0);
+            setMyReadPts(meScore.reading_score || 0);
             setMyRank(mapped.findIndex(r => r.isMe) + 1);
           }
         }
 
         // ── Activity stats ────────────────────────────────
-        const { data: logs } = await supabase
-          .from('activity_logs')
-          .select('activity_type, duration_minutes, created_at')
-          .eq('user_id', uid)
-          .order('created_at', { ascending: false });
-
         if (logs) {
           const readCount = logs.filter(l => l.activity_type === 'article_read').length;
           setBooksRead(readCount);
 
-          const totalMins = logs.reduce((acc, l) => acc + (l.duration_minutes || 30), 0);
+          const totalMins = logs.reduce((acc, l) => acc + (l.duration_minutes || 0), 0);
           setHoursStudied(Math.round(totalMins / 60));
 
-          // 7-day activity (Mon=0 … Sun=6)
           const now = new Date();
           const weekDays = Array(7).fill(0);
           logs.forEach(l => {
             const d = new Date(l.created_at);
-            const diffDays = Math.floor((now - d) / 86400000);
-            if (diffDays < 7) {
-              const dow = (d.getDay() + 6) % 7; // Mon=0
-              weekDays[dow] = Math.min(1, weekDays[dow] + 0.4);
+            if (Math.floor((now - d) / 86400000) < 7) {
+              const dow = (d.getDay() + 6) % 7;
+              weekDays[dow] += 1;
             }
           });
           setWeekActivity(weekDays);
 
-          // 35-day heatmap
-          const heatmap = Array(35).fill(0);
+          const byDate = {};
           logs.forEach(l => {
-            const diffDays = Math.floor((now - new Date(l.created_at)) / 86400000);
-            if (diffDays < 35) heatmap[34 - diffDays]++;
+            const dateStr = new Date(l.created_at).toISOString().split('T')[0];
+            byDate[dateStr] = (byDate[dateStr] || 0) + 1;
           });
-          setHeatmapData(heatmap);
+          // Merge diary entries into heatmap
+          const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
+          const { data: diaryEntries } = await getDiaryEntriesRange(uid, ninetyDaysAgo);
+          (diaryEntries || []).forEach(d => {
+            if (d.study_hours) byDate[d.date] = (byDate[d.date] || 0) + 1;
+          });
 
+          setActivityByDate(byDate);
           setRecentActivities(logs.slice(0, 5));
 
-          // Weekly learning minutes (last 7 days)
           const weekStart = new Date(now - 7 * 86400000);
           const wMins = logs
             .filter(l => new Date(l.created_at) >= weekStart)
-            .reduce((acc, l) => acc + (l.duration_minutes || 30), 0);
+            .reduce((acc, l) => acc + (l.duration_minutes || 0), 0);
           setWeeklyMins(wMins);
+        } else {
+          setWeekActivity([0, 0, 0, 0, 0, 0, 0]);
+          setActivityByDate({});
+          setRecentActivities([]);
         }
 
         // ── Recommendations ───────────────────────────────
-        const { data: actLogs } = await supabase
-          .from('activity_logs')
-          .select('reference_id')
-          .eq('user_id', uid)
-          .eq('activity_type', 'article_read');
         const readIds = new Set((actLogs || []).map(l => l.reference_id));
-
-        const { data: arts } = await supabase
-          .from('artifacts')
-          .select('id, title, subject, emoji, pages')
-          .eq('status', 'approved')
-          .limit(20);
         const unreadArts = (arts || []).filter(a => !readIds.has(String(a.id)));
         setRecommendations(unreadArts.sort(() => Math.random() - 0.5).slice(0, 3));
 
         // ── Next Webinar ──────────────────────────────────
-        const { data: wb } = await supabase
-          .from('admin_webinars')
-          .select('*')
-          .gte('scheduled_at', new Date().toISOString())
-          .order('scheduled_at')
-          .limit(1);
         setNextWebinar(wb?.[0] || null);
+
+        // ── Active Study Plan ─────────────────────────────
+        setActivePlan(activePlanData);
+
+        // ── AI "For You" (async, non-blocking) ────────────
+        const meScore = scoreData?.find(d => d.user_id === uid);
+        const readCount = logs ? logs.filter(l => l.activity_type === 'article_read').length : 0;
+        const wMinsForAI = logs
+          ? logs.filter(l => new Date(l.created_at) >= new Date(Date.now() - 7 * 86400000))
+               .reduce((acc, l) => acc + (l.duration_minutes || 0), 0)
+          : 0;
+        const recentSubjectsSet = new Set(
+          (arts || []).filter(a => (actLogs || []).some(l => l.reference_id === String(a.id))).map(a => a.subject).filter(Boolean)
+        );
+        const recentSubjects = Array.from(recentSubjectsSet).slice(0, 5);
+
+        // Persist to ref so refreshForYou always has fresh data
+        dashDataRef.current = {
+          booksRead: readCount,
+          quizScore: meScore?.quiz_score || 0,
+          totalScore: meScore?.total_score || 0,
+          weeklyMins: wMinsForAI,
+          lastActive: logs?.[0]?.created_at || null,
+          recentSubjects,
+        };
+
+        const forYouCacheKey = `forYou_${uid}_${readCount}_${meScore?.total_score || 0}`;
+        const cachedForYou = getCached(forYouCacheKey);
+        if (cachedForYou) {
+          setAiForYou({ loading: false, items: cachedForYou, error: null });
+        } else {
+          getPersonalizedSuggestions({
+            speciality: profileData?.speciality || '',
+            ...dashDataRef.current,
+          }).then(({ suggestions, error }) => {
+            const items = suggestions || defaultSuggestions;
+            setCached(forYouCacheKey, items, 5 * 60 * 1000);
+            setAiForYou({ loading: false, items, error: error || null });
+          });
+        }
+
+        // ── Cache fresh data for stale-while-revalidate ───
+        _dashCache.set(uid, {
+          ts: Date.now(),
+          data: { profileData, states, scoreData, logs, actLogs, arts, wb, activePlanData, lbProfiles },
+        });
 
       } catch (e) {
         console.warn('Dashboard load failed:', e.message);
+        setDashError('Dashboard data failed to load. Please refresh or try again.');
       } finally {
         setDashLoading(false);
       }
     }
     load();
-  }, []);
+    return () => controller.abort(); // Cancel all 9 in-flight queries on unmount
+  }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const refreshForYou = useCallback(async () => {
+    if (!currentUserId) return;
+    setAiForYou({ loading: true, items: [], error: null });
+    try {
+      // mySpeciality is already in state from load() — no redundant profile fetch needed
+      const { suggestions, error } = await getPersonalizedSuggestions({
+        speciality: mySpeciality,
+        ...dashDataRef.current,
+      });
+      const items = suggestions || defaultSuggestions;
+      const { booksRead: br, totalScore: ts } = dashDataRef.current;
+      setCached(`forYou_${currentUserId}_${br}_${ts}`, items, 5 * 60 * 1000);
+      setAiForYou({ loading: false, items, error: error || null });
+    } catch (e) {
+      console.warn('DoctorDashboard: refreshForYou failed:', e.message);
+      setAiForYou({ loading: false, items: defaultSuggestions, error: 'Could not refresh suggestions.' });
+    }
+  }, [currentUserId, mySpeciality]);
 
   const handleBookmarkToggle = async (e, artifactId) => {
     e.stopPropagation();
@@ -280,7 +294,8 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
     }));
     try {
       await toggleBookmark(currentUserId, artifactId, newVal);
-    } catch (_) {
+    } catch (e) {
+      console.warn('DoctorDashboard: failed to toggle bookmark:', e.message);
       setContentStates(prev => ({
         ...prev,
         [key]: { ...prev[key], isBookmarked: !newVal },
@@ -288,16 +303,11 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
     }
   };
 
-  const scoreMax = Math.max(myScore, 1);
-  const quizPct = Math.round((myQuizPts / scoreMax) * 100);
-  const readPct = Math.round((myReadPts / scoreMax) * 100);
-
   const handleSetReminder = async () => {
     if (!nextWebinar || reminderSaving) return;
     setReminderSaving(true);
     try {
-      const { data: authData } = await supabase.auth.getUser();
-      const uid = authData?.user?.id;
+      const uid = userIdProp;
       if (!uid) return;
       const webinarTime = new Date(nextWebinar.scheduled_at);
       const remindAt = new Date(webinarTime.getTime() - reminderLeadMins * 60 * 1000);
@@ -309,15 +319,47 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         channels: reminderChannels,
       }]);
       setReminderPopover(false);
-    } catch (_) {}
+    } catch (e) { console.warn('DoctorDashboard: failed to set reminder:', e.message); }
     setReminderSaving(false);
   };
 
-  const recentlyRead = approved.filter(a => (contentStates[String(a.id)]?.currentPage || 1) > 1).slice(0, 3);
-  const bookmarked = approved.filter(a => contentStates[String(a.id)]?.isBookmarked).slice(0, 3);
+  const recentlyRead = useMemo(
+    () => approved.filter(a => (contentStates[String(a.id)]?.currentPage || 1) > 1).slice(0, 3),
+    [approved, contentStates]
+  );
+  const bookmarked = useMemo(
+    () => approved.filter(a => contentStates[String(a.id)]?.isBookmarked).slice(0, 3),
+    [approved, contentStates]
+  );
+
+  // Resolve userId: prefer prop (passed from App), fallback to state
+  const resolvedUserId = userIdProp || currentUserId;
+
+  // Stable callback for CalendarGoalRow — no new ref each render
+  const refreshDashboard = useCallback(() => {
+    _dashCache.delete(resolvedUserId);
+    setRefreshKey(k => k + 1);
+  }, [resolvedUserId]);
+
+  // Stable callback for handleBookmarkToggle
+  const stableBookmarkToggle = useCallback((e, artifactId) => {
+    handleBookmarkToggle(e, artifactId);
+  }, [currentUserId, contentStates]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Guard: if userId not yet available, show loading instead of crashing
+  if (!resolvedUserId) {
+    return (
+      <div className="page" style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
+        <div style={{ width: 36, height: 36, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: '#4F46E5', animation: 'spin 0.8s linear infinite' }} />
+      </div>
+    );
+  }
 
   return (
     <div className="page">
+      {/* SA Message Box — fixed floating, appears only when superadmin has broadcast */}
+      <SAMessageBox userId={resolvedUserId} darkMode={darkMode} />
+
       <div className="ph">
         <div className="pt">Welcome back, {userName || 'Doctor'}! 👋</div>
         <div className="ps">
@@ -327,651 +369,90 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         </div>
       </div>
 
-      {/* ─────────────────────────────────────────────────────────────
-          LATEST ALERTS (top-tier widget — only when unread exist)
-      ───────────────────────────────────────────────────────────── */}
-      {notifications.filter(n => n.is_read === false).length > 0 && (
-        <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '12px 16px', marginBottom: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontWeight: 700, fontSize: 13, color: '#92400E' }}>🔔 Latest Alerts</div>
-            <button className="btn btn-s btn-sm" onClick={() => setPage('notifications')}>View All</button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {notifications.filter(n => n.is_read === false).slice(0, 3).map(n => (
-              <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', background: '#fff', borderRadius: 8, border: '1px solid #FDE68A' }}>
-                <span style={{ fontSize: 16, flexShrink: 0 }}>{n.icon || '🔔'}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.title}</div>
-                  <div style={{ fontSize: 11, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>
-                </div>
-                <div style={{ fontSize: 10, color: '#9CA3AF', flexShrink: 0 }}>{n.time}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────────────────────────
-          SECTION 1: MY ACTIVITY
-      ───────────────────────────────────────────────────────────── */}
-      {dashLoading ? (
-        <div className="card animate-pulse" style={{ marginBottom: 20 }}>
-          <div style={{ height: 18, background: '#E5E7EB', borderRadius: 6, width: '35%', marginBottom: 20 }} />
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-            {[1,2,3,4].map(i => (
-              <div key={i} style={{ flex: '1 1 120px', height: 62, background: '#F3F4F6', borderRadius: 10 }} />
-            ))}
-          </div>
-          <div style={{ height: 8, background: '#F3F4F6', borderRadius: 99, marginBottom: 16 }} />
-          <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 40 }}>
-            {[32,48,24,40,56,20,44].map((h, i) => (
-              <div key={i} style={{ flex: 1, height: h, background: '#F3F4F6', borderRadius: 4 }} />
-            ))}
-          </div>
-        </div>
-      ) : (
-      <div className="card" style={{ marginBottom: 20 }}>
-        <div className="ch" style={{ marginBottom: 16 }}>
-          <div className="ct">📊 My Activity</div>
-          <button className="btn btn-s btn-sm" onClick={() => setPage('activity')}>View Details →</button>
-        </div>
-
-        {/* Stats row */}
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
-          {[
-            { label: 'Total Points', value: myScore.toLocaleString(), icon: '⭐', color: '#2563EB', bg: '#EFF6FF' },
-            { label: 'Books Read', value: booksRead, icon: '📖', color: '#059669', bg: '#ECFDF5' },
-            { label: 'Hours Studied', value: `${hoursStudied}h`, icon: '⏱', color: '#7C3AED', bg: '#F5F3FF' },
-            { label: 'Quiz Points', value: myQuizPts.toLocaleString(), icon: '🎯', color: '#D97706', bg: '#FFFBEB' },
-          ].map(s => (
-            <div key={s.label} style={{
-              flex: '1 1 120px',
-              background: s.bg,
-              borderRadius: 10,
-              padding: '12px 14px',
-              display: 'flex', alignItems: 'center', gap: 10,
-            }}>
-              <span style={{ fontSize: 22 }}>{s.icon}</span>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: s.color, lineHeight: 1.1 }}>{s.value}</div>
-                <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{s.label}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Score breakdown bar */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Score Breakdown</span>
-            <span style={{ fontSize: 12, color: '#6B7280' }}>{myScore.toLocaleString()} pts total</span>
-          </div>
-          <div style={{ height: 8, background: '#F3F4F6', borderRadius: 99, overflow: 'hidden', display: 'flex' }}>
-            <div style={{ width: `${quizPct}%`, background: '#2563EB', transition: 'width .5s' }} />
-            <div style={{ width: `${readPct}%`, background: '#7C3AED', transition: 'width .5s' }} />
-          </div>
-          <div style={{ display: 'flex', gap: 16, marginTop: 6 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#6B7280' }}>
-              <div style={{ width: 10, height: 10, background: '#2563EB', borderRadius: 2 }} />
-              Quiz: <strong style={{ color: '#374151' }}>{myQuizPts.toLocaleString()} pts</strong>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#6B7280' }}>
-              <div style={{ width: 10, height: 10, background: '#7C3AED', borderRadius: 2 }} />
-              Reading: <strong style={{ color: '#374151' }}>{myReadPts.toLocaleString()} pts</strong>
-            </div>
-          </div>
-        </div>
-
-        {/* 7-day activity chart */}
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 10 }}>Last 7 Days Activity</div>
-          <ActivityDots days={weekActivity} />
-        </div>
-      </div>
-      )} {/* end dashLoading conditional */}
-
-      {/* ─────────────────────────────────────────────────────────────
-          SECTION 1.5: RECENT ACTIVITY
-      ───────────────────────────────────────────────────────────── */}
-      {!dashLoading && (
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="ch" style={{ marginBottom: 12 }}>
-            <div className="ct">⚡ Recent Activity</div>
-          </div>
-          {recentActivities.length === 0 ? (
-            <div style={{ textAlign: 'center', color: '#9CA3AF', padding: '12px 0', fontSize: 13 }}>
-              No activity yet — start reading or taking quizzes!
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {recentActivities.map((a, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '9px 0',
-                  borderBottom: i < recentActivities.length - 1 ? '1px solid #F3F4F6' : 'none',
-                }}>
-                  <span style={{ fontSize: 18, flexShrink: 0, width: 26, textAlign: 'center' }}>
-                    {ACTIVITY_ICON[a.activity_type] || '📋'}
-                  </span>
-                  <div style={{ flex: 1, fontSize: 12, fontWeight: 500, color: '#374151' }}>
-                    {ACTIVITY_LABEL[a.activity_type] || a.activity_type.replace(/_/g, ' ')}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>{relTime(a.created_at)}</div>
-                </div>
-              ))}
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 10, marginTop: 14, paddingTop: 14, borderTop: '1px solid #F3F4F6' }}>
-            <button className="btn btn-s btn-sm" style={{ flex: 1 }} onClick={() => setPage('leaderboard')}>🏆 Leaderboard →</button>
-            <button className="btn btn-s btn-sm" style={{ flex: 1 }} onClick={() => setPage('activity')}>📊 Activity History →</button>
-          </div>
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────────────────────────
-          SECTION 2: AI SUGGESTIONS
-      ───────────────────────────────────────────────────────────── */}
-      <div style={{
-        background: 'linear-gradient(135deg, #1E40AF 0%, #4F46E5 60%, #7C3AED 100%)',
-        borderRadius: 14, padding: 20, marginBottom: 20, color: '#fff',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 3 }}>✨ AI Suggestions</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Next learning recommendations based on your activity</div>
-          </div>
+      {dashError && (
+        <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
+          <span className="text-sm text-red-600">⚠️ {dashError}</span>
           <button
-            onClick={() => openChatBotDoubt ? openChatBotDoubt() : setPage('ebooks')}
-            style={{
-              background: 'rgba(255,255,255,0.15)', color: '#fff',
-              border: '1px solid rgba(255,255,255,0.3)',
-              borderRadius: 8, padding: '6px 14px', fontSize: 12,
-              fontWeight: 600, cursor: 'pointer', backdropFilter: 'blur(4px)',
-            }}
-          >
-            🤖 Ask AI →
-          </button>
-        </div>
-
-        {recommendations.length === 0 ? (
-          <div style={{
-            background: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: '16px',
-            textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.75)',
-          }}>
-            📚 Read more books to unlock personalised AI recommendations!
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {recommendations.map((r, i) => (
-              <div
-                key={r.id}
-                onClick={() => setPage('ebooks')}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  background: 'rgba(255,255,255,0.12)',
-                  borderRadius: 10, padding: '10px 14px',
-                  cursor: 'pointer', transition: 'background .2s',
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
-              >
-                <div style={{
-                  width: 36, height: 36, borderRadius: 8, flexShrink: 0,
-                  background: 'rgba(255,255,255,0.15)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
-                }}>
-                  {r.emoji || '📚'}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {r.title}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>
-                    {r.subject} · {r.pages || '—'} pages
-                  </div>
-                </div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', flexShrink: 0 }}>#{i + 1} pick</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ─────────────────────────────────────────────────────────────
-          SECTION 2.4: AI STUDY PLAN
-      ───────────────────────────────────────────────────────────── */}
-      {!dashLoading && (
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="ch" style={{ marginBottom: 12 }}>
-            <div className="ct">🗓 AI Study Plan</div>
-            {!studyPlan.loading && (
-              <button
-                className="btn btn-sm"
-                style={{ background: 'linear-gradient(135deg,#4F46E5,#7C3AED)', color: '#fff', border: 'none', cursor: 'pointer' }}
-                onClick={async () => {
-                  setStudyPlan({ loading: true, text: null, error: null });
-                  const { text, error } = await generateStudyPlan(mySpeciality, booksRead, myQuizPts, myScore);
-                  setStudyPlan({ loading: false, text, error });
-                }}
-              >
-                {studyPlan.text ? '↺ Regenerate' : '✨ Generate Plan'}
-              </button>
-            )}
-          </div>
-          {!studyPlan.loading && !studyPlan.text && !studyPlan.error && (
-            <div style={{ textAlign: 'center', padding: '16px 0', color: '#9CA3AF', fontSize: 13 }}>
-              Click <strong>✨ Generate Plan</strong> to get a personalised 7-day study schedule from AI.
-            </div>
-          )}
-          <AIResponseBox
-            loading={studyPlan.loading}
-            error={studyPlan.error}
-            text={studyPlan.text}
-            label="7-Day Study Plan"
-            onRetry={async () => {
-              setStudyPlan({ loading: true, text: null, error: null });
-              const { text, error } = await generateStudyPlan(mySpeciality, booksRead, myQuizPts, myScore);
-              setStudyPlan({ loading: false, text, error });
-            }}
-          />
+            onClick={() => { setDashError(null); setRefreshKey(k => k + 1); }}
+            className="bg-red-600 text-white border-0 rounded-md px-3 py-1 text-xs font-semibold cursor-pointer whitespace-nowrap hover:bg-red-700 transition-colors"
+          >Retry</button>
         </div>
       )}
 
-      {/* ─────────────────────────────────────────────────────────────
-          SECTION 2.5: ACTIVITY CALENDAR & WEEKLY GOAL
-      ───────────────────────────────────────────────────────────── */}
-      {!dashLoading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 20 }}>
-          <div className="card" style={{ margin: 0 }}>
-            <div className="ch" style={{ marginBottom: 12 }}>
-              <div className="ct">📅 35-Day Activity Calendar</div>
-            </div>
-            <ActivityHeatmap data={heatmapData} />
-            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 10, textAlign: 'center' }}>
-              {heatmapData.reduce((a, v) => a + v, 0)} total activities in the last 35 days
-            </div>
-          </div>
-          <div className="card" style={{ margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="ch" style={{ marginBottom: 12, width: '100%' }}>
-              <div className="ct">🎯 Weekly Learning Target</div>
-            </div>
-            <GoalRing mins={weeklyMins} />
-          </div>
-        </div>
-      )}
+      <LatestAlerts notifications={notifications} setPage={setPage} />
 
-      {/* ─────────────────────────────────────────────────────────────
-          SECTION 3 + 4: WEBINAR + LEADERBOARD RANK (responsive 2-col)
-      ───────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 20 }}>
+      <MyActivitySection
+        dashLoading={dashLoading}
+        myScore={myScore}
+        booksRead={booksRead}
+        hoursStudied={hoursStudied}
+        myQuizPts={myQuizPts}
+        myReadPts={myReadPts}
+        weekActivity={weekActivity}
+        recentActivities={recentActivities}
+        setPage={setPage}
+      />
 
-        {/* Upcoming Webinar */}
-        <div className="card" style={{ margin: 0 }}>
-          <div className="ch" style={{ marginBottom: 14 }}>
-            <div className="ct">📅 Upcoming Webinar</div>
-          </div>
-          {nextWebinar ? (
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: '#111827', marginBottom: 6 }}>
-                {nextWebinar.title}
-              </div>
-              {nextWebinar.speaker && (
-                <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 8 }}>
-                  🎤 {nextWebinar.speaker}
-                </div>
-              )}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                background: '#EFF6FF', borderRadius: 8, padding: '8px 12px', marginBottom: 10,
-              }}>
-                <span style={{ fontSize: 16 }}>🗓</span>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#1D4ED8' }}>{fmtDt(nextWebinar.scheduled_at)}</div>
-                  <div style={{ fontSize: 11, color: '#6B7280' }}>Duration: {nextWebinar.duration_min || 60} min</div>
-                </div>
-              </div>
-              {nextWebinar.description && (
-                <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 10 }}>{nextWebinar.description}</div>
-              )}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                {nextWebinar.join_url ? (
-                  <a
-                    href={nextWebinar.join_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      display: 'inline-block',
-                      background: 'linear-gradient(135deg,#4F46E5,#3730A3)',
-                      color: '#fff', borderRadius: 8, padding: '8px 16px',
-                      fontSize: 12, fontWeight: 600, textDecoration: 'none',
-                    }}
-                  >
-                    🚀 Join Webinar
-                  </a>
-                ) : (
-                  <div style={{ fontSize: 12, color: '#9CA3AF' }}>Join link coming soon</div>
-                )}
-                <button
-                  onClick={() => setReminderPopover(p => !p)}
-                  style={{
-                    padding: '8px 14px', borderRadius: 8,
-                    background: reminderPopover ? '#F3F4F6' : '#FFFBEB',
-                    border: '1px solid #FDE68A', fontSize: 12, fontWeight: 600,
-                    cursor: 'pointer', color: '#92400E',
-                  }}
-                >
-                  🔔 Remind Me
-                </button>
-              </div>
-              {reminderPopover && (
-                <div style={{
-                  marginTop: 12, background: '#F9FAFB', borderRadius: 10,
-                  border: '1px solid #E5E7EB', padding: '12px 14px',
-                }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
-                    Set a reminder
-                  </div>
-                  {/* Lead time */}
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-                    {[15, 60, 1440].map(mins => (
-                      <button
-                        key={mins}
-                        onClick={() => setReminderLeadMins(mins)}
-                        style={{
-                          padding: '5px 12px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                          border: reminderLeadMins === mins ? '2px solid #4F46E5' : '1.5px solid #E5E7EB',
-                          background: reminderLeadMins === mins ? '#EEF2FF' : '#fff',
-                          color: reminderLeadMins === mins ? '#4F46E5' : '#374151',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {mins === 15 ? '15 min' : mins === 60 ? '1 hour' : '1 day'} before
-                      </button>
-                    ))}
-                  </div>
-                  {/* Channels */}
-                  <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 6 }}>Notify via:</div>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                    {[['in_app', '🔔 In-App'], ['email', '📧 Email']].map(([ch, label]) => {
-                      const active = reminderChannels.includes(ch);
-                      return (
-                        <label key={ch} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer' }}>
-                          <input
-                            type="checkbox"
-                            checked={active}
-                            onChange={() => setReminderChannels(prev =>
-                              active ? prev.filter(c => c !== ch) : [...prev, ch]
-                            )}
-                          />
-                          {label}
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <button
-                    onClick={handleSetReminder}
-                    disabled={reminderSaving || reminderChannels.length === 0}
-                    style={{
-                      width: '100%', padding: '8px', borderRadius: 8, border: 'none',
-                      background: reminderSaving || reminderChannels.length === 0 ? '#E5E7EB' : 'linear-gradient(135deg,#4F46E5,#7C3AED)',
-                      color: reminderSaving || reminderChannels.length === 0 ? '#9CA3AF' : '#fff',
-                      fontWeight: 700, fontSize: 12,
-                      cursor: reminderSaving || reminderChannels.length === 0 ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    {reminderSaving ? 'Saving…' : '✓ Save Reminder'}
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <div style={{ fontSize: 40, marginBottom: 10 }}>📅</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 4 }}>No upcoming webinars</div>
-              <div style={{ fontSize: 12, color: '#9CA3AF' }}>Check back soon — admin will schedule sessions here</div>
-            </div>
-          )}
-        </div>
+      <ForYouWidget
+        aiForYou={aiForYou}
+        recommendations={recommendations}
+        refreshForYou={refreshForYou}
+        openChatBotDoubt={openChatBotDoubt}
+        setPage={setPage}
+      />
 
-        {/* Leaderboard Rank */}
-        <div className="card" style={{ margin: 0 }}>
-          <div className="ch" style={{ marginBottom: 14 }}>
-            <div className="ct">🏆 Leaderboard Rank</div>
-            <button className="btn btn-s btn-sm" onClick={() => setPage('leaderboard')}>Full Board</button>
-          </div>
+      <StudyPlanCard
+        dashLoading={dashLoading}
+        studyPlan={studyPlan}
+        setStudyPlan={setStudyPlan}
+        mySpeciality={mySpeciality}
+        booksRead={booksRead}
+        myQuizPts={myQuizPts}
+        myScore={myScore}
+        setPage={setPage}
+        activePlan={activePlan}
+      />
 
-          {/* My rank summary */}
-          <div style={{
-            background: myRank ? 'linear-gradient(135deg,#EFF6FF,#EDE9FE)' : '#F9FAFB',
-            borderRadius: 10, padding: '14px', marginBottom: 14, textAlign: 'center',
-          }}>
-            <div style={{ fontSize: 36, fontWeight: 900, color: '#2563EB', lineHeight: 1 }}>
-              {myRank ? `#${myRank}` : '—'}
-            </div>
-            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>Your current rank</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#374151', marginTop: 6 }}>
-              {myScore.toLocaleString()} pts
-            </div>
-          </div>
+      <CalendarGoalRow
+        dashLoading={dashLoading}
+        activityByDate={activityByDate}
+        weeklyMins={weeklyMins}
+        currentUserId={currentUserId}
+        refreshDashboard={refreshDashboard}
+      />
 
-          {/* Mini top-3 */}
-          {miniLB.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '8px 0', color: '#9CA3AF', fontSize: 13 }}>
-              No rankings yet. Start earning points!
-            </div>
-          ) : (
-            miniLB.slice(0, 3).map((l, i) => (
-              <div key={l.id} style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: l.isMe ? '7px 8px' : '7px 0',
-                borderBottom: i < 2 ? '1px solid #F9FAFB' : 'none',
-                background: l.isMe ? 'rgba(37,99,235,0.04)' : 'transparent',
-                borderRadius: l.isMe ? 6 : 0,
-              }}>
-                <div style={{
-                  width: 22, fontSize: 12, fontWeight: 800, textAlign: 'center',
-                  color: ['#EAB308', '#9CA3AF', '#CD7F32'][i] || '#6B7280',
-                }}>
-                  {['🥇', '🥈', '🥉'][i]}
-                </div>
-                <Avatar name={l.name} size={24} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: l.isMe ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {l.name}{l.isMe ? ' 👈' : ''}
-                  </div>
-                  <div style={{ fontSize: 10, color: '#9CA3AF' }}>{l.speciality}</div>
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 800, color: '#2563EB', flexShrink: 0 }}>
-                  {l.score.toLocaleString()}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+      <WebinarLeaderboardRow
+        nextWebinar={nextWebinar}
+        currentUserId={resolvedUserId}
+        reminderPopover={reminderPopover}
+        setReminderPopover={setReminderPopover}
+        reminderLeadMins={reminderLeadMins}
+        setReminderLeadMins={setReminderLeadMins}
+        reminderChannels={reminderChannels}
+        setReminderChannels={setReminderChannels}
+        reminderSaving={reminderSaving}
+        handleSetReminder={handleSetReminder}
+        myRank={myRank}
+        myScore={myScore}
+        myQuizPts={myQuizPts}
+        myReadPts={myReadPts}
+        miniLB={miniLB}
+        setPage={setPage}
+      />
 
-      {/* ─────────────────────────────────────────────────────────────
-          SECTION 5: LATEST CONTENT (horizontal scroll)
-      ───────────────────────────────────────────────────────────── */}
-      <div className="card">
-        <div className="ch" style={{ marginBottom: 16 }}>
-          <div className="ct">📚 Latest Content</div>
-          <button className="btn btn-s btn-sm" onClick={() => setPage('ebooks')}>View Library →</button>
-        </div>
+      <LatestContentSection
+        latestContent={latestContent}
+        contentStates={contentStates}
+        handleBookmarkToggle={stableBookmarkToggle}
+        setPage={setPage}
+      />
 
-        {latestContent.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '24px 0', color: '#9CA3AF' }}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>📭</div>
-            <div style={{ fontSize: 13 }}>No approved content yet</div>
-          </div>
-        ) : (
-          <div style={{
-            display: 'flex', gap: 12,
-            overflowX: 'auto', paddingBottom: 8,
-            scrollbarWidth: 'thin',
-            scrollbarColor: '#E5E7EB transparent',
-          }}>
-            {latestContent.map(a => {
-              const state = contentStates[String(a.id)];
-              const isBookmarked = state?.isBookmarked || false;
-              const savedPage = state?.currentPage || 1;
-              return (
-                <div
-                  key={a.id}
-                  onClick={() => setPage('ebooks')}
-                  style={{
-                    flexShrink: 0, width: 180,
-                    background: '#F9FAFB', borderRadius: 12,
-                    padding: 14, cursor: 'pointer',
-                    border: '1px solid #F3F4F6',
-                    transition: 'transform .2s, box-shadow .2s',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  {/* Cover with bookmark overlay */}
-                  <div style={{
-                    position: 'relative',
-                    width: '100%', height: 90, borderRadius: 8, marginBottom: 10,
-                    background: 'linear-gradient(135deg,#EFF6FF,#EDE9FE)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 40,
-                  }}>
-                    {a.emoji || '📗'}
-                    {/* Bookmark toggle icon */}
-                    <button
-                      onClick={e => handleBookmarkToggle(e, a.id)}
-                      title={isBookmarked ? 'Remove bookmark' : 'Bookmark'}
-                      style={{
-                        position: 'absolute', top: 6, right: 6,
-                        background: isBookmarked ? 'rgba(37,99,235,0.15)' : 'rgba(255,255,255,0.8)',
-                        border: 'none', borderRadius: 6, padding: '3px 5px',
-                        fontSize: 14, cursor: 'pointer', lineHeight: 1,
-                        boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
-                        transition: 'background .15s',
-                      }}
-                    >
-                      {isBookmarked ? '🔖' : '🏷'}
-                    </button>
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', marginBottom: 4, lineHeight: 1.3 }}>
-                    {a.title.length > 40 ? a.title.substring(0, 40) + '…' : a.title}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#6B7280', marginBottom: savedPage > 1 ? 4 : 8 }}>{a.subject}</div>
-                  {savedPage > 1 && (
-                    <div style={{ marginBottom: 8 }}>
-                      <span style={{
-                        fontSize: 10, fontWeight: 600, color: '#2563EB',
-                        background: '#EFF6FF', borderRadius: 99, padding: '2px 8px',
-                      }}>
-                        ▶ Resume p.{savedPage}
-                      </span>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 10, color: '#9CA3AF' }}>{a.pages}pg</span>
-                    <span style={{
-                      fontSize: 10, fontWeight: 600, color: '#059669',
-                      background: '#ECFDF5', borderRadius: 99, padding: '2px 7px',
-                    }}>Available</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* ─────────────────────────────────────────────────────────────
-          SECTION 6: RECENTLY READ + BOOKMARKS
-      ───────────────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginTop: 20 }}>
-
-        {/* Recently Read */}
-        <div className="card" style={{ margin: 0 }}>
-          <div className="ch" style={{ marginBottom: 14 }}>
-            <div className="ct">📖 Recently Read</div>
-            {recentlyRead.length > 0 && (
-              <button className="btn btn-s btn-sm" onClick={() => setPage('ebooks')}>View All</button>
-            )}
-          </div>
-          {recentlyRead.length === 0 ? (
-            <div style={{ border: '2px dashed #E5E7EB', borderRadius: 12, padding: '24px 16px', textAlign: 'center' }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>📭</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 4 }}>No books read yet</div>
-              <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 14 }}>Start your journey in the Library!</div>
-              <button className="btn btn-s btn-sm" onClick={() => setPage('ebooks')}>Browse Library →</button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {recentlyRead.map(a => {
-                const savedPage = contentStates[String(a.id)]?.currentPage || 1;
-                return (
-                  <div
-                    key={a.id}
-                    onClick={() => setPage('ebooks')}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: '#F9FAFB', cursor: 'pointer', border: '1px solid #F3F4F6', transition: 'background .15s' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#EFF6FF'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#F9FAFB'}
-                  >
-                    <div style={{ fontSize: 24, flexShrink: 0 }}>{a.emoji || '📗'}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</div>
-                      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{a.subject}</div>
-                    </div>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', borderRadius: 99, padding: '2px 8px', flexShrink: 0 }}>
-                      p.{savedPage}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Bookmarks */}
-        <div className="card" style={{ margin: 0 }}>
-          <div className="ch" style={{ marginBottom: 14 }}>
-            <div className="ct">🔖 Bookmarks</div>
-            {bookmarked.length > 0 && (
-              <button className="btn btn-s btn-sm" onClick={() => setPage('ebooks')}>View All</button>
-            )}
-          </div>
-          {bookmarked.length === 0 ? (
-            <div style={{ border: '2px dashed #E5E7EB', borderRadius: 12, padding: '24px 16px', textAlign: 'center' }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>🏷</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 4 }}>No bookmarks yet</div>
-              <div style={{ fontSize: 12, color: '#9CA3AF' }}>Your saved materials will appear here for quick access.</div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {bookmarked.map(a => (
-                <div
-                  key={a.id}
-                  onClick={() => setPage('ebooks')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: '#F9FAFB', cursor: 'pointer', border: '1px solid #F3F4F6', transition: 'background .15s' }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#FFF7ED'}
-                  onMouseLeave={e => e.currentTarget.style.background = '#F9FAFB'}
-                >
-                  <div style={{ fontSize: 24, flexShrink: 0 }}>{a.emoji || '📗'}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</div>
-                    <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{a.subject}</div>
-                  </div>
-                  <span style={{ fontSize: 14, flexShrink: 0 }}>🔖</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-      </div>
+      <ReadingBookmarksRow
+        recentlyRead={recentlyRead}
+        bookmarked={bookmarked}
+        contentStates={contentStates}
+        setPage={setPage}
+      />
     </div>
   );
 }
