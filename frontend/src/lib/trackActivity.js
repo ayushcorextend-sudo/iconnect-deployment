@@ -105,10 +105,9 @@ if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => {
     if (queue.length === 0) return;
     const remaining = queue.splice(0);
-    const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL
-      || 'https://kzxsyeznpudomeqxbnvp.supabase.co';
-    const SUPABASE_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY
-      || supabase.supabaseKey;
+    // SEC-003: Read URL and key from env only — never hardcode project refs in source.
+    const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL || '';
+    const SUPABASE_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
     // sendBeacon is fire-and-forget and works even during unload
     navigator.sendBeacon(
       `${SUPABASE_URL}/rest/v1/activity_logs`,

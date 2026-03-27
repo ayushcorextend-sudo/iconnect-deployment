@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { ab } from '../data/constants';
 
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6eHN5ZXpucHVkb21lcXhibnZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMjQ1NjEsImV4cCI6MjA4NzkwMDU2MX0.4w2UkRl3rxq2WOiQDmY4aMPGUhQ_5V4W8hridmGmy9o';
-const EMAIL_FN = 'https://kzxsyeznpudomeqxbnvp.supabase.co/functions/v1/send-approval-email';
+// SEC-003: Anon key and project URL removed from source — use supabase.functions.invoke()
+// which automatically attaches the authenticated session token.
 
 function Avatar({ name, size = 40 }) {
   const initials = name ? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '?';
@@ -27,12 +27,9 @@ const waitingDays = (createdAt) => {
   return Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24));
 };
 
+// Calls send-approval-email edge function with authenticated session (no hardcoded key).
 const sendEmail = (payload) =>
-  fetch(EMAIL_FN, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
-    body: JSON.stringify(payload),
-  }).catch(() => {});
+  supabase.functions.invoke('send-approval-email', { body: payload }).catch(() => {});
 
 export default function MCIVerificationQueue({ addToast = () => {} }) {
   const [tab, setTab] = useState('pending');
