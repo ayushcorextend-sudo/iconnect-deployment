@@ -64,33 +64,11 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
   const [otpError, setOtpError] = useState('');
   const otpRefs = [useRef(), useRef(), useRef(), useRef(), useRef(), useRef()];
 
-  // OTP rate limiting — track failed attempts in localStorage (Flaw #13)
-  const OTP_RL_KEY = 'iconnect_otp_attempts';
-  function getOtpAttempts() {
-    try { return JSON.parse(localStorage.getItem(OTP_RL_KEY) || '{"count":0,"windowStart":0,"lockUntil":0}'); }
-    catch { return { count: 0, windowStart: 0, lockUntil: 0 }; }
-  }
-  function checkOtpLock() {
-    const a = getOtpAttempts();
-    if (a.lockUntil && Date.now() < a.lockUntil) {
-      const mins = Math.ceil((a.lockUntil - Date.now()) / 60000);
-      return `Too many failed attempts. Try again in ${mins} minute${mins > 1 ? 's' : ''}.`;
-    }
-    return null;
-  }
-  function recordOtpFailure() {
-    const now = Date.now();
-    const a = getOtpAttempts();
-    const inWindow = now - a.windowStart < 10 * 60 * 1000; // 10-min window
-    const count = inWindow ? a.count + 1 : 1;
-    const windowStart = inWindow ? a.windowStart : now;
-    const lockUntil = count >= 10 ? now + 30 * 60 * 1000
-      : count >= 5 ? now + 5 * 60 * 1000 : 0;
-    localStorage.setItem(OTP_RL_KEY, JSON.stringify({ count, windowStart, lockUntil }));
-  }
-  function clearOtpAttempts() {
-    localStorage.removeItem(OTP_RL_KEY);
-  }
+  // BUG-T: localStorage-based OTP rate limiting removed — it was client-side only
+  // and trivially bypassed via DevTools. Real rate limiting is enforced server-side
+  // by Supabase Auth config (RATE_LIMIT_EMAIL_SENT) and/or Cloudflare WAF.
+  // See: src/docs/OTP_RATE_LIMIT_SPEC.md
+  // The 60-second resend cooldown below (otpTimer) is UX convenience only, not security.
 
   useEffect(() => {
     if (otpTimer > 0) {
@@ -181,17 +159,14 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
 
   const handleSendOtp = async () => {
     if (!otpEmail.trim()) { setOtpError('Please enter your email address'); return; }
-    const lockMsg = checkOtpLock();
-    if (lockMsg) { setOtpError(lockMsg); return; }
     setOtpLoading(true);
     setOtpError('');
     try {
       await authSendOtp(otpEmail.trim());
       setOtpSent(true);
-      setOtpTimer(60);
+      setOtpTimer(60); // UX cooldown only — prevents accidental double-sends
       setOtpDigits(['', '', '', '', '', '']);
     } catch (err) {
-      recordOtpFailure();
       setOtpError(err.message || 'Failed to send OTP. Please try again.');
     } finally {
       setOtpLoading(false);
@@ -210,12 +185,9 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
       setOtpError('');
       try {
         const result = await authVerifyOtp(otpEmail.trim(), code);
-        clearOtpAttempts();
         onLogin(result);
       } catch (err) {
-        recordOtpFailure();
-        const lockMsg = checkOtpLock();
-        setOtpError(lockMsg || err.message || 'Invalid or expired code. Please try again.');
+        setOtpError(err.message || 'Invalid or expired code. Please try again.');
         setOtpDigits(['', '', '', '', '', '']);
         otpRefs[0].current?.focus();
       } finally {

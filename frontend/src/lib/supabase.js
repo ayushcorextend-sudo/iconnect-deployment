@@ -83,9 +83,11 @@ export const authSignInWithGoogle = async () => {
 }
 
 export const authSendOtp = async (email) => {
+  // SEC-005: shouldCreateUser:false — OTP is login-only. New accounts go through
+  // the explicit /register flow. This prevents phantom account creation.
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: true }
+    options: { shouldCreateUser: false }
   })
   if (error) throw error
   return { success: true }
@@ -104,6 +106,18 @@ export const authVerifyOtp = async (email, token) => {
       .eq('id', data.user.id).maybeSingle()
     profile = p
   } catch (e) { console.warn('supabase: authVerifyOtp profile fetch failed:', e.message); }
+
+  // SEC-001: Block pending/rejected doctors BEFORE granting app access.
+  // signOut is called first so the session is invalidated server-side — not just UI-gated.
+  const status = profile?.status
+  if (status === 'pending') {
+    await supabase.auth.signOut()
+    throw new Error('Your account is pending verification. Please wait for admin approval.')
+  }
+  if (status === 'rejected') {
+    await supabase.auth.signOut()
+    throw new Error('Your account has been rejected. Please contact support.')
+  }
 
   const role = profile?.role || 'doctor'
   const name = profile?.name || data.user.email
