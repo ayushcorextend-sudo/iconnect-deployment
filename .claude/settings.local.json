@@ -16,7 +16,18 @@
       "Bash(supabase status:*)",
       "Bash(supabase projects:*)",
       "Bash(supabase link:*)",
-      "Bash(supabase functions:*)"
+      "Bash(supabase functions:*)",
+      "Bash(npx supabase:*)",
+      "Bash(ls *.env*)",
+      "Bash(ls .env*)",
+      "Bash(vercel --prod)",
+      "Bash(vercel logs:*)",
+      "Bash(node -e \"const p=require\\(''./package.json''\\); console.log\\(''react:'', p.dependencies.react\\); console.log\\(''react-dom:'', p.dependencies[''react-dom'']\\)\")",
+      "Bash(vercel ls:*)",
+      "Bash(vercel inspect:*)",
+      "Bash(node:*)",
+      "Bash(git checkout:*)",
+      "Bash(ls:*)"
     ]
   }
 }
