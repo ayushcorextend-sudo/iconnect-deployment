@@ -22,12 +22,30 @@ export default function ExamPage({ addToast }) {
   const [score, setScore] = useState(null);
   const [aiExplains, setAiExplains] = useState({}); // { [qId]: { loading, text, error } }
 
-  useEffect(() => {
+  // EXAM-4: retry state for subjects load failure
+  const [subjectsError, setSubjectsError] = useState(false);
+
+  const loadSubjects = useCallback(() => {
+    setSubjectsLoading(true);
+    setSubjectsError(false);
     supabase.from('exam_subjects').select('*').order('id')
-      .then(({ data }) => { setSubjects(data || []); })
-      .catch(() => { setSubjects([]); })
+      .then(({ data, error }) => {
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          setSubjectsError(true);
+          setSubjects([]);
+        } else {
+          setSubjects(data);
+        }
+      })
+      .catch(() => {
+        setSubjectsError(true);
+        setSubjects([]);
+      })
       .finally(() => setSubjectsLoading(false));
   }, []);
+
+  useEffect(() => { loadSubjects(); }, [loadSubjects]);
 
   const startExam = useCallback(async (subj) => {
     setSelected(subj);
@@ -45,7 +63,8 @@ export default function ExamPage({ addToast }) {
         .limit(20);
       if (error) throw error;
       setQuestions(data || []);
-    } catch (_) {
+    } catch (err) {
+      // EXAM-3: named error variable — no silent swallow
       setQuestions([]);
       addToast('error', 'Could not load questions. Please check your connection.');
     } finally {
@@ -96,7 +115,10 @@ export default function ExamPage({ addToast }) {
             const srCards = wrongQs.map(q => ({
               user_id: user.id,
               front: q.question,
-              back: `Correct: ${q.correct}. ${q[`option_${q.correct.toLowerCase()}`] || ''}${q.explanation ? ' — ' + q.explanation : ''}`,
+              // EXAM-2: guard against undefined q.correct before .toLowerCase()
+            back: q.correct
+              ? `Correct: ${q.correct}. ${q[`option_${q.correct.toLowerCase()}`] || ''}${q.explanation ? ' — ' + q.explanation : ''}`
+              : q.explanation || 'See explanation for details.',
               subject: selected.name,
               difficulty: q.difficulty || 'medium',
               source_question_id: q.id,
@@ -136,6 +158,16 @@ export default function ExamPage({ addToast }) {
       {subjectsLoading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #E5E7EB', borderTopColor: '#4F46E5', animation: 'spin 0.8s linear infinite' }} />
+        </div>
+      ) : subjectsError ? (
+        // EXAM-4: error state with retry button — no silent empty grid
+        <div className="empty">
+          <div className="empty-ic">⚠️</div>
+          <div className="empty-t">Could not load subjects</div>
+          <div className="empty-s">Check your connection and try again.</div>
+          <button className="btn btn-p btn-sm" onClick={loadSubjects} style={{ marginTop: 16 }}>
+            Retry
+          </button>
         </div>
       ) : subjects.length === 0 ? (
         <div className="empty">

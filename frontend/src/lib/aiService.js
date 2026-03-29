@@ -64,6 +64,9 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 // See: src/docs/AI_EDGE_FUNCTION_SPEC.md for the edge function specification.
 
 async function callGemini(systemPrompt, userMessage, maxTokens = 512) {
+  // EXAM-1: AbortController timeout — matches the 15s in callAIViaEdge
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/gemini-proxy`, {
       method: 'POST',
@@ -73,7 +76,9 @@ async function callGemini(systemPrompt, userMessage, maxTokens = 512) {
         messages: [{ role: 'user', content: userMessage }],
         maxOutputTokens: maxTokens,
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       return { text: null, error: err.error || `API error ${res.status}` };
@@ -81,6 +86,8 @@ async function callGemini(systemPrompt, userMessage, maxTokens = 512) {
     const data = await res.json();
     return { text: data.text || '', error: null };
   } catch (e) {
+    clearTimeout(timeout);
+    if (e.name === 'AbortError') return { text: null, error: 'AI is taking too long. Please try again.' };
     return { text: null, error: e.message || 'Network error' };
   }
 }
