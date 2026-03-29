@@ -64,6 +64,9 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 // See: src/docs/AI_EDGE_FUNCTION_SPEC.md for the edge function specification.
 
 async function callGemini(systemPrompt, userMessage, maxTokens = 512) {
+  // EXAM-1: AbortController timeout — matches the 15s in callAIViaEdge
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/gemini-proxy`, {
       method: 'POST',
@@ -73,7 +76,9 @@ async function callGemini(systemPrompt, userMessage, maxTokens = 512) {
         messages: [{ role: 'user', content: userMessage }],
         maxOutputTokens: maxTokens,
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       return { text: null, error: err.error || `API error ${res.status}` };
@@ -81,6 +86,8 @@ async function callGemini(systemPrompt, userMessage, maxTokens = 512) {
     const data = await res.json();
     return { text: data.text || '', error: null };
   } catch (e) {
+    clearTimeout(timeout);
+    if (e.name === 'AbortError') return { text: null, error: 'AI is taking too long. Please try again.' };
     return { text: null, error: e.message || 'Network error' };
   }
 }
@@ -95,6 +102,23 @@ async function callAI(systemPrompt, userMessage, maxTokens = 512) {
   }
   // Direct path: Gemini only (NVIDIA requires edge function — see AI_EDGE_FUNCTION_SPEC.md)
   return callGemini(systemPrompt, userMessage, maxTokens);
+}
+
+// ── BUG-S: Shared JSON extraction helper ─────────────────────────────────────
+// Strategy: 1) strip markdown fences 2) try JSON.parse on the whole string
+// 3) fall back to extracting the first {...} or [...] block.
+// This handles the case where greedy regex `{[\s\S]*}` could match across
+// multiple sibling JSON objects when the AI prefixes/suffixes extra text.
+function parseAiJson(text) {
+  const clean = text.replace(/```json\s*|```/g, '').trim();
+  // Fast path: the whole string is valid JSON
+  try { return JSON.parse(clean); } catch (_) { /* fall through */ }
+  // Fallback: extract first complete object or array
+  const objMatch = clean.match(/\{[\s\S]*\}/);
+  if (objMatch) { try { return JSON.parse(objMatch[0]); } catch (_) { /* fall through */ } }
+  const arrMatch = clean.match(/\[[\s\S]*\]/);
+  if (arrMatch) { try { return JSON.parse(arrMatch[0]); } catch (_) { /* fall through */ } }
+  throw new Error('Could not parse AI response as JSON');
 }
 
 // ── 1. Explain a NEET-PG MCQ question ─────────────────────────────────────────
@@ -243,10 +267,7 @@ Generate a focused 7-day plan.`;
   const { text, error } = await callAI(system, msg, 900);
   if (error) return { plan: null, error };
   try {
-    const clean = text.replace(/```json|```/g, '').trim();
-    const match = clean.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('No JSON found');
-    const parsed = JSON.parse(match[0]);
+    const parsed = parseAiJson(text); // BUG-S: use shared helper
     if (!Array.isArray(parsed.plan)) throw new Error('Invalid plan structure');
     return { plan: parsed.plan, error: null };
   } catch (_) {
@@ -273,10 +294,7 @@ Assess fatigue and provide 3 short recovery/optimization tips.`;
   const { text, error } = await callAI(system, msg, 300);
   if (error) return { level: 'medium', message: null, tips: [], error };
   try {
-    const clean = text.replace(/```json|```/g, '').trim();
-    const match = clean.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('No JSON found');
-    const parsed = JSON.parse(match[0]);
+    const parsed = parseAiJson(text); // BUG-S: use shared helper
     return { level: parsed.level || 'medium', message: parsed.message || '', tips: parsed.tips || [], error: null };
   } catch (_) {
     return { level: 'medium', message: 'Unable to assess — keep studying consistently.', tips: [], error: null };
@@ -295,10 +313,7 @@ Keep the script under 250 words. Use clear spoken language — it will be read a
   const { text, error } = await callAI(system, msg, 600);
   if (error) return { script: null, keywords: [], error };
   try {
-    const clean = text.replace(/```json|```/g, '').trim();
-    const match = clean.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('No JSON found');
-    const parsed = JSON.parse(match[0]);
+    const parsed = parseAiJson(text); // BUG-S: use shared helper
     return { script: parsed.script || '', keywords: parsed.keywords || [], error: null };
   } catch (_) {
     return { script: null, keywords: [], error: 'Could not generate recall script.' };
@@ -319,10 +334,7 @@ Respond ONLY with valid JSON (no markdown):
   const { text, error } = await callAI(system, msg, 800);
   if (error) return { cards: null, error };
   try {
-    const clean = text.replace(/```json|```/g, '').trim();
-    const match = clean.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('No JSON found');
-    const parsed = JSON.parse(match[0]);
+    const parsed = parseAiJson(text); // BUG-S: use shared helper
     if (!Array.isArray(parsed.cards)) throw new Error('Invalid structure');
     return { cards: parsed.cards, error: null };
   } catch (_) {
@@ -340,10 +352,7 @@ Assess the answer against the rubric and respond ONLY with valid JSON:
   const { text, error } = await callAI(system, msg, 400);
   if (error) return { score: null, maxScore: 10, feedback: null, suggestions: [], error };
   try {
-    const clean = text.replace(/```json|```/g, '').trim();
-    const match = clean.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('No JSON found');
-    const parsed = JSON.parse(match[0]);
+    const parsed = parseAiJson(text); // BUG-S: use shared helper
     return { score: parsed.score ?? null, maxScore: parsed.maxScore ?? 10, feedback: parsed.feedback || '', suggestions: parsed.suggestions || [], error: null };
   } catch (_) {
     return { score: null, maxScore: 10, feedback: 'Could not grade answer.', suggestions: [], error: null };
@@ -389,13 +398,10 @@ Variation seed: ${new Date().toDateString()} — ensure variety; avoid repeating
   if (error) return { suggestions: null, error };
 
   try {
-    const clean = text.replace(/```json|```/g, '').trim();
-    // Find JSON array even if there's extra text
-    const match = clean.match(/\[[\s\S]*?\]/);
-    if (!match) throw new Error('No JSON array found');
-    const parsed = JSON.parse(match[0]);
-    if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('Empty or invalid array');
-    return { suggestions: parsed.slice(0, 4), error: null };
+    const parsed = parseAiJson(text); // BUG-S: use shared helper
+    const arr = Array.isArray(parsed) ? parsed : parsed.suggestions;
+    if (!Array.isArray(arr) || arr.length === 0) throw new Error('Empty or invalid array');
+    return { suggestions: arr.slice(0, 4), error: null };
   } catch (_) {
     return { suggestions: null, error: 'Could not parse suggestions.' };
   }

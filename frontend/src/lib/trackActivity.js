@@ -27,17 +27,19 @@ export function startTimer(activityType, referenceId = 'default') {
 }
 
 /**
- * Stop a duration timer and return elapsed minutes (min 1).
+ * Stop a duration timer and return actual elapsed minutes (may be 0 for sub-minute sessions).
  * Returns 0 if no timer was started.
+ * BUG-L: Removed Math.max(1, ...) — inflating sub-minute sessions to 1 minute produced
+ * inaccurate activity data and inflated XP for quick interactions.
  * @param {string} activityType
  * @param {string|number} referenceId
- * @returns {number} minutes
+ * @returns {number} minutes (0 for sessions under 30 seconds)
  */
 export function stopTimer(activityType, referenceId = 'default') {
   const key = `${activityType}_${referenceId}`;
   const start = timers[key];
   if (start) {
-    const minutes = Math.max(1, Math.round((Date.now() - start) / 60000));
+    const minutes = Math.round((Date.now() - start) / 60000);
     delete timers[key];
     return minutes;
   }

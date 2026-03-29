@@ -8,8 +8,27 @@ const fromPath = (pathname) => {
   return seg || 'dashboard';
 };
 
+// BUG-A: Whitelist of all valid page identifiers — setPage rejects anything unknown.
+// This prevents AI navigation commands or devtools exploits from routing to arbitrary pages.
+const VALID_PAGES = new Set([
+  'dashboard', 'ebooks', 'upload', 'leaderboard', 'activity', 'notifications',
+  'profile', 'users', 'reports', 'settings', 'registration', 'conferences',
+  'exam', 'broadcast', 'performance', 'learn', 'arena-host', 'arena-student',
+  'calendar', 'case-sim', 'study-plan', 'exam-manage', 'social', 'groups',
+  'kahoot', 'notes',
+]);
+
 // Active Supabase realtime channels (module-level, survive re-renders)
 const _channels = new Map();
+
+// BUG-O: Navigator function lives outside Zustand state — functions are not
+// serializable and break Zustand DevTools + any persist middleware.
+let _navigateFn = null;
+export function setNavigator(fn) { _navigateFn = fn; }
+export function imperativeNavigate(path) { if (_navigateFn) _navigateFn(path); }
+
+// BUG-P: track toast timeout IDs so reset() can cancel them
+const _toastTimers = new Map();
 
 export const useAppStore = create((set, get) => ({
   page:          'dashboard',
@@ -27,18 +46,24 @@ export const useAppStore = create((set, get) => ({
   notifications: [],
   artifacts:     [],
   users:         [],
-  _navigate:     null, // injected by MainApp after router mounts
 
   // Called once in MainApp to wire the router navigate function
   initRouter: (navigate, location) => {
+    // BUG-O: store navigate outside Zustand — functions aren't serializable
+    setNavigator(navigate);
     const page = fromPath(location.pathname);
-    set({ _navigate: navigate, page });
+    set({ page });
   },
 
   setPage: (page) => {
+    // BUG-A: reject unknown page names — prevents AI/devtools navigation exploits
+    if (!VALID_PAGES.has(page)) {
+      console.warn(`[useAppStore] setPage: rejected unknown page "${page}"`);
+      return;
+    }
     set({ page, notifPanel: false });
-    const nav = get()._navigate;
-    if (nav) nav(toPath(page), { replace: false });
+    // BUG-O: use module-level imperativeNavigate, not Zustand state
+    imperativeNavigate(toPath(page));
   },
 
   // Sync page when browser back/forward changes the URL
@@ -63,10 +88,26 @@ export const useAppStore = create((set, get) => ({
   addToast: (type, msg) => {
     const id = Date.now();
     set(s => ({ toasts: [...s.toasts, { id, type, msg }] }));
-    setTimeout(() => set(s => ({ toasts: s.toasts.filter(x => x.id !== id) })), 3500);
+    // BUG-P: store the timer ID so reset() can cancel pending dismissals
+    const timer = setTimeout(() => {
+      _toastTimers.delete(id);
+      set(s => ({ toasts: s.toasts.filter(x => x.id !== id) }));
+    }, 3500);
+    _toastTimers.set(id, timer);
   },
 
-  pushNotification: (notif) => set(s => ({ notifications: [notif, ...s.notifications] })),
+  // Cancel all pending toast timers and wipe state (call on logout)
+  reset: () => {
+    for (const timer of _toastTimers.values()) clearTimeout(timer);
+    _toastTimers.clear();
+    set({ toasts: [], notifications: [], notifPanel: false });
+  },
+
+  // BUG-H: deduplicate by id — realtime + initial fetch can both fire for the same row
+  pushNotification: (notif) => set(s => {
+    if (s.notifications.some(n => n.id === notif.id)) return s;
+    return { notifications: [notif, ...s.notifications] };
+  }),
 
   // ── Centralized realtime notification subscription ──────────────────────
   // Call once after userId is known; safe to call again on re-login.

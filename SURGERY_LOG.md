@@ -243,7 +243,29 @@ Needs further audit in Phase 1 to identify which are OTP rate limiting (BUG-T) v
 | 2026-03-28 | REG-1 | `supabase/migrations/20260328000002_profiles_not_null_constraints.sql` | NOT NULL + CHECK constraints on profiles.name, profiles.email, profiles.mci_number. DevTools bypass of form validation now fails at DB level. | Registration and profile updates | `npm run build` ✅ |
 
 ## Phase 3 — State Management & Logic
-*(entries will be added as work progresses)*
+
+| Date | Bug ID | File Changed | What Changed | Blast Radius | Verification |
+|------|--------|-------------|-------------|-------------|-------------|
+| 2026-03-28 | BUG-J | `src/context/AuthContext.jsx` | Removed `getSession()` call entirely; now uses ONLY `onAuthStateChange`. `INITIAL_SESSION` event replaces `getSession()` — single code path eliminates auth race condition and login flicker. | All authenticated routes — login/logout flow | `npm run build` ✅ |
+| 2026-03-28 | QUIZ-1 | `src/components/quiz/QuizPlayer.jsx` | Added `answersRef = useRef({})` kept in sync on every `answer()` call; timer closure + Submit button both use `answersRef.current` — stale closure eliminated. | QuizPlayer timer → auto-submit path | `npm run build` ✅ |
+| 2026-03-28 | QUIZ-2 | `src/components/quiz/QuizPlayer.jsx` | Added `advanceRef` + `isMountedRef`; 350ms advance timeout tracked and cleared on unmount; all state updates guarded with mounted check. | QuizPlayer unmount path | `npm run build` ✅ |
+| 2026-03-28 | QUIZ-3 | `src/components/quiz/QuizPlayer.jsx` | `finish()` now shows error toast + calls `onBack()` instead of silent return when `!quiz`. | QuizPlayer finish() code path | `npm run build` ✅ |
+| 2026-03-28 | QUIZ-4 | `src/components/quiz/QuizPlayer.jsx` | Added empty-quiz guard; `onBack()` called on load error; `setLoading(false)` guarded with mounted check. | QuizPlayer load path | `npm run build` ✅ |
+| 2026-03-28 | EXAM-1 | `src/lib/aiService.js` | Added `AbortController` with 15s timeout to `callGemini()` — matches `callAIViaEdge`'s existing timeout. Prevents permanent hang on AI timeout. | All AI explainer calls from ExamPage | `npm run build` ✅ |
+| 2026-03-28 | EXAM-2 | `src/components/ExamPage.jsx` | Guard on `q.correct` before `.toLowerCase()` — crashes when `q.correct` is undefined. Returns explanation copy instead of throwing. | ExamPage results review rendering | `npm run build` ✅ |
+| 2026-03-28 | EXAM-3 | `src/components/ExamPage.jsx` | Renamed `catch (_)` to `catch (err)` — error now named and visible in Sentry. | ExamPage startExam error path | `npm run build` ✅ |
+| 2026-03-28 | EXAM-4 | `src/components/ExamPage.jsx` | Added `subjectsError` state; `loadSubjects` extracted as `useCallback`; Retry button shown on failure. | ExamPage subject grid loading path | `npm run build` ✅ |
+| 2026-03-28 | SR-1 | `src/components/StudyPlan/SpacedRepetition.jsx` | `progress = totalDue > 0 ? Math.round(...) : 0` — prevents NaN when both are 0. | SpacedRepetition progress bar | `npm run build` ✅ |
+| 2026-03-28 | SR-3 | `src/components/StudyPlan/SpacedRepetition.jsx` | Replaced direct `supabase.from('spaced_repetition_cards').update()` with `dbUpdate()` — centralized error handling. | SpacedRepetition handleRate() | `npm run build` ✅ |
+| 2026-03-28 | BUG-O | `src/stores/useAppStore.js` | Moved `_navigate` function out of Zustand state into module-level `_navigateFn`. `initRouter()` calls `setNavigator()`; `setPage()` uses `imperativeNavigate()`. State is now fully serializable. | All setPage() callers | `npm run build` ✅ |
+| 2026-03-28 | BUG-N | `src/App.jsx` | Wrapped `onApprove`, `onReject`, `onUpload`, `onApproveUser`, `onRejectUser`, `onRegisterSuccess` in `useCallback` — sharedProps `useMemo` deps are now stable, eliminating re-render cascade. | All child components receiving sharedProps | `npm run build` ✅ |
+| 2026-03-28 | BUG-P | `src/stores/useAppStore.js`, `src/App.jsx` | `addToast()` stores `setTimeout` IDs in `_toastTimers` Map; `reset()` cancels all pending timers; `logout()` calls `resetAppState()`. | Toast auto-dismiss across logout boundary | `npm run build` ✅ |
+| 2026-03-28 | BUG-A | `src/stores/useAppStore.js` | Added `VALID_PAGES` Set; `setPage()` rejects unknown page names with console.warn. Prevents AI navigation or devtools from routing to arbitrary pages. | All setPage() callers | `npm run build` ✅ |
+| 2026-03-28 | BUG-H | `src/stores/useAppStore.js` | `pushNotification()` deduplicates by `id` — realtime INSERT + initial fetch can both deliver the same notification row. | NotificationsPage, TopBar badge count | `npm run build` ✅ |
+| 2026-03-28 | BUG-I | `src/App.jsx` | Removed `.limit(200)` from `fetchUsers()` — UsersPage virtualises the list so large doctor rosters are no longer silently truncated. | UsersPage user count | `npm run build` ✅ |
+| 2026-03-28 | BUG-L | `src/lib/trackActivity.js` | `stopTimer()` now records actual elapsed minutes without `Math.max(1, ...)` — sub-minute sessions no longer inflate activity data or XP. | Activity heatmap, XP calculation | `npm run build` ✅ |
+| 2026-03-28 | BUG-S | `src/lib/aiService.js` | Added `parseAiJson()` helper: tries `JSON.parse(clean)` first, then falls back to object/array regex extraction. Applied to all 6 AI functions that previously went regex-first, fixing crash on nested AI responses. | All AI JSON-returning functions | `npm run build` ✅ |
+| 2026-03-28 | BUG-K | `src/components/DoctorDashboard.jsx` | Already fixed — all 9 concurrent dashboard queries use `dbRun(query, signal)` with `AbortController`. Confirmed no action needed. | DoctorDashboard unmount path | `npm run build` ✅ |
 
 ## Phase 4 — UI/UX, Theme, PWA
 *(entries will be added as work progresses)*

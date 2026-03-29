@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { dbRun, dbUpdate } from '../../lib/dbService';
 import { trackActivity, startTimer, stopTimer } from '../../lib/trackActivity';
 import { sm2 } from '../../lib/sm2';
 
@@ -29,14 +30,15 @@ export default function SpacedRepetition({ userId, addToast }) {
     setLoading(true);
     try {
       const today = new Date().toISOString().slice(0, 10);
-      const { data, error } = await supabase
+      const q = supabase
         .from('spaced_repetition_cards')
         .select('*')
         .eq('user_id', userId)
         .lte('next_review_at', today)
         .order('next_review_at', { ascending: true })
         .limit(30);
-      if (error) throw error;
+      const { data, error: fetchErr, status } = await dbRun(q);
+      if (status === 'error') throw new Error(fetchErr);
       setCards(data || []);
       setTotalDue(data?.length || 0);
       if (data?.length > 0) startTimer('spaced_rep', userId);
@@ -61,13 +63,15 @@ export default function SpacedRepetition({ userId, addToast }) {
     const { easeFactor: newE, interval: newI, repetitions: newR, nextReviewDate } = result;
 
     try {
-      await supabase.from('spaced_repetition_cards').update({
+      // SR-3: use dbUpdate (centralised error handling) instead of direct supabase.from()
+      const { status } = await dbUpdate('spaced_repetition_cards', {
         easiness: newE,
         interval: newI,
         repetitions: newR,
-        next_review_at: nextReviewDate,
-        last_reviewed_at: new Date().toISOString(),
-      }).eq('id', card.id);
+        nextReviewAt: nextReviewDate,
+        lastReviewedAt: new Date().toISOString(),
+      }, { id: card.id });
+      if (status === 'error') throw new Error('Failed to save review progress');
 
       const nextIdx = idx + 1;
       setReviewed(r => r + 1);
@@ -113,7 +117,8 @@ export default function SpacedRepetition({ userId, addToast }) {
   );
 
   const card = cards[idx];
-  const progress = Math.round((idx / totalDue) * 100);
+  // SR-1: guard NaN when totalDue is 0 (belt-and-suspenders alongside the early return above)
+  const progress = totalDue > 0 ? Math.round((idx / totalDue) * 100) : 0;
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto' }}>

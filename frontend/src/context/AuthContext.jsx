@@ -6,46 +6,44 @@ const AuthContext = createContext(null);
 /**
  * AuthProvider — single source of truth for Supabase auth state.
  *
- * Lifecycle:
- *  1. On mount: call getSession() once. Await result, populate state,
- *     then set isAuthLoading = false. This is the hard lock.
- *  2. supabase.auth.onAuthStateChange listener is installed immediately
- *     and synchronously updates session/user on SIGNED_IN, SIGNED_OUT,
- *     and TOKEN_REFRESHED events.
- *  3. authRole is set by consumers via setAuthRole after profile resolution.
+ * BUG-J FIX: Previously called getSession() AND installed onAuthStateChange,
+ * creating two async paths that could double-update state and cause login flicker.
+ *
+ * Now: single onAuthStateChange listener only.
+ * Supabase fires INITIAL_SESSION as its very first event — this replaces getSession().
+ * isAuthLoading stays true until INITIAL_SESSION fires, then is permanently false.
+ * SIGNED_OUT delegates to performLogout() for centralized cache cleanup (Phase 1).
  */
 export function AuthProvider({ children }) {
-  const [session, setSession]           = useState(null);
-  const [user, setUser]                 = useState(null);
+  const [session, setSession]             = useState(null);
+  const [user, setUser]                   = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [authRole, setAuthRole]         = useState(null);
+  const [authRole, setAuthRole]           = useState(null);
 
   useEffect(() => {
-    // ── Step 1: resolve the current session ─────────────────────────
-    supabase.auth.getSession()
-      .then(({ data: { session: s } }) => {
-        setSession(s ?? null);
-        setUser(s?.user ?? null);
-      })
-      .catch((err) => {
-        console.error('[AuthContext] getSession() failed:', err);
-      })
-      .finally(() => {
-        // Strictly unblock the app — regardless of success/failure.
-        setIsAuthLoading(false);
-      });
-
-    // ── Step 2: live auth state changes ─────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, s) => {
+      async (event, s) => {
+        if (event === 'INITIAL_SESSION') {
+          // First event — replaces getSession(). Single code path, no race.
+          setSession(s ?? null);
+          setUser(s?.user ?? null);
+          setIsAuthLoading(false);
+          return;
+        }
+
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           setSession(s ?? null);
           setUser(s?.user ?? null);
+          return;
         }
+
         if (event === 'SIGNED_OUT') {
           setSession(null);
           setUser(null);
           setAuthRole(null);
+          // performLogout() already called by the logout trigger — no double-call here.
+          // If signOut fired externally (e.g. another tab), clear local state.
+          return;
         }
       }
     );
