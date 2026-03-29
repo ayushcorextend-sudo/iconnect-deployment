@@ -26,27 +26,30 @@ export const ExamQuestionSchema = z.object({
   source:      z.string().optional(),
 });
 
-/** quiz_questions table — used by QuizPlayer, QuizBuilder, LiveArena, SuperAdminApprovals */
-export const QuizQuestionSchema = z.object({
-  id:         z.string().uuid(),
-  quizId:     z.string().uuid(),
-  question:   z.string().min(1),
-  optionA:    z.string().min(1),
-  optionB:    z.string().min(1),
-  optionC:    z.string().min(1),
-  optionD:    z.string().min(1),
-  correctKey: z.enum(['a', 'b', 'c', 'd']),   // canonical: lowercase for quiz table
-  sortOrder:  z.number().int().min(0).optional(),
+/** quiz_questions row as returned from DB — used by QuizPlayer, SuperAdminApprovals */
+// BUG-X: schema now matches the actual table (stem + options JSONB, not option_a/b/c/d columns)
+const QuizOptionSchema = z.object({
+  label: z.string().min(1),
+  text:  z.string().min(1),
 });
 
-/** DB insert shape for quiz_questions (snake_case) */
+export const QuizQuestionSchema = z.object({
+  id:          z.string().uuid(),
+  quizId:      z.string().uuid().optional(),  // may be quiz_id (snake) on raw DB row
+  quiz_id:     z.string().uuid().optional(),
+  stem:        z.string().min(1),
+  options:     z.array(QuizOptionSchema).min(2),
+  correct_key: z.string().min(1),
+  explanation: z.string().optional().nullable(),
+  sort_order:  z.number().int().min(0).optional(),
+});
+
+/** DB insert shape for quiz_questions (snake_case, matches actual table) */
 export const QuizQuestionInsertSchema = z.object({
   quiz_id:     z.string().uuid(),
-  question:    z.string().min(1),
-  option_a:    z.string().min(1),
-  option_b:    z.string().min(1),
-  option_c:    z.string().min(1),
-  option_d:    z.string().min(1),
-  correct_key: z.enum(['a', 'b', 'c', 'd']),
   sort_order:  z.number().int().min(0).optional(),
+  stem:        z.string().min(1, 'Question text is required'),
+  options:     z.array(QuizOptionSchema).min(2, 'At least 2 options required'),
+  correct_key: z.string().min(1, 'Correct answer is required'),
+  explanation: z.string().optional(),
 });

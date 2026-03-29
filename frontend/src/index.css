@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* CSS custom properties — light + dark mode token definitions */
+@import './styles/theme.css';
+
 /* ══════════════════════════════════════════════════════════════════════════
    iCONNECT — PREMIUM DESIGN SYSTEM v2
    Enterprise-grade medical education platform

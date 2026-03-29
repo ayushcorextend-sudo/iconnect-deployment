@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { idempotentInsert } from '../../lib/idempotency';
 import { trackActivity, startTimer, stopTimer } from '../../lib/trackActivity';
+import { QuizQuestionSchema } from '../../schemas/question';
 
 export default function QuizPlayer({ quizId, userId, addToast, onBack }) {
   const [quiz, setQuiz]           = useState(null);
@@ -45,8 +46,18 @@ export default function QuizPlayer({ quizId, userId, addToast, onBack }) {
           .from('quiz_questions').select('*').eq('quiz_id', quizId).order('sort_order');
         if (e2) throw e2;
         if (!qs || qs.length === 0) throw new Error('This quiz has no questions yet.');
+        // BUG-X: filter out malformed questions so they can't crash the renderer.
+        // Any question that fails schema validation is skipped with a console warning.
+        const validQuestions = qs.filter(q => {
+          const result = QuizQuestionSchema.safeParse(q);
+          if (!result.success) {
+            console.warn('[QuizPlayer] Malformed question skipped:', q.id, result.error.errors[0]?.message);
+          }
+          return result.success;
+        });
+        if (validQuestions.length === 0) throw new Error('This quiz has no valid questions. Please report this to your admin.');
         setQuiz(qz);
-        setQuestions(qs);
+        setQuestions(validQuestions);
         setTimeLeft(qz.time_limit_sec || 600);
       } catch (e) {
         addToast('error', 'Failed to load quiz: ' + e.message);
