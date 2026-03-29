@@ -17,7 +17,8 @@ import { supabase } from './supabase';
 const USE_EDGE_FUNCTION = false;
 
 // ── Edge function proxy (Flaw #14: no client-side API keys) ──────────────────
-const SUPABASE_URL = 'https://kzxsyeznpudomeqxbnvp.supabase.co';
+// SEC-002/SEC-003: No hardcoded URLs or keys — read from env only.
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 
 async function callAIViaEdge(action, payload, maxTokens = 512) {
   try {
@@ -53,34 +54,14 @@ async function callAIViaEdge(action, payload, maxTokens = 512) {
 }
 
 // ── Direct callers (used when USE_EDGE_FUNCTION=false) ───────────────────────
-const SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6eHN5ZXpucHVkb21lcXhibnZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMjQ1NjEsImV4cCI6MjA4NzkwMDU2MX0.4w2UkRl3rxq2WOiQDmY4aMPGUhQ_5V4W8hridmGmy9o';
+// SEC-003: Supabase anon key read from env — never hardcoded.
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-const NVIDIA_API_KEY   = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_NVIDIA_API_KEY) || '';
-const NVIDIA_BASE_URL  = 'https://integrate.api.nvidia.com/v1';
-const NVIDIA_MODEL     = 'meta/llama-3.1-70b-instruct';
-
-async function callNvidia(systemPrompt, userMessage, maxTokens = 512) {
-  try {
-    const res = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${NVIDIA_API_KEY}` },
-      body: JSON.stringify({
-        model: NVIDIA_MODEL,
-        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMessage }],
-        max_tokens: maxTokens, temperature: 0.7, stream: false,
-      }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return { text: null, error: err.message || `NVIDIA API error ${res.status}` };
-    }
-    const data = await res.json();
-    return { text: data.choices?.[0]?.message?.content || '', error: null };
-  } catch (e) {
-    return { text: null, error: e.message || 'Network error' };
-  }
-}
+// SEC-002: NVIDIA API key is REMOVED from the browser bundle.
+// It must be stored as a Supabase Edge Function secret (NVIDIA_API_KEY).
+// When USE_EDGE_FUNCTION=true, the ai-orchestrator edge function handles NVIDIA routing.
+// When USE_EDGE_FUNCTION=false, NVIDIA is unavailable client-side — only Gemini is used.
+// See: src/docs/AI_EDGE_FUNCTION_SPEC.md for the edge function specification.
 
 async function callGemini(systemPrompt, userMessage, maxTokens = 512) {
   try {
@@ -104,17 +85,15 @@ async function callGemini(systemPrompt, userMessage, maxTokens = 512) {
   }
 }
 
-// ── Unified callAI — routes to edge function or direct based on flag ──────────
+// ── Unified callAI — routes to edge function or Gemini direct ────────────────
+// NVIDIA is only available via the ai-orchestrator edge function (USE_EDGE_FUNCTION=true).
+// Client-side direct path uses Gemini only — NVIDIA key is no longer in the browser bundle.
 async function callAI(systemPrompt, userMessage, maxTokens = 512) {
   if (USE_EDGE_FUNCTION) {
+    // ai-orchestrator handles NVIDIA→Gemini routing server-side with rate limiting
     return callAIViaEdge('generic', { system: systemPrompt, user: userMessage }, maxTokens);
   }
-  // Direct routing: NVIDIA first, Gemini fallback
-  if (NVIDIA_API_KEY) {
-    const result = await callNvidia(systemPrompt, userMessage, maxTokens);
-    if (!result.error) return result;
-    console.warn('[iConnect AI] NVIDIA failed, falling back to Gemini:', result.error);
-  }
+  // Direct path: Gemini only (NVIDIA requires edge function — see AI_EDGE_FUNCTION_SPEC.md)
   return callGemini(systemPrompt, userMessage, maxTokens);
 }
 

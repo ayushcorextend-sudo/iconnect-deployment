@@ -8,7 +8,7 @@ import {
 } from './lib/supabase';
 import { sendNotification } from './lib/sendNotification';
 import { auditLog } from './lib/auditLog';
-import { trackActivity, cleanupActivityTracking } from './lib/trackActivity';
+import { trackActivity, flushPendingFromStorage } from './lib/trackActivity';
 import { captureException, setUser } from './lib/sentry';
 import ErrorBoundary from './components/ErrorBoundary';
 import AppErrorBoundary from './components/ui/AppErrorBoundary';
@@ -31,6 +31,7 @@ import ProfileSetupPage from './components/ProfileSetupPage';
 import OfflineIndicator from './components/ui/OfflineIndicator';
 import PageTransition from './components/ui/PageTransition';
 import PageErrorBoundary from './components/ui/PageErrorBoundary';
+import { clearAllCaches } from './lib/dbService';
 
 // Page-level components — lazy loaded for code splitting
 const SADashboard           = lazy(() => import('./components/SADashboard'));
@@ -259,6 +260,11 @@ function MainApp() {
         trackActivity('daily_login', uid);
       }
 
+      // SEC-004: Flush any activity logs saved to localStorage during a previous
+      // page close (the beforeunload fallback in trackActivity.js).
+      // Auth is established at this point so the flush uses proper credentials.
+      flushPendingFromStorage().catch(() => {});
+
       // Kick off parallel post-login data fetches — none are blocking for render
       const parallelFetches = [
         fetchNotifs(uid),
@@ -340,11 +346,13 @@ function MainApp() {
 
   const logout = async () => {
     authBootedRef.current = false; // allow fresh login flow on next session
+    // BUG-C: clearAllCaches() clears _dashCache, signedUrl CACHE, dataCache _store,
+    // tenantResolver _cached, and trackActivity queue — all registered via registerCache().
+    clearAllCaches();
     // Note: beforeunload handler is cleaned up by the useEffect when role/page changes
-    cleanupActivityTracking(); // cancel pending flush timer + drain queue
     setUser(null, null);
     unsubscribeAll(); // tear down all realtime channels
-    clearTenant();    // reset tenant cache
+    clearTenant();    // reset tenant cache (also cleared by clearAllCaches via registerCache)
     await authSignOut();
     clearAuth();
     setArtifacts([]);

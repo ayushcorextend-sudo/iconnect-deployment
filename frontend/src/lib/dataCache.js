@@ -16,8 +16,12 @@
  *   setCached('leaderboard', fresh);        // update cache for next visit
  */
 
+import { registerCache } from './dbService';
+
 const _store = new Map();
 const DEFAULT_TTL = 2 * 60 * 1000; // 2 minutes
+// BUG-C: register for logout cleanup — clears all user-specific query result caches.
+registerCache(() => _store.clear());
 
 /**
  * Get a cached value. Returns null if key is missing or expired.

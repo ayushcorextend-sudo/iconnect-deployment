@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase, getUserContentStates, toggleBookmark, getDiaryEntriesRange } from '../lib/supabase';
+import { dbRun, registerCache } from '../lib/dbService';
 import { useAppStore } from '../stores/useAppStore';
 import { getPersonalizedSuggestions } from '../lib/aiService';
 import { getCached, setCached, invalidate } from '../lib/dataCache';
@@ -15,9 +16,12 @@ import WebinarLeaderboardRow from './dashboard/WebinarLeaderboardRow';
 import LatestContentSection from './dashboard/LatestContentSection';
 import ReadingBookmarksRow from './dashboard/ReadingBookmarksRow';
 
-// Module-level stale-while-revalidate cache (2-min TTL, keyed by userId)
+// BUG-C: _dashCache moved to a registered cache so it is cleared on logout.
+// registerCache() ensures performLogout() will call _dashCache.clear() before
+// signing out — preventing cross-user data exposure on shared devices.
 const _dashCache = new Map(); // uid → { data, ts }
 const DASH_CACHE_TTL = 2 * 60 * 1000;
+registerCache(() => _dashCache.clear());
 
 export default function DoctorDashboard({ artifacts = [], notifications = [], setPage, userName, openChatBotDoubt, userId: userIdProp, darkMode }) {
   const approved = artifacts.filter(a => a.status === 'approved');
@@ -74,6 +78,9 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
   }, [diaryCache]);
 
   useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+
     async function load() { // eslint-disable-line no-shadow
       try {
         // Use userId passed from parent (via AuthStore in App.jsx) — no extra auth round-trip
@@ -90,23 +97,28 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         }
 
         // ── Fire all independent queries in parallel ───────
+        // dbRun wraps each query with AbortSignal so they cancel cleanly on unmount (BUG-K).
         const [profileRes, statesRes, scoresRes, logsRes, actLogsRes, artsRes, wbRes, planRes, lbProfilesRes] = await Promise.all([
-          supabase.from('profiles').select('speciality').eq('id', uid).maybeSingle(),
+          dbRun(supabase.from('profiles').select('speciality').eq('id', uid).maybeSingle(), signal),
           getUserContentStates(uid),
-          supabase.from('user_scores').select('user_id, total_score, quiz_score, reading_score')
-            .order('total_score', { ascending: false }).limit(5),
-          supabase.from('activity_logs').select('activity_type, duration_minutes, created_at')
-            .eq('user_id', uid).order('created_at', { ascending: false }).limit(2000),
-          supabase.from('activity_logs').select('reference_id')
-            .eq('user_id', uid).eq('activity_type', 'article_read'),
-          supabase.from('artifacts').select('id, title, subject, emoji, pages')
-            .eq('status', 'approved').limit(20),
-          supabase.from('admin_webinars').select('*')
-            .gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(1),
-          supabase.from('study_plan_history').select('id, plan, completed_tasks')
-            .eq('user_id', uid).eq('is_active', true).order('created_at', { ascending: false }).limit(1),
-          supabase.from('profiles').select('id, name, speciality, college').limit(20),
+          dbRun(supabase.from('user_scores').select('user_id, total_score, quiz_score, reading_score')
+            .order('total_score', { ascending: false }).limit(5), signal),
+          dbRun(supabase.from('activity_logs').select('activity_type, duration_minutes, created_at')
+            .eq('user_id', uid).order('created_at', { ascending: false }).limit(2000), signal),
+          dbRun(supabase.from('activity_logs').select('reference_id')
+            .eq('user_id', uid).eq('activity_type', 'article_read'), signal),
+          dbRun(supabase.from('artifacts').select('id, title, subject, emoji, pages')
+            .eq('status', 'approved').limit(20), signal),
+          dbRun(supabase.from('admin_webinars').select('*')
+            .gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(1), signal),
+          dbRun(supabase.from('study_plan_history').select('id, plan, completed_tasks')
+            .eq('user_id', uid).eq('is_active', true).order('created_at', { ascending: false }).limit(1), signal),
+          dbRun(supabase.from('profiles').select('id, name, speciality, college').limit(20), signal),
         ]);
+
+        // If any query was aborted (component unmounted mid-fetch), bail out silently.
+        if ([profileRes, scoresRes, logsRes, actLogsRes, artsRes, wbRes, planRes, lbProfilesRes]
+          .some(r => r.status === 'aborted')) return;
 
         const profileData = profileRes.data;
         const states      = statesRes;
@@ -115,7 +127,8 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         const actLogs     = actLogsRes.data;
         const arts        = artsRes.data;
         const wb          = wbRes.data;
-        const activePlanData = planRes.data?.[0] || null;
+        // planRes.data is an array (dbRun returns camelCase); grab first active plan
+        const activePlanData = Array.isArray(planRes.data) ? planRes.data[0] || null : planRes.data || null;
 
         // ── Profile ────────────────────────────────────────
         if (profileData?.speciality) setMySpeciality(profileData.speciality);
@@ -251,6 +264,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
       }
     }
     load();
+    return () => controller.abort(); // Cancel all 9 in-flight queries on unmount
   }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshForYou = useCallback(async () => {

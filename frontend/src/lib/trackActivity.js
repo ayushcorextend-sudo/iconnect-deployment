@@ -6,9 +6,13 @@
  * Uses navigator.sendBeacon on page unload to prevent data loss (Flaw #29).
  */
 import { supabase } from './supabase';
+import { dbInsert, registerCache } from './dbService';
 
 const queue = [];
 let flushTimer = null;
+// BUG-C: register activity queue for logout cleanup — prevents stale user's
+// pending events from flushing under the next user's session.
+registerCache(() => cleanupActivityTracking());
 const FLUSH_INTERVAL = 5000; // ms
 const MAX_BATCH = 20;
 const timers = {}; // { "activityType_referenceId": startTimestamp }
@@ -82,11 +86,10 @@ export async function flushActivityQueue() {
   if (queue.length === 0) return;
 
   const batch = queue.splice(0, MAX_BATCH);
-  try {
-    const { error } = await supabase.from('activity_logs').insert(batch);
-    if (error) throw error;
-  } catch (e) {
-    console.warn('[trackActivity] batch insert failed:', e.message);
+  // dbInsert: normalizes errors, never throws, payload is already snake_case
+  const { error, status } = await dbInsert('activity_logs', batch);
+  if (status === 'error') {
+    console.warn('[trackActivity] batch insert failed:', error);
     // Don't re-queue to avoid infinite retry loops on persistent errors.
   }
 }
@@ -100,22 +103,56 @@ export function cleanupActivityTracking() {
   queue.length = 0;
 }
 
-// Flush remaining events on page unload using sendBeacon (fire-and-forget).
+// SEC-004: sendBeacon cannot attach auth headers — replaced with two-part strategy:
+//
+// PRIMARY (visibilitychange): flushes through dbInsert with proper auth token.
+//   Catches most real-world cases: tab switch, background, phone lock.
+//
+// FALLBACK (beforeunload): saves remaining queue to localStorage with a UUID key.
+//   On next app load, flushPendingFromStorage() picks it up once auth is established.
+//   This covers the hard-close case that visibilitychange can't handle.
+
+const PENDING_ACTIVITY_PREFIX = 'iconnect_pending_activity_';
+
 if (typeof window !== 'undefined') {
+  // PRIMARY: visibilitychange fires reliably for most tab/window switches
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && queue.length > 0) {
+      flushActivityQueue(); // uses authenticated dbInsert
+    }
+  });
+
+  // FALLBACK: beforeunload — save to localStorage for auth-aware flush on next load
   window.addEventListener('beforeunload', () => {
     if (queue.length === 0) return;
     const remaining = queue.splice(0);
-    const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL
-      || 'https://kzxsyeznpudomeqxbnvp.supabase.co';
-    const SUPABASE_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY
-      || supabase.supabaseKey;
-    // sendBeacon is fire-and-forget and works even during unload
-    navigator.sendBeacon(
-      `${SUPABASE_URL}/rest/v1/activity_logs`,
-      new Blob(
-        [JSON.stringify(remaining)],
-        { type: 'application/json' }
-      )
-    );
+    const key = `${PENDING_ACTIVITY_PREFIX}${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now()}`;
+    try {
+      localStorage.setItem(key, JSON.stringify(remaining));
+    } catch { /* storage full — activity data lost, non-critical */ }
   });
+}
+
+/**
+ * Flush any activity logs saved to localStorage during a previous page unload.
+ * Call this AFTER auth is established (user is logged in with a valid session).
+ * Safe to call multiple times — each key is removed before insertion attempt.
+ */
+export async function flushPendingFromStorage() {
+  const pendingKeys = Object.keys(localStorage).filter(k => k.startsWith(PENDING_ACTIVITY_PREFIX));
+  for (const key of pendingKeys) {
+    try {
+      const batch = JSON.parse(localStorage.getItem(key) || '[]');
+      localStorage.removeItem(key); // remove before insert to prevent double-flush
+      if (batch.length > 0) {
+        const { error, status } = await dbInsert('activity_logs', batch);
+        if (status === 'error') {
+          console.warn('[trackActivity] flushPendingFromStorage insert failed:', error);
+        }
+      }
+    } catch (e) {
+      console.warn('[trackActivity] flushPendingFromStorage parse error:', e.message);
+      localStorage.removeItem(key); // remove corrupt entry
+    }
+  }
 }

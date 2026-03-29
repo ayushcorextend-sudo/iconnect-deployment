@@ -9,10 +9,13 @@
  *   Once private, only signed URLs will work.
  */
 import { supabase } from './supabase';
+import { registerCache } from './dbService';
 
 // In-memory cache: cacheKey → { url, ts }
 const CACHE = new Map();
 const CACHE_TTL = 50 * 60 * 1000; // 50 min (URLs valid for 60 min)
+// BUG-C: clear signed URL cache on logout — URLs are user-scoped and must not leak.
+registerCache(() => CACHE.clear());
 
 /**
  * Get a signed URL for a file in Supabase Storage.

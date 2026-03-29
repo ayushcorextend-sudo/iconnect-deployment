@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { toSnake } from './dbService'
 
 export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321',
@@ -82,9 +83,11 @@ export const authSignInWithGoogle = async () => {
 }
 
 export const authSendOtp = async (email) => {
+  // SEC-005: shouldCreateUser:false — OTP is login-only. New accounts go through
+  // the explicit /register flow. This prevents phantom account creation.
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { shouldCreateUser: true }
+    options: { shouldCreateUser: false }
   })
   if (error) throw error
   return { success: true }
@@ -103,6 +106,18 @@ export const authVerifyOtp = async (email, token) => {
       .eq('id', data.user.id).maybeSingle()
     profile = p
   } catch (e) { console.warn('supabase: authVerifyOtp profile fetch failed:', e.message); }
+
+  // SEC-001: Block pending/rejected doctors BEFORE granting app access.
+  // signOut is called first so the session is invalidated server-side — not just UI-gated.
+  const status = profile?.status
+  if (status === 'pending') {
+    await supabase.auth.signOut()
+    throw new Error('Your account is pending verification. Please wait for admin approval.')
+  }
+  if (status === 'rejected') {
+    await supabase.auth.signOut()
+    throw new Error('Your account has been rejected. Please contact support.')
+  }
 
   const role = profile?.role || 'doctor'
   const name = profile?.name || data.user.email
@@ -244,16 +259,19 @@ export const registerUser = async (email, password, profile) => {
     }
 
     // Step 3: Profile insert is now FATAL — a failure here must surface to the caller
+    // toSnake() converts any camelCase keys in `profile` spread to snake_case,
+    // preventing NULL inserts for fields like firstName → first_name (BUG-E).
+    const profileRow = toSnake({
+      id: data.user.id, email, role: 'doctor', status: 'pending', verified: false,
+      mci_number: profile.mci_number,
+      name: profile.name,
+      speciality: profile.speciality,
+      college: profile.college,
+      ...profile,
+    });
     const { error: profileError } = await supabase
       .from('profiles')
-      .insert([{
-        id: data.user.id, email, role: 'doctor', status: 'pending', verified: false,
-        mci_number: profile.mci_number,
-        name: profile.name,
-        speciality: profile.speciality,
-        college: profile.college,
-        ...profile,
-      }])
+      .insert([profileRow])
     if (profileError) {
       // Step 4: Throw a labelled error so the outer catch re-throws rather than falling to offline path
       const e = new Error('Profile setup failed. Your account was created but could not be saved. Please contact support@iconnect.in')

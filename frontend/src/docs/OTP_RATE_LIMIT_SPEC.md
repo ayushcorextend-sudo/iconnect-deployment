@@ -1,45 +1,30 @@
-# OTP Rate Limiting — Server-Side Requirements
+# OTP Rate Limiting Specification
 
 ## Problem
-The OTP send endpoint has no server-side rate limiting. An attacker can automate OTP requests
-to drain the SMS budget or enumerate valid phone numbers/emails.
+The previous client-side localStorage rate limiting (BUG-T) was security theater:
+- Bypassed instantly via DevTools localStorage.removeItem('iconnect_otp_attempts')
+- Not shared across devices (attacker uses a different browser)
+- Provided false confidence that enumeration attacks were blocked
 
-## Client-Side (implemented — defense in depth)
-- After sending OTP: 60-second cooldown on the Send OTP button
-- Failed attempt tracking in localStorage with progressive lockout:
-  - 5 failed attempts in 10 min → 5-minute lockdown
-  - 10 total failed attempts → 30-minute lockdown
-- Lockdown state persists across page refreshes (localStorage key: `iconnect_otp_attempts`)
+## Server-Side Rate Limiting (Required)
 
-## Server-Side (Ayush must configure)
+### Supabase Auth Config
+Set in Supabase Dashboard → Authentication → Rate Limits:
 
-### 1. Supabase Auth Rate Limits
-In Supabase Dashboard → Project Settings → Auth → Rate Limits:
-- `Max emails per hour`: set to 5 (default is high)
-- `Max OTPs per hour`: set to 5
-- `SMTP rate limit`: configure per your email provider limits
+| Setting | Recommended Value | Purpose |
+|---------|------------------|---------|
+| RATE_LIMIT_EMAIL_SENT | 5 per hour per email | Prevents email enumeration |
+| RATE_LIMIT_SIGN_INS | 30 per hour per IP | Brute force protection |
 
-### 2. Per-IP Rate Limiting via Supabase Edge Function
-Option A — Supabase built-in:
-- The `auth.v1.otp` endpoint can be wrapped in a custom Edge Function that checks
-  a rate limit table before forwarding to Supabase Auth.
+### Cloudflare WAF Rules (Recommended)
+Rate limit: 10 OTP requests per 5 minutes per IP on path /auth/v1/otp
 
-Option B — Cloudflare WAF rules (recommended for production):
-```
-Rule: if request.uri.path = "/auth/v1/otp" and rate(1m) > 5
-Then: block with 429 Too Many Requests
-```
+## Client-Side UX (What Remains)
+The 60-second resend cooldown in Login.jsx (otpTimer) is purely UX convenience only.
+It prevents accidental double-clicks — NOT a security control.
 
-### 3. CAPTCHA (optional but recommended for public registration)
-Supabase Auth supports Cloudflare Turnstile and hCaptcha natively:
-1. Supabase Dashboard → Auth → Bot and Abuse Protection
-2. Add your Turnstile Site Key
-3. On the client: add `<div class="cf-turnstile" data-sitekey="...">` to Login.jsx
-4. Pass the token to `supabase.auth.signInWithOtp({ email, options: { captchaToken } })`
-
-A TODO marker has been placed in Login.jsx where the CAPTCHA widget should be inserted.
-
-## Monitoring
-Set up an alert in Supabase Dashboard → Auth → Logs when:
-- More than 20 OTP send events from a single IP in 5 minutes
-- More than 5 failed OTP verifications from a single user in 10 minutes
+## Manual Steps for Ayush
+1. Open: Supabase Dashboard → Project Settings → Authentication → Rate Limits
+2. Set Email OTP limit to 5 per hour per address
+3. Enable Protect against bots (hCaptcha integration in Supabase Auth)
+4. Review Cloudflare dashboard — add WAF rules if applicable
