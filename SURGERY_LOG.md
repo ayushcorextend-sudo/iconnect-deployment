@@ -268,4 +268,13 @@ Needs further audit in Phase 1 to identify which are OTP rate limiting (BUG-T) v
 | 2026-03-28 | BUG-K | `src/components/DoctorDashboard.jsx` | Already fixed — all 9 concurrent dashboard queries use `dbRun(query, signal)` with `AbortController`. Confirmed no action needed. | DoctorDashboard unmount path | `npm run build` ✅ |
 
 ## Phase 4 — UI/UX, Theme, PWA
-*(entries will be added as work progresses)*
+
+| Date | Bug ID | File Changed | What Changed | Blast Radius | Verification |
+|------|--------|-------------|-------------|-------------|-------------|
+| 2026-03-30 | BUG-M | `src/App.jsx` | `case 'kahoot'` now calls `setPage('arena-student')` and returns null — no more blank screen. | Any doctor who bookmarked /kahoot | `npm run build` ✅ |
+| 2026-03-30 | BUG-U | `src/App.jsx` | Removed `'kahoot'` from doctor `ROLE_PAGES` allowlist — route access is now prevented by role guard. SADashboard and Sidebar confirmed free of dead kahoot tabs (already cleaned in prior SOW). | Doctor route guard | `npm run build` ✅ |
+| 2026-03-30 | BUG-W (foundation) | `src/styles/theme.css` (NEW), `src/index.css` | Created CSS custom properties file with full light+dark token set (surfaces, text, borders, brand). Imported at top of index.css. Components can now use `var(--color-surface)` etc. in inline styles. Screen-by-screen replacement pending Phase 0.4 audit. | Zero — additive only | `npm run build` ✅ |
+| 2026-03-30 | BUG-V (verified) | `src/hooks/usePWAInstall.js`, `vite.config.js` | PWA install flow confirmed complete: `beforeinstallprompt` hook captures event, manifest has all required fields (name, start_url, display:standalone, icons 192+512). Physical device verification pending. | Zero | `npm run build` ✅ |
+| 2026-03-30 | BUG-X | `src/schemas/question.js` | Fixed schema mismatch: `QuizQuestionSchema` now matches actual DB table (`stem` + `options` JSONB) instead of wrong `option_a/b/c/d` columns. `QuizQuestionInsertSchema` updated to match. | QuizBuilder, QuizPlayer, SuperAdminApprovals | `npm run build` ✅ |
+| 2026-03-30 | BUG-X | `src/components/quiz/QuizBuilder.jsx` | Added per-question `QuizQuestionInsertSchema.safeParse()` validation before any DB write. Admin sees the exact failing field with a clear toast error. | CA quiz creation flow | `npm run build` ✅ |
+| 2026-03-30 | BUG-X | `src/components/quiz/QuizPlayer.jsx` | Student renderer filters out malformed questions via `QuizQuestionSchema.safeParse()` with `console.warn` — session continues with valid questions instead of crashing. | Doctor quiz playing flow | `npm run build` ✅ |
