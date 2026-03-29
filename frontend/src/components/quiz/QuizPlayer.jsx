@@ -15,40 +15,65 @@ export default function QuizPlayer({ quizId, userId, addToast, onBack }) {
   const [timeLeft, setTimeLeft] = useState(0);
   const timerRef                = useRef(null);
 
+  // QUIZ-1: ref always holds the latest answers — timer closure reads this, not stale state
+  const answersRef  = useRef({});
+  // QUIZ-2: track the 350ms auto-advance timeout + mounted state
+  const advanceRef  = useRef(null);
+  const isMountedRef = useRef(true);
+
   // Results
   const [score, setScore]     = useState(0);
   const [saving, setSaving]   = useState(false);
   const [startedAt]           = useState(new Date().toISOString());
 
   useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (advanceRef.current) clearTimeout(advanceRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     (async () => {
       setLoading(true);
       try {
+        // QUIZ-4: .single() throws if quiz not found — caught below and shown as error
         const { data: qz, error: e1 } = await supabase.from('quizzes').select('*').eq('id', quizId).single();
         if (e1) throw e1;
         const { data: qs, error: e2 } = await supabase
           .from('quiz_questions').select('*').eq('quiz_id', quizId).order('sort_order');
         if (e2) throw e2;
+        if (!qs || qs.length === 0) throw new Error('This quiz has no questions yet.');
         setQuiz(qz);
-        setQuestions(qs || []);
+        setQuestions(qs);
         setTimeLeft(qz.time_limit_sec || 600);
       } catch (e) {
         addToast('error', 'Failed to load quiz: ' + e.message);
+        // QUIZ-4: navigate back so user isn't stuck on a broken quiz screen
+        if (isMountedRef.current) onBack?.();
       } finally {
-        setLoading(false);
+        if (isMountedRef.current) setLoading(false);
       }
     })();
   }, [quizId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const finish = useCallback(async (finalAnswers) => {
     clearInterval(timerRef.current);
-    if (!quiz || !questions.length) return;
+
+    // QUIZ-3: surface error instead of silent return
+    if (!quiz || !questions.length) {
+      addToast('error', 'Quiz data could not be loaded. Please try again.');
+      onBack?.();
+      return;
+    }
 
     const correct = questions.filter(q => finalAnswers[q.id] === q.correct_key).length;
-    setScore(correct);
-    setPhase('review');
+    if (isMountedRef.current) {
+      setScore(correct);
+      setPhase('review');
+    }
 
-    if (userId?.startsWith('local_')) return;
     setSaving(true);
     try {
       const { error, isDuplicate } = await idempotentInsert('quiz_attempt', {
@@ -70,28 +95,36 @@ export default function QuizPlayer({ quizId, userId, addToast, onBack }) {
     } catch (e) {
       addToast('error', 'Could not save attempt: ' + e.message);
     } finally {
-      setSaving(false);
+      if (isMountedRef.current) setSaving(false);
     }
-  }, [quiz, questions, quizId, userId, startedAt, addToast]);
+  }, [quiz, questions, quizId, userId, startedAt, addToast, onBack]);
 
   // Countdown timer
   useEffect(() => {
     if (phase !== 'playing') return;
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 1) { finish(answers); return 0; }
+        if (prev <= 1) {
+          // QUIZ-1: read from ref — always current, never stale closure
+          finish(answersRef.current);
+          return 0;
+        }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [phase, finish]);
 
   const answer = (key) => {
     const q = questions[current];
     const next = { ...answers, [q.id]: key };
+    // QUIZ-1: keep ref in sync with state
+    answersRef.current = next;
     setAnswers(next);
-    // Auto-advance after short delay
-    setTimeout(() => {
+    // QUIZ-2: track timeout so it can be cleared on unmount
+    if (advanceRef.current) clearTimeout(advanceRef.current);
+    advanceRef.current = setTimeout(() => {
+      if (!isMountedRef.current) return;
       if (current < questions.length - 1) {
         setCurrent(c => c + 1);
       } else {
@@ -196,7 +229,8 @@ export default function QuizPlayer({ quizId, userId, addToast, onBack }) {
           {current < questions.length - 1 ? (
             <button className="btn btn-s btn-sm" onClick={() => setCurrent(c => c + 1)}>Skip →</button>
           ) : (
-            <button className="btn btn-p btn-sm" onClick={() => finish(answers)}>Submit Quiz</button>
+            // QUIZ-1: use answersRef.current so Submit always has latest answers
+            <button className="btn btn-p btn-sm" onClick={() => finish(answersRef.current)}>Submit Quiz</button>
           )}
         </div>
       </div>
