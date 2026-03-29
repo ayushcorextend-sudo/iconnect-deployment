@@ -533,7 +533,7 @@ function MainApp() {
       'dashboard', 'ebooks', 'leaderboard', 'activity', 'notifications',
       'profile', 'exam', 'broadcast', 'performance', 'learn',
       'arena-student', 'calendar', 'case-sim', 'study-plan',
-      'social', 'groups', 'conferences', 'kahoot', 'settings', 'notes',
+      'social', 'groups', 'conferences', 'settings', 'notes',
     ],
     contentadmin: [
       'dashboard', 'upload', 'notifications', 'profile', 'settings',
@@ -590,7 +590,11 @@ function MainApp() {
           ]}
         />
       );
-      case 'kahoot':       return null; // deprecated — use arena-student
+      case 'kahoot': {
+        // BUG-M: redirect to the replacement feature — never show a blank screen
+        setPage('arena-student');
+        return null;
+      }
       case 'conferences':  return <ConferencesPage role={role} addToast={addToast} />;
       case 'exam':         return <ExamPage addToast={addToast} />;
       case 'broadcast':    return <BroadcastPage {...sharedProps} />;

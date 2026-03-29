@@ -1,0 +1,73 @@
+/**
+ * theme.css — iConnect centralised CSS custom properties
+ *
+ * Scope:
+ *   Light mode:  :root {}
+ *   Dark mode:   [data-theme="dark"] {}
+ *
+ * How to use in inline styles:
+ *   style={{ background: 'var(--color-surface)', color: 'var(--color-text-primary)' }}
+ *
+ * How to use in Tailwind:
+ *   bg-[var(--color-surface)]  text-[var(--color-text-primary)]
+ *
+ * Components gradually migrated away from hardcoded hex values should use these
+ * variables so they automatically adapt to the active theme.
+ */
+
+/* ── Light mode (default) ──────────────────────────────────────── */
+:root {
+  /* Surfaces */
+  --color-surface:          #FFFFFF;
+  --color-surface-alt:      #F8FAFC;
+  --color-surface-elevated: #FFFFFF;
+  --color-surface-overlay:  rgba(255, 255, 255, 0.9);
+
+  /* Text */
+  --color-text-primary:   #111827;
+  --color-text-secondary: #6B7280;
+  --color-text-muted:     #9CA3AF;
+  --color-text-inverse:   #FFFFFF;
+
+  /* Borders */
+  --color-border:       #E5E7EB;
+  --color-border-light: #F3F4F6;
+  --color-border-strong:#D1D5DB;
+
+  /* Brand (static — same in both modes) */
+  --color-primary:       #4F46E5;
+  --color-primary-hover: #3730A3;
+  --color-primary-light: #EEF2FF;
+  --color-success:       #10B981;
+  --color-success-light: #DCFCE7;
+  --color-danger:        #EF4444;
+  --color-danger-light:  #FEE2E2;
+  --color-warning:       #F59E0B;
+  --color-warning-light: #FEF3C7;
+  --color-info:          #3B82F6;
+  --color-info-light:    #EFF6FF;
+}
+
+/* ── Dark mode ─────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --color-surface:          #1E293B;
+  --color-surface-alt:      #0F172A;
+  --color-surface-elevated: #334155;
+  --color-surface-overlay:  rgba(15, 23, 42, 0.9);
+
+  --color-text-primary:   #F1F5F9;
+  --color-text-secondary: #94A3B8;
+  --color-text-muted:     #64748B;
+  --color-text-inverse:   #111827;
+
+  --color-border:       #334155;
+  --color-border-light: #1E293B;
+  --color-border-strong:#475569;
+
+  /* Brand colors unchanged in dark mode */
+  --color-primary-light: rgba(79, 70, 229, 0.15);
+  --color-success-light: rgba(16, 185, 129, 0.15);
+  --color-danger-light:  rgba(239, 68, 68, 0.15);
+  --color-warning-light: rgba(245, 158, 11, 0.15);
+  --color-info-light:    rgba(59, 130, 246, 0.15);
+}
