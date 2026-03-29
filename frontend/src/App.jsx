@@ -143,6 +143,18 @@ function MainApp() {
   const clearTenant = useTenantStore(s => s.clearTenant);
   useEffect(() => { loadTenant(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // BUG-D: Clear stale offline-registration data from localStorage.
+  // The offline registration path was removed — any lingering iconnect_users entries
+  // represent phantom accounts that were never synced to Supabase.
+  // Run once on mount to prevent those users from seeing a broken state.
+  useEffect(() => {
+    const staleKey = 'iconnect_users';
+    if (localStorage.getItem(staleKey)) {
+      console.info('[App] Clearing stale offline registrations — re-register to create a real account.');
+      localStorage.removeItem(staleKey);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Wire React Router into the app store (once on mount, then sync on back/forward)
   const initRouter       = useAppStore(s => s.initRouter);
   const syncFromLocation = useAppStore(s => s.syncFromLocation);

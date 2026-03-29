@@ -308,7 +308,7 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
 
       if (onRegisterSuccess) {
         onRegisterSuccess({
-          id: result.userId || `local_${Date.now()}`,
+          id: result.userId,
           name: form.name, email: form.email,
           role: 'PG Aspirant', mci: form.mciNumber,
           hometown: form.hometown, state: form.homeState,

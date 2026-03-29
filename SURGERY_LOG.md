@@ -233,7 +233,14 @@ Needs further audit in Phase 1 to identify which are OTP rate limiting (BUG-T) v
 | 2026-03-28 | SEC-004 | `src/lib/trackActivity.js` | Replaced `sendBeacon` entirely with two-part auth-aware strategy: visibilitychange primary flush + beforeunload→localStorage fallback + `flushPendingFromStorage()` called after auth established | Page unload / tab hide path | `npm run build` ✅ |
 
 ## Phase 2 — Data Integrity & Typing
-*(entries will be added as work progresses)*
+
+| Date | Bug ID | File Changed | What Changed | Blast Radius | Verification |
+|------|--------|-------------|-------------|-------------|-------------|
+| 2026-03-28 | BUG-B | `src/schemas/` (11 NEW files) | Zod schema library: ProfileFormSchema, ExamQuestionSchema, QuizQuestionSchema, QuizAttemptInsertSchema, ExamAttemptInsertSchema, ActivityLogInsertSchema, ArtifactInsertSchema, NotificationInsertSchema, CalendarDiaryUpsertSchema, AuditLogInsertSchema, FlashcardInsertSchema. `validateInsert()` now THROWS on invalid data. | All insert paths — incremental adoption | `npm run build` ✅ |
+| 2026-03-28 | BUG-F | `src/schemas/question.js` | Two canonical schemas: `ExamQuestionSchema.correct` (A/B/C/D) for exam_questions; `QuizQuestionSchema.correctKey` (a/b/c/d) for quiz_questions. Eliminates the correct vs. correct_key ambiguity. | ExamPage, QuizPlayer, QuizBuilder, Arena | `npm run build` ✅ |
+| 2026-03-28 | IDEM-3 | `src/lib/idempotency.js`, `src/lib/dbService.js`, `supabase/migrations/20260328000001_idempotency_integrity.sql` | Replaced TOCTOU check-then-insert with DB-level UNIQUE constraint on (user_id, endpoint, payload_hash). ON CONFLICT DO NOTHING is now atomic. dbUpsert extended with ignoreDuplicates option. | Quiz/exam submission paths | `npm run build` ✅ |
+| 2026-03-28 | BUG-D | `src/lib/supabase.js`, `src/App.jsx`, `src/components/RegistrationPage.jsx` | Removed offline localStorage registration path entirely. Demo mode was already removed — phantom local_ accounts are gone. Stale iconnect_users localStorage keys cleaned up on app mount. | Registration flow | `npm run build` ✅ |
+| 2026-03-28 | REG-1 | `supabase/migrations/20260328000002_profiles_not_null_constraints.sql` | NOT NULL + CHECK constraints on profiles.name, profiles.email, profiles.mci_number. DevTools bypass of form validation now fails at DB level. | Registration and profile updates | `npm run build` ✅ |
 
 ## Phase 3 — State Management & Logic
 *(entries will be added as work progresses)*

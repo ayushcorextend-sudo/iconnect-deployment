@@ -238,16 +238,23 @@ export async function dbInsert(table, payload, opts = {}, signal) {
  * @param {string} table
  * @param {object|object[]} payload
  * @param {object} [opts]
- * @param {object} [opts.onConflict] - Supabase onConflict options
+ * @param {string} [opts.onConflict]         - Column(s) to conflict on (comma-separated)
+ * @param {boolean} [opts.ignoreDuplicates]  - If true, ON CONFLICT DO NOTHING (returns [] on conflict)
+ * @param {boolean} [opts.returning=false]   - If true, select and return upserted rows
+ * @param {string} [opts.returnColumns='*']  - Columns to return if returning=true
  * @param {AbortSignal} [signal]
  * @returns {Promise<{ data: *, error: string|null, status: 'ok'|'error'|'aborted' }>}
  */
 export async function dbUpsert(table, payload, opts = {}, signal) {
-  const { onConflict } = opts;
+  const { onConflict, ignoreDuplicates = false, returning = false, returnColumns = '*' } = opts;
   try {
     const rows = Array.isArray(payload) ? payload : [payload];
     const snaked = rows.map(toSnake);
-    let q = supabase.from(table).upsert(snaked, onConflict ? { onConflict } : undefined);
+    const upsertOpts = {};
+    if (onConflict) upsertOpts.onConflict = onConflict;
+    if (ignoreDuplicates) upsertOpts.ignoreDuplicates = true;
+    let q = supabase.from(table).upsert(snaked, Object.keys(upsertOpts).length ? upsertOpts : undefined);
+    if (returning) q = q.select(returnColumns);
     if (signal) q = q.abortSignal(signal);
     const { data, error } = await q;
     return _normalize(data, error);
