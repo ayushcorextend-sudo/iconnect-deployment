@@ -132,6 +132,7 @@ function MainApp() {
   const pushNotification = useAppStore(s => s.pushNotification);
   const subscribeToNotifications = useAppStore(s => s.subscribeToNotifications);
   const unsubscribeAll   = useAppStore(s => s.unsubscribeAll);
+  const resetAppState    = useAppStore(s => s.reset);
 
   // Chat store — granular
   const chatBotMode    = useChatStore(s => s.chatBotMode);
@@ -361,6 +362,8 @@ function MainApp() {
     // BUG-C: clearAllCaches() clears _dashCache, signedUrl CACHE, dataCache _store,
     // tenantResolver _cached, and trackActivity queue — all registered via registerCache().
     clearAllCaches();
+    // BUG-P: cancel any pending toast auto-dismiss timers and wipe toast/notif state
+    resetAppState();
     // Note: beforeunload handler is cleaned up by the useEffect when role/page changes
     setUser(null, null);
     unsubscribeAll(); // tear down all realtime channels
@@ -368,27 +371,26 @@ function MainApp() {
     await authSignOut();
     clearAuth();
     setArtifacts([]);
-    setNotifications([]);
     setUsers([]);
     window.location.href = '/';
   };
 
-  // ── Artifact handlers ─────────────────────────────────────────────────────
-  const onApprove = async (id) => {
+  // ── Artifact handlers — BUG-N: wrapped in useCallback so sharedProps useMemo deps are stable ─
+  const onApprove = useCallback(async (id) => {
     await approveArtifact(id);
     updateArtifact(id, { status: 'approved' });
     const art = artifacts.find(x => x.id === id);
     auditLog('approve_artifact', 'artifact', id, { title: art?.title });
-  };
+  }, [artifacts, updateArtifact]);
 
-  const onReject = async (id, reason = '') => {
+  const onReject = useCallback(async (id, reason = '') => {
     const art = artifacts.find(x => x.id === id);
     await rejectArtifact(id, reason);
     updateArtifact(id, { status: 'rejected', rejection_reason: reason || 'No reason provided.' });
     auditLog('reject_artifact', 'artifact', id, { title: art?.title, reason });
-  };
+  }, [artifacts, updateArtifact]);
 
-  const onUpload = (art) => {
+  const onUpload = useCallback((art) => {
     prependArtifact(art);
     pushNotification({
       id: Date.now(), type: 'info', icon: '📤', is_read: false, time: 'Just now',
@@ -401,10 +403,10 @@ function MainApp() {
       sendNotification(s.userId, 'Upload Submitted',
         `"${art.title}" is pending Super Admin approval.`, 'info', '📤', 'in_app');
     } catch (e) { console.warn('App: onUpload sendNotification failed:', e.message); }
-  };
+  }, [prependArtifact, pushNotification]);
 
   // ── User management handlers ──────────────────────────────────────────────
-  const onApproveUser = async (id) => {
+  const onApproveUser = useCallback(async (id) => {
     const u = users.find(x => x.id === id);
     updateUser(id, { status: 'active', verified: true });
     auditLog('approve_user', 'user', id, { name: u?.name, email: u?.email });
@@ -424,9 +426,9 @@ function MainApp() {
         });
       }
     } catch (e) { console.warn('App: onApproveUser send-approval-email function failed:', e.message); }
-  };
+  }, [users, updateUser]);
 
-  const onRejectUser = async (id, rejectionReason) => {
+  const onRejectUser = useCallback(async (id, rejectionReason) => {
     const u = users.find(x => x.id === id);
     updateUser(id, { status: 'rejected' });
     auditLog('reject_user', 'user', id, { name: u?.name, email: u?.email });
@@ -447,11 +449,11 @@ function MainApp() {
         });
       }
     } catch (e) { console.warn('App: onRejectUser send-approval-email function failed:', e.message); }
-  };
+  }, [users, updateUser]);
 
-  const onRegisterSuccess = (newUser) => {
+  const onRegisterSuccess = useCallback((newUser) => {
     setUsers([...users, newUser]);
-  };
+  }, [users, setUsers]);
 
   // ── Derived counts ────────────────────────────────────────────────────────
   const unreadCount  = notifications.filter(n => n.is_read === false).length;
