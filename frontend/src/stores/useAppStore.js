@@ -8,6 +8,16 @@ const fromPath = (pathname) => {
   return seg || 'dashboard';
 };
 
+// BUG-A: Whitelist of all valid page identifiers — setPage rejects anything unknown.
+// This prevents AI navigation commands or devtools exploits from routing to arbitrary pages.
+const VALID_PAGES = new Set([
+  'dashboard', 'ebooks', 'upload', 'leaderboard', 'activity', 'notifications',
+  'profile', 'users', 'reports', 'settings', 'registration', 'conferences',
+  'exam', 'broadcast', 'performance', 'learn', 'arena-host', 'arena-student',
+  'calendar', 'case-sim', 'study-plan', 'exam-manage', 'social', 'groups',
+  'kahoot', 'notes',
+]);
+
 // Active Supabase realtime channels (module-level, survive re-renders)
 const _channels = new Map();
 
@@ -46,6 +56,11 @@ export const useAppStore = create((set, get) => ({
   },
 
   setPage: (page) => {
+    // BUG-A: reject unknown page names — prevents AI/devtools navigation exploits
+    if (!VALID_PAGES.has(page)) {
+      console.warn(`[useAppStore] setPage: rejected unknown page "${page}"`);
+      return;
+    }
     set({ page, notifPanel: false });
     // BUG-O: use module-level imperativeNavigate, not Zustand state
     imperativeNavigate(toPath(page));
@@ -88,7 +103,11 @@ export const useAppStore = create((set, get) => ({
     set({ toasts: [], notifications: [], notifPanel: false });
   },
 
-  pushNotification: (notif) => set(s => ({ notifications: [notif, ...s.notifications] })),
+  // BUG-H: deduplicate by id — realtime + initial fetch can both fire for the same row
+  pushNotification: (notif) => set(s => {
+    if (s.notifications.some(n => n.id === notif.id)) return s;
+    return { notifications: [notif, ...s.notifications] };
+  }),
 
   // ── Centralized realtime notification subscription ──────────────────────
   // Call once after userId is known; safe to call again on re-login.

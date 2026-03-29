@@ -164,8 +164,9 @@ function MainApp() {
 
   const fetchUsers = useCallback(async () => {
     try {
+      // BUG-I: removed .limit(200) — UsersPage virtualises the list so large user counts are safe
       const { data } = await supabase
-        .from('profiles').select('*').order('created_at', { ascending: false }).limit(200);
+        .from('profiles').select('*').order('created_at', { ascending: false });
       if (data?.length) {
         setUsers(data.map(p => ({
           id: p.id,
