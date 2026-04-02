@@ -14,7 +14,7 @@ import { supabase } from './supabase';
 
 // ── Feature flag ─────────────────────────────────────────────────────────────
 // Set to true once supabase/functions/ai-orchestrator is deployed.
-const USE_EDGE_FUNCTION = false;
+const USE_EDGE_FUNCTION = true;
 
 // ── Edge function proxy (Flaw #14: no client-side API keys) ──────────────────
 // SEC-002/SEC-003: No hardcoded URLs or keys — read from env only.
