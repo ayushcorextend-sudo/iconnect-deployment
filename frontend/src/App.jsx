@@ -548,9 +548,9 @@ function MainApp() {
     // Server-side route guard: redirect to default page if role has no access
     const allowedPages = ROLE_PAGES[role];
     if (role && allowedPages && allowedPages.length > 0 && page && !allowedPages.includes(page)) {
-      const defaultPage = 'dashboard';
-      setPage(defaultPage);
-      return null;
+      // Schedule redirect outside render — never call setPage during render
+      queueMicrotask(() => setPage('dashboard'));
+      return <PageLoader />;
     }
 
     switch (page) {
@@ -594,8 +594,9 @@ function MainApp() {
       );
       case 'kahoot': {
         // BUG-M: redirect to the replacement feature — never show a blank screen
-        setPage('arena-student');
-        return null;
+        // Schedule outside render — calling setPage during render causes stale content bugs
+        queueMicrotask(() => setPage('arena-student'));
+        return <PageLoader />;
       }
       case 'conferences':  return <ConferencesPage role={role} addToast={addToast} />;
       case 'exam':         return <ExamPage addToast={addToast} />;

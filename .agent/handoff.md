@@ -6,7 +6,7 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-04-02 — Navigation stale-content bugs fixed (AnimatePresence mode, Suspense order, useTransition removed, CSS double-animation removed)
+2026-04-03 — Comprehensive bug fix pass: navigation rendering, AI 502, WebSocket retry, DB schema (admin_calendar_events + content_type)
 
 ---
 
@@ -336,12 +336,70 @@ Two bugs fixed:
 
 ---
 
+## What Changed This Session — Comprehensive Bug Fix Pass (2026-04-03)
+
+### FIX: Navigation Stale Content — App.jsx
+- Root cause: `setPage()` called DURING render in `renderPage()` (route guard + kahoot redirect)
+- Calling Zustand's `set()` during render is a React anti-pattern — current render proceeds with stale state
+- Fix: replaced `setPage(x); return null;` with `queueMicrotask(() => setPage(x)); return <PageLoader />;`
+- This schedules the state update AFTER the current render completes
+- `key={page}` on `<PageErrorBoundary>` still forces full unmount/remount on valid navigations
+
+### FIX: WebSocket Infinite Retry — useAppStore.js + supabase.js
+- Added status callback to `.subscribe()` in `subscribeToNotifications`
+- On `TIMED_OUT`: removes channel and cleans up `_channels` map to prevent infinite retry
+- On `CHANNEL_ERROR`: logs warning (Supabase handles retry automatically)
+- Added `timeout: 30000` to Supabase client realtime config
+
+### FIX: getContentProgressForDay — supabase.js
+- Was querying `content_type, progress_pct` columns that don't exist in `user_content_state`
+- Fixed to query actual columns: `artifact_id, current_page, is_bookmarked, updated_at`
+- Maps result to the shape JournalModal expects: `{ content_type: 'reading', progress_pct: min(current_page*10, 100) }`
+
+### NEW: admin_calendar_events migration
+- Created `supabase/migrations/20260403000001_admin_calendar_events.sql`
+- Table with: id, title, date, description, color, is_compulsory, created_by, timestamps
+- RLS: SELECT for all, INSERT for admins, UPDATE/DELETE for superadmins
+- IF NOT EXISTS guards on all policies + trigger
+
+### AI/Orchestrator Review
+- `ai-orchestrator` edge function is production-ready — no code changes needed
+- `USE_EDGE_FUNCTION = true` in aiService.js routes all AI through orchestrator
+- NVIDIA primary → Gemini fallback works correctly
+- gemini-proxy 502 fix: user must set `GEMINI_API_KEY` secret and deploy edge functions
+
+### Blueprint Created
+- `.agent/COMPREHENSIVE_FIX_BLUEPRINT.md` — full analysis + CLI prompt + verification matrix
+
+---
+
+## ⏳ Pending Manual Actions (Ayush must do these)
+
+1. **[CRITICAL] Set Gemini API key and deploy edge functions:**
+   ```bash
+   npx supabase secrets set GEMINI_API_KEY=<YOUR_GEMINI_KEY>
+   npx supabase functions deploy gemini-proxy --no-verify-jwt
+   npx supabase functions deploy ai-orchestrator
+   ```
+
+2. **[CRITICAL] Push the database migration:**
+   ```bash
+   npx supabase db push
+   ```
+
+3. **[CRITICAL] Build and deploy frontend:**
+   ```bash
+   cd frontend && npm run build && git add -A && git commit -m "fix: navigation, AI, WebSocket, DB schema" && git push
+   ```
+
+4. **Test all 5 fixes** using the verification matrix in `.agent/COMPREHENSIVE_FIX_BLUEPRINT.md`
+
 ## Next Session Must Start With
 
-**→ Surgery is complete. Pick from:**
-1. Dark mode audit results from Ayush → BUG-W color replacement pass
-2. Next task from `.agent/next-actions-production.md` (NA-003/NA-013 or NA-009)
-3. NVIDIA key rotation follow-up (flip USE_EDGE_FUNCTION = true)
+**→ After Ayush deploys, pick from:**
+1. Verify all 5 fixes are working in production
+2. Dark mode audit results from Ayush → BUG-W color replacement pass
+3. NVIDIA key rotation follow-up (set NVIDIA_API_KEY for faster AI responses)
 
 ---
 

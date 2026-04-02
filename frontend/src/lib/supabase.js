@@ -5,7 +5,10 @@ export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321',
   import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6eHN5ZXpucHVkb21lcXhibnZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMjQ1NjEsImV4cCI6MjA4NzkwMDU2MX0.4w2UkRl3rxq2WOiQDmY4aMPGUhQ_5V4W8hridmGmy9o',
   {
-    realtime: { params: { eventsPerSecond: 2 } },
+    realtime: {
+      params: { eventsPerSecond: 2 },
+      timeout: 30000, // 30s timeout — prevents infinite retry storms
+    },
     global: { headers: { 'x-client-info': 'iconnect-web' } },
   }
 )
@@ -608,16 +611,27 @@ export const getActivityLogsForDay = async (userId, date) => {
 // Returns user_content_state rows updated on a specific day — used by JournalModal.
 export const getContentProgressForDay = async (userId, date) => {
   try {
+    const dayStart = `${date}T00:00:00`;
+    const dayEnd   = `${date}T23:59:59`;
     const { data, error } = await supabase
       .from('user_content_state')
-      .select('content_type, progress_pct, updated_at')
+      .select('artifact_id, current_page, is_bookmarked, updated_at')
       .eq('user_id', userId)
-      .gte('updated_at', `${date}T00:00:00`)
-      .lte('updated_at', `${date}T23:59:59`)
+      .gte('updated_at', dayStart)
+      .lte('updated_at', dayEnd)
       .order('updated_at', { ascending: false })
       .limit(10);
     if (error) throw error;
-    return { data: data || [], error: null };
+    // Map to the shape JournalModal expects (content_type + progress_pct)
+    return {
+      data: (data || []).map(row => ({
+        content_type: 'reading',
+        progress_pct: row.current_page ? Math.min(row.current_page * 10, 100) : 0,
+        updated_at: row.updated_at,
+        artifact_id: row.artifact_id,
+      })),
+      error: null,
+    };
   } catch (err) {
     console.warn('[supabase] getContentProgressForDay:', err.message);
     return { data: [], error: err };

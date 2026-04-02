@@ -130,7 +130,16 @@ export const useAppStore = create((set, get) => ({
           }),
         });
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('[Realtime] Channel error for notifications — will retry:', err?.message);
+        }
+        if (status === 'TIMED_OUT') {
+          console.warn('[Realtime] Channel timed out — removing to prevent infinite retry');
+          supabase.removeChannel(channel);
+          _channels.delete(key);
+        }
+      });
 
     _channels.set(key, channel);
   },
