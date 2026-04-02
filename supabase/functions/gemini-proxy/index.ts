@@ -78,7 +78,8 @@ serve(async (req) => {
       headers: { ...corsHeaders(origin), 'content-type': 'application/json' },
     })
   } catch (err) {
-    return new Response(JSON.stringify({ error: 'Upstream request failed', detail: String(err) }), {
+    const message = err instanceof Error ? err.message : String(err)
+    return new Response(JSON.stringify({ error: 'Upstream request failed', detail: message }), {
       status: 502,
       headers: { ...corsHeaders(origin), 'content-type': 'application/json' },
     })
