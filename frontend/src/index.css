@@ -362,7 +362,7 @@ h1, h2, h3, h4, h5 { font-family: 'Inter', -apple-system, sans-serif; letter-spa
 .notif-view-all-btn:hover { background: var(--blue-d); }
 
 /* ── PAGE ─────────────────────────────── */
-.page { flex: 1; padding: 24px; animation: fadeUp .35s ease both; }
+.page { flex: 1; padding: 24px; }
 .ph { margin-bottom: 20px; }
 .pt { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
 .ps { font-size: 13px; color: var(--muted); margin-top: 3px; }

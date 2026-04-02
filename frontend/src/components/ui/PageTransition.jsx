@@ -8,7 +8,7 @@ const pageVariants = {
 
 export default function PageTransition({ pageKey, children }) {
   return (
-    <AnimatePresence mode="popLayout">
+    <AnimatePresence mode="wait">
       <motion.div
         key={pageKey}
         variants={pageVariants}

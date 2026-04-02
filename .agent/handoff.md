@@ -6,12 +6,36 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-03-26 — CRITICAL stability fixes: auth re-fire, login flicker, beforeunload, dashboard crash
+2026-04-02 — Navigation stale-content bugs fixed (AnimatePresence mode, Suspense order, useTransition removed, CSS double-animation removed)
 
 ---
 
 ## Current State
-✅ **Critical stability fixes applied. Build verified (zero errors).**
+✅ **ARCHITECTURAL SURGERY COMPLETE. All 4 phases deployed to Vercel (commit 1975334).**
+
+### Surgery Summary
+- **Phase 1 (Security):** dbService.js service layer, NVIDIA key moved to edge function, auth hardening, cache leak killed, sendBeacon fixed
+- **Phase 2 (Data Integrity):** Zod schema layer (8 schema files), idempotency constraints, question schema unified, phantom offline registration blocked
+- **Phase 3 (State Management):** BUG-O (navigate out of Zustand), BUG-N (useCallback memoization), BUG-P (toast timer tracking), BUG-A (page whitelist), BUG-H (notification dedup), BUG-I (user truncation removed), BUG-L (timer inflation fixed), BUG-S (parseAiJson helper)
+- **Phase 4 (UI/UX/PWA):** theme.css CSS custom properties, BUG-X (quiz schema mismatch fixed), BUG-M (kahoot redirect), BUG-U (dead admin tab removed)
+
+### ⏳ Pending Manual Actions (Ayush must do these)
+
+1. **[URGENT] Rotate NVIDIA API key** — was previously in browser bundle
+   - `npx supabase secrets set NVIDIA_API_KEY=<new-key>`
+   - Then flip `USE_EDGE_FUNCTION = true` in `frontend/src/lib/aiService.js`
+
+2. **Set OTP rate limits** in Supabase dashboard Auth settings
+   - 5 OTP emails per hour per address
+
+3. **Dark mode audit (BUG-W)** — 1,591 hardcoded hex colors in inline styles
+   - Walk each screen in dark mode
+   - Report which screens look broken
+   - Claude will replace hex values with CSS vars from theme.css
+
+4. **PWA install test (BUG-V)** — open deployed URL in Chrome on Android, verify install prompt fires
+
+### ✅ Previous Critical Stability Fixes Still Apply
 - **AUTH-001:** Auth effect no longer re-fires setPage('dashboard') on token refresh (authBootedRef guard)
 - **AUTH-002:** Login page no longer flickers — spinner shown while session exists but role unresolved
 - **UX-001:** beforeunload "Leave site?" popup removed from all pages except active exams
@@ -314,11 +338,10 @@ Two bugs fixed:
 
 ## Next Session Must Start With
 
-**→ Pick next task from `.agent/next-actions-production.md`**
-
-NA-025 through NA-030 complete.
-
-Suggested next: **NA-003 / NA-013** (PageTransition latency) or **NA-009** (initial app load query reduction) — both P2/P3 quality-of-life improvements that are low-risk.
+**→ Surgery is complete. Pick from:**
+1. Dark mode audit results from Ayush → BUG-W color replacement pass
+2. Next task from `.agent/next-actions-production.md` (NA-003/NA-013 or NA-009)
+3. NVIDIA key rotation follow-up (flip USE_EDGE_FUNCTION = true)
 
 ---
 

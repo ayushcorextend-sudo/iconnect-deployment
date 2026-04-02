@@ -1,4 +1,3 @@
-import { useTransition } from 'react';
 import { ROLES } from '../data/constants';
 import usePWAInstall from '../hooks/usePWAInstall';
 import { useTenantStore } from '../stores/useTenantStore';
@@ -51,22 +50,20 @@ function NavGroup({ label, children }) {
 }
 
 function NavItem({ item, page, setPage, onClose }) {
-  const [isPending, startTransition] = useTransition();
   const isActive = page === item.k;
   const Icon = iconMap[item.k] || LayoutDashboard;
 
   return (
     <div
-      className={`nav-item-v2 ${isActive ? 'nav-active' : ''}${isPending ? ' opacity-60' : ''}`}
+      className={`nav-item-v2 ${isActive ? 'nav-active' : ''}`}
       onClick={() => {
-        startTransition(() => { setPage(item.k); });
+        setPage(item.k);
         if (onClose) onClose();
       }}
     >
       <Icon size={18} strokeWidth={isActive ? 2 : 1.5} />
       <span className="nav-label">{item.l}</span>
-      {item.b && !isPending ? <span className="nav-bdg-v2">{item.b}</span> : null}
-      {isPending && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse ml-auto shrink-0" />}
+      {item.b ? <span className="nav-bdg-v2">{item.b}</span> : null}
     </div>
   );
 }

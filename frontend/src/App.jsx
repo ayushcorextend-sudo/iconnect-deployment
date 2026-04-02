@@ -644,11 +644,11 @@ function MainApp() {
           />
           <OnboardingBanner role={role} currentPage={page} setPage={setPage} />
           <PageErrorBoundary resetKey={page}>
-            <Suspense fallback={<PageLoader />}>
-              <PageTransition pageKey={page}>
+            <PageTransition pageKey={page}>
+              <Suspense fallback={<PageLoader />}>
                 {renderPage()}
-              </PageTransition>
-            </Suspense>
+              </Suspense>
+            </PageTransition>
           </PageErrorBoundary>
         </div>
         <Toasts toasts={toasts} />
