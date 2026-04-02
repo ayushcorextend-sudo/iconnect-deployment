@@ -29,7 +29,7 @@ import Toasts from './components/Toasts';
 const ChatBot = lazy(() => import('./components/ChatBot'));
 import ProfileSetupPage from './components/ProfileSetupPage';
 import OfflineIndicator from './components/ui/OfflineIndicator';
-import PageTransition from './components/ui/PageTransition';
+// PageTransition removed — key={page} on Suspense handles page remount
 import PageErrorBoundary from './components/ui/PageErrorBoundary';
 import { clearAllCaches } from './lib/dbService';
 
@@ -646,11 +646,9 @@ function MainApp() {
             <OnboardingBanner role={role} currentPage={page} setPage={setPage} />
           </Suspense>
           <PageErrorBoundary resetKey={page}>
-            <PageTransition pageKey={page}>
-              <Suspense fallback={<PageLoader />}>
-                {renderPage()}
-              </Suspense>
-            </PageTransition>
+            <Suspense key={page} fallback={<PageLoader />}>
+              {renderPage()}
+            </Suspense>
           </PageErrorBoundary>
         </div>
         <Toasts toasts={toasts} />
