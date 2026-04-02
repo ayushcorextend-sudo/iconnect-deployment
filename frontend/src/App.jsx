@@ -13,7 +13,7 @@ import { captureException, setUser } from './lib/sentry';
 import ErrorBoundary from './components/ErrorBoundary';
 import AppErrorBoundary from './components/ui/AppErrorBoundary';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import OnboardingBanner from './components/OnboardingBanner';
+const OnboardingBanner = lazy(() => import('./components/OnboardingBanner'));
 import { titles } from './data/constants';
 
 import { useAuthStore } from './stores/useAuthStore';
@@ -26,7 +26,7 @@ import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import Toasts from './components/Toasts';
-import ChatBot from './components/ChatBot';
+const ChatBot = lazy(() => import('./components/ChatBot'));
 import ProfileSetupPage from './components/ProfileSetupPage';
 import OfflineIndicator from './components/ui/OfflineIndicator';
 import PageTransition from './components/ui/PageTransition';
@@ -642,7 +642,9 @@ function MainApp() {
             setDarkMode={setDarkMode}
             setSidebarOpen={setSidebarOpen}
           />
-          <OnboardingBanner role={role} currentPage={page} setPage={setPage} />
+          <Suspense fallback={null}>
+            <OnboardingBanner role={role} currentPage={page} setPage={setPage} />
+          </Suspense>
           <PageErrorBoundary resetKey={page}>
             <PageTransition pageKey={page}>
               <Suspense fallback={<PageLoader />}>
@@ -652,7 +654,9 @@ function MainApp() {
           </PageErrorBoundary>
         </div>
         <Toasts toasts={toasts} />
-        <ChatBot chatBotMode={chatBotMode} setChatBotMode={setChatBotMode} />
+        <Suspense fallback={null}>
+          <ChatBot chatBotMode={chatBotMode} setChatBotMode={setChatBotMode} />
+        </Suspense>
       </div>
       <OfflineIndicator />
     </>

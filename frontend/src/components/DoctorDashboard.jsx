@@ -96,49 +96,33 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
           return;
         }
 
-        // ── Fire all independent queries in parallel ───────
-        // dbRun wraps each query with AbortSignal so they cancel cleanly on unmount (BUG-K).
-        const [profileRes, statesRes, scoresRes, logsRes, actLogsRes, artsRes, wbRes, planRes, lbProfilesRes] = await Promise.all([
+        const sevenDaysAgo   = new Date(Date.now() - 7  * 86400000).toISOString();
+        const ninetyDaysAgo  = new Date(Date.now() - 90 * 86400000).toISOString();
+        const ninetyDaysDate = ninetyDaysAgo.split('T')[0];
+
+        // ── Group 1: KPI data — resolves first, unblocks visible cards ──────
+        const [profileRes, statesRes, scoresRes, lbProfilesRes] = await Promise.all([
           dbRun(supabase.from('profiles').select('speciality').eq('id', uid).maybeSingle(), signal),
           getUserContentStates(uid),
           dbRun(supabase.from('user_scores').select('user_id, total_score, quiz_score, reading_score')
             .order('total_score', { ascending: false }).limit(5), signal),
-          dbRun(supabase.from('activity_logs').select('activity_type, duration_minutes, created_at')
-            .eq('user_id', uid).order('created_at', { ascending: false }).limit(2000), signal),
-          dbRun(supabase.from('activity_logs').select('reference_id')
-            .eq('user_id', uid).eq('activity_type', 'article_read'), signal),
-          dbRun(supabase.from('artifacts').select('id, title, subject, emoji, pages')
-            .eq('status', 'approved').limit(20), signal),
-          dbRun(supabase.from('admin_webinars').select('*')
-            .gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(1), signal),
-          dbRun(supabase.from('study_plan_history').select('id, plan, completed_tasks')
-            .eq('user_id', uid).eq('is_active', true).order('created_at', { ascending: false }).limit(1), signal),
           dbRun(supabase.from('profiles').select('id, name, speciality, college').limit(20), signal),
         ]);
 
-        // If any query was aborted (component unmounted mid-fetch), bail out silently.
-        if ([profileRes, scoresRes, logsRes, actLogsRes, artsRes, wbRes, planRes, lbProfilesRes]
-          .some(r => r.status === 'aborted')) return;
+        if ([profileRes, scoresRes, lbProfilesRes].some(r => r.status === 'aborted')) return;
 
         const profileData = profileRes.data;
         const states      = statesRes;
         const scoreData   = scoresRes.data;
-        const logs        = logsRes.data;
-        const actLogs     = actLogsRes.data;
-        const arts        = artsRes.data;
-        const wb          = wbRes.data;
-        // planRes.data is an array (dbRun returns camelCase); grab first active plan
-        const activePlanData = Array.isArray(planRes.data) ? planRes.data[0] || null : planRes.data || null;
+        const lbProfiles  = lbProfilesRes.data;
 
         // ── Profile ────────────────────────────────────────
         if (profileData?.speciality) setMySpeciality(profileData.speciality);
         setContentStates(states);
 
         // ── Scores & Leaderboard ──────────────────────────
-        const lbProfiles = lbProfilesRes.data;
         if (scoreData?.length) {
           const profileMap = (lbProfiles || []).reduce((acc, p) => { acc[p.id] = p; return acc; }, {});
-
           const mapped = scoreData.map(row => ({
             id: row.user_id,
             name: profileMap[row.user_id]?.name || 'Anonymous',
@@ -147,7 +131,6 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
             isMe: row.user_id === uid,
           }));
           setMiniLB(mapped);
-
           const meScore = scoreData.find(d => d.user_id === uid);
           if (meScore) {
             setMyScore(meScore.total_score || 0);
@@ -157,13 +140,38 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
           }
         }
 
-        // ── Activity stats ────────────────────────────────
-        if (logs) {
-          const readCount = logs.filter(l => l.activity_type === 'article_read').length;
-          setBooksRead(readCount);
+        // KPI cards ready — unblock the initial render
+        setDashLoading(false);
 
+        // ── Group 2: Activity + content + heatmap (below-fold) ──────────────
+        const [logsRes, heatmapRes, actLogsRes, artsRes, diaryRes] = await Promise.all([
+          // 7-day window, 200 rows — feeds weekly bar chart + hoursStudied
+          dbRun(supabase.from('activity_logs').select('activity_type, duration_minutes, created_at')
+            .eq('user_id', uid).gte('created_at', sevenDaysAgo)
+            .order('created_at', { ascending: false }).limit(200), signal),
+          // 90-day lightweight — feeds heatmap only (no duration column needed)
+          dbRun(supabase.from('activity_logs').select('created_at, activity_type')
+            .eq('user_id', uid).gte('created_at', ninetyDaysAgo), signal),
+          dbRun(supabase.from('activity_logs').select('reference_id')
+            .eq('user_id', uid).eq('activity_type', 'article_read'), signal),
+          dbRun(supabase.from('artifacts').select('id, title, subject, emoji, pages')
+            .eq('status', 'approved').limit(20), signal),
+          getDiaryEntriesRange(uid, ninetyDaysDate),
+        ]);
+
+        if ([logsRes, heatmapRes, actLogsRes, artsRes].some(r => r.status === 'aborted')) return;
+
+        const logs      = logsRes.data;
+        const heatmap   = heatmapRes.data;
+        const actLogs   = actLogsRes.data;
+        const arts      = artsRes.data;
+        const diaryEntries = diaryRes.data;
+
+        // ── Activity stats (7-day window) ─────────────────
+        if (logs) {
           const totalMins = logs.reduce((acc, l) => acc + (l.duration_minutes || 0), 0);
           setHoursStudied(Math.round(totalMins / 60));
+          setWeeklyMins(totalMins);
 
           const now = new Date();
           const weekDays = Array(7).fill(0);
@@ -175,57 +183,55 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
             }
           });
           setWeekActivity(weekDays);
-
-          const byDate = {};
-          logs.forEach(l => {
-            const dateStr = new Date(l.created_at).toISOString().split('T')[0];
-            byDate[dateStr] = (byDate[dateStr] || 0) + 1;
-          });
-          // Merge diary entries into heatmap
-          const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
-          const { data: diaryEntries } = await getDiaryEntriesRange(uid, ninetyDaysAgo);
-          (diaryEntries || []).forEach(d => {
-            if (d.study_hours) byDate[d.date] = (byDate[d.date] || 0) + 1;
-          });
-
-          setActivityByDate(byDate);
           setRecentActivities(logs.slice(0, 5));
-
-          const weekStart = new Date(now - 7 * 86400000);
-          const wMins = logs
-            .filter(l => new Date(l.created_at) >= weekStart)
-            .reduce((acc, l) => acc + (l.duration_minutes || 0), 0);
-          setWeeklyMins(wMins);
         } else {
           setWeekActivity([0, 0, 0, 0, 0, 0, 0]);
-          setActivityByDate({});
           setRecentActivities([]);
         }
+
+        // booksRead from unbounded article_read query (all-time accurate count)
+        setBooksRead((actLogs || []).length);
+
+        // ── 90-day heatmap from lightweight query ─────────
+        const byDate = {};
+        (heatmap || []).forEach(l => {
+          const dateStr = new Date(l.created_at).toISOString().split('T')[0];
+          byDate[dateStr] = (byDate[dateStr] || 0) + 1;
+        });
+        (diaryEntries || []).forEach(d => {
+          if (d.study_hours) byDate[d.date] = (byDate[d.date] || 0) + 1;
+        });
+        setActivityByDate(byDate);
 
         // ── Recommendations ───────────────────────────────
         const readIds = new Set((actLogs || []).map(l => l.reference_id));
         const unreadArts = (arts || []).filter(a => !readIds.has(String(a.id)));
         setRecommendations(unreadArts.sort(() => Math.random() - 0.5).slice(0, 3));
 
-        // ── Next Webinar ──────────────────────────────────
-        setNextWebinar(wb?.[0] || null);
+        // ── Group 3: Deferred — study plan + webinar ──────
+        const [wbRes, planRes] = await Promise.all([
+          dbRun(supabase.from('admin_webinars').select('*')
+            .gte('scheduled_at', new Date().toISOString()).order('scheduled_at').limit(1), signal),
+          dbRun(supabase.from('study_plan_history').select('id, plan, completed_tasks')
+            .eq('user_id', uid).eq('is_active', true).order('created_at', { ascending: false }).limit(1), signal),
+        ]);
 
-        // ── Active Study Plan ─────────────────────────────
+        if ([wbRes, planRes].some(r => r.status === 'aborted')) return;
+
+        const wb = wbRes.data;
+        const activePlanData = Array.isArray(planRes.data) ? planRes.data[0] || null : planRes.data || null;
+        setNextWebinar(wb?.[0] || null);
         setActivePlan(activePlanData);
 
         // ── AI "For You" (async, non-blocking) ────────────
-        const meScore = scoreData?.find(d => d.user_id === uid);
-        const readCount = logs ? logs.filter(l => l.activity_type === 'article_read').length : 0;
-        const wMinsForAI = logs
-          ? logs.filter(l => new Date(l.created_at) >= new Date(Date.now() - 7 * 86400000))
-               .reduce((acc, l) => acc + (l.duration_minutes || 0), 0)
-          : 0;
+        const meScore       = scoreData?.find(d => d.user_id === uid);
+        const readCount     = (actLogs || []).length;
+        const wMinsForAI    = logs ? logs.reduce((acc, l) => acc + (l.duration_minutes || 0), 0) : 0;
         const recentSubjectsSet = new Set(
           (arts || []).filter(a => (actLogs || []).some(l => l.reference_id === String(a.id))).map(a => a.subject).filter(Boolean)
         );
         const recentSubjects = Array.from(recentSubjectsSet).slice(0, 5);
 
-        // Persist to ref so refreshForYou always has fresh data
         dashDataRef.current = {
           booksRead: readCount,
           quizScore: meScore?.quiz_score || 0,

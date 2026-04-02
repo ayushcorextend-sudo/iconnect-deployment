@@ -9,7 +9,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-supabase': ['@supabase/supabase-js'],
-          'vendor-motion': ['framer-motion'],
           'vendor-lucide': ['lucide-react'],
         },
       },
