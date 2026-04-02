@@ -264,8 +264,10 @@ function MainApp() {
       setAuthRole(r);
       setUser(uid, r);
 
-      // Only navigate to dashboard on FIRST login — not on token refresh
-      setPage('dashboard');
+      // Only navigate to dashboard on FIRST login — respect deep-link URLs
+      // If the URL already points to a valid page, keep it; otherwise go to dashboard
+      const urlPage = window.location.pathname.replace(/^\//, '') || 'dashboard';
+      setPage(urlPage === '' ? 'dashboard' : urlPage);
       authBootedRef.current = true;
 
       const todayKey = `iconnect_daily_login_${uid}_${new Date().toDateString()}`;
@@ -645,8 +647,8 @@ function MainApp() {
           <Suspense fallback={null}>
             <OnboardingBanner role={role} currentPage={page} setPage={setPage} />
           </Suspense>
-          <PageErrorBoundary resetKey={page}>
-            <Suspense key={page} fallback={<PageLoader />}>
+          <PageErrorBoundary key={page} resetKey={page}>
+            <Suspense fallback={<PageLoader />}>
               {renderPage()}
             </Suspense>
           </PageErrorBoundary>
