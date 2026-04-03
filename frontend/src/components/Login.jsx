@@ -185,7 +185,7 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
       setOtpError('');
       try {
         const result = await authVerifyOtp(otpEmail.trim(), code);
-        onLogin(result);
+        onLogin({ ...result, authMode });
       } catch (err) {
         setOtpError(err.message || 'Invalid or expired code. Please try again.');
         setOtpDigits(['', '', '', '', '', '']);
