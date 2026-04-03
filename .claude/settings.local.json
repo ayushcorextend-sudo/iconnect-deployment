@@ -27,7 +27,10 @@
       "Bash(vercel inspect:*)",
       "Bash(node:*)",
       "Bash(git checkout:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(python3 -c \"import sys,json; models=json.load\\(sys.stdin\\).get\\('models',[]\\); [print\\(m['name']\\) for m in models if 'generateContent' in m.get\\('supportedGenerationMethods',[]\\)]\")",
+      "Bash(python3:*)",
+      "Bash(rm:*)"
     ]
   }
 }

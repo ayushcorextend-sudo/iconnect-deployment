@@ -29,6 +29,7 @@ import Toasts from './components/Toasts';
 const ChatBot = lazy(() => import('./components/ChatBot'));
 import ProfileSetupPage from './components/ProfileSetupPage';
 import OfflineIndicator from './components/ui/OfflineIndicator';
+import PWAInstallBanner from './components/ui/PWAInstallBanner';
 // PageTransition removed — key={page} on Suspense handles page remount
 import PageErrorBoundary from './components/ui/PageErrorBoundary';
 import { clearAllCaches } from './lib/dbService';
@@ -365,7 +366,11 @@ function MainApp() {
       setPendingUserId(uid);
       setPendingEmail(email);
     } else {
-      setPage('dashboard');
+      // BUG-NAV-002: Respect deep-link URL instead of always landing on dashboard.
+      // When a user visits /ebooks → sees Login → logs in, the URL bar still shows /ebooks
+      // (React conditional render, not a redirect). Read it and navigate there.
+      const deepLink = window.location.pathname.replace(/^\//, '') || 'dashboard';
+      setPage(deepLink);
     }
   };
 
@@ -669,6 +674,7 @@ function MainApp() {
         </Suspense>
       </div>
       <OfflineIndicator />
+      <PWAInstallBanner />
     </>
   );
 }

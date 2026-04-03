@@ -22,7 +22,7 @@ export default function TopBar({
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   const searchRef = useRef(null)
   const bellRef = useRef(null)
-  const { isInstallable, promptInstall } = usePWAInstall()
+  const { isInstallable, showIOSGuide, promptInstall } = usePWAInstall()
 
   const recent = notifications.slice(0, 5)
   const r = ROLES[role]
@@ -199,9 +199,9 @@ export default function TopBar({
           {darkMode ? <Sun size={18} /> : <Moon size={18} />}
         </button>
 
-        {/* Mobile PWA install */}
-        {isInstallable && isMobile && (
-          <button className="topbar-icon-btn install-mobile" onClick={promptInstall} title="Install App">
+        {/* PWA install — shown on both mobile and desktop */}
+        {isInstallable && (
+          <button className="topbar-icon-btn install-mobile" onClick={promptInstall} title="Install iConnect App">
             <Download size={16} />
           </button>
         )}

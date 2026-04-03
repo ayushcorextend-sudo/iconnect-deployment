@@ -6,11 +6,85 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-04-03 — P0 navigation stale-content bug FIXED: syncFromLocation race condition eliminated via useNavigationType guard
+2026-04-03 — PWA install rebuilt (BUG-V) + deep-link fix (BUG-NAV-002).
 
 ---
 
 ## Current State
+✅ **PWA install system REBUILT — needs deploy.**
+✅ **BUG-NAV-002 FIXED — deep-linking now works after login.**
+
+### BUG-NAV-002 FIX (this session)
+- **Root cause:** The `login()` callback in App.jsx (line 369) hardcoded `setPage('dashboard')` after every login. When a user visited `/ebooks` → saw Login → logged in, the URL bar still showed `/ebooks` (React conditional render, no redirect) but the callback always went to dashboard.
+- **Secondary cause:** `login()` set `authBootedRef.current = true` before the auth effect could run, so the auth effect's URL-aware `setPage(urlPage)` logic (line 279-280) was permanently blocked for that session.
+- **Fix:** Replaced `setPage('dashboard')` with `setPage(window.location.pathname.replace(/^\//, '') || 'dashboard')` — reads the deep-link from the URL bar, same pattern as the auth effect.
+- **File changed:** `frontend/src/App.jsx` — `login()` callback only
+- **Edge cases handled:** Role guard in `renderPage()` still redirects to dashboard if the deep-link page isn't allowed for the user's role.
+- **Build:** ✅ passes
+
+### PWA Install Overhaul (this session) — BUG-V RESOLVED
+6 files changed/created:
+
+1. **`frontend/src/lib/pwaInstallManager.js`** (NEW) — Global singleton captures `beforeinstallprompt` at module-load time (before React mounts). Previously event was lost if fired during auth loading. Pub/sub pattern lets multiple components share one event.
+
+2. **`frontend/src/hooks/usePWAInstall.js`** (REWRITTEN) — Now backed by singleton instead of independent `addEventListener`. Exposes `isIOS`, `showIOSGuide` for iOS Safari support. Multiple components safely share state.
+
+3. **`frontend/src/components/ui/PWAInstallBanner.jsx`** (NEW) — Bottom-sheet install banner, slides up 3s after load. Android/Chrome: native install prompt button. iOS Safari: step-by-step Add to Home Screen guide. Dismisses for 7 days on close. CSS animation (no framer-motion dependency).
+
+4. **`frontend/src/components/TopBar.jsx`** — Install button now shows on BOTH desktop and mobile (was `isMobile` only). Added `showIOSGuide` from hook.
+
+5. **`frontend/src/main.jsx`** — Imports `pwaInstallManager` as first module so event listener registers before React.
+
+6. **`frontend/src/index.css`** — Added PWA banner styles: slide-up animation, iOS guide steps, responsive mobile layout, dark mode support.
+
+7. **`frontend/src/App.jsx`** — Wired `<PWAInstallBanner />` into app shell alongside `<OfflineIndicator />`.
+
+- **Build:** ✅ passes (2281 modules, 56 precache entries)
+- **Note:** Old `dist/` folder has permission lock — user must `rm -rf frontend/dist` before local rebuild, or Vercel handles it automatically.
+
+✅ **AI stack REWRITTEN — needs deploy + test.**
+
+### AI REWRITE (this session) — FAANG-Level Upgrade
+All 4 AI files rewritten from scratch:
+
+1. **`supabase/functions/_shared/cors.ts`** — Origin allowlist (was `*` wildcard). Now only `iconnect-med.vercel.app` + localhost accepted. Legacy `corsHeaders` export kept for backward compat.
+
+2. **`supabase/functions/ai-orchestrator/index.ts`** — Full rewrite:
+   - Circuit breaker: tracks failures per provider, auto-skips after 3 failures in 60s
+   - Streaming SSE: `stream: true` in request body → token-by-token delivery
+   - Request tracing: `x-trace-id` header propagated through full chain
+   - Input validation: max_tokens clamped 1–2048, prompts capped at 12k chars
+   - Structured JSON logging with timestamps, trace IDs, latency
+   - Origin-specific CORS (no more wildcard)
+   - Provider name returned in response (`{ data, provider }`)
+   - Proper 429 with `Retry-After` header
+
+3. **`supabase/functions/gemini-proxy/index.ts`** — Rewrite:
+   - Streaming SSE support
+   - Input validation (50 message limit, 4k chars per message)
+   - Structured logging, request tracing
+   - Origin-specific CORS
+   - Timeout handling (504 vs 502 distinction)
+
+4. **`frontend/src/lib/aiService.js`** — Rewrite:
+   - Removed dead `USE_EDGE_FUNCTION` flag and direct Gemini client code
+   - Added `readSSEStream()` for streaming token consumption
+   - `callOrchestrator()` supports `{ stream, onToken }` options
+   - Request tracing via `x-trace-id`
+   - Client-side prompt truncation matching server limits
+   - Human-friendly error messages for rate limit and auth expiry
+   - Consistent `parseAiJson()` used by ALL structured response functions
+   - All 15 exported functions preserved with identical signatures
+
+- **Build:** ✅ passes (verified)
+- **Deploy needed:** Both edge functions must be redeployed:
+  ```
+  npx supabase functions deploy ai-orchestrator --no-verify-jwt
+  npx supabase functions deploy gemini-proxy --no-verify-jwt
+  ```
+- **GEMINI_API_KEY:** Already set as Supabase secret ✅
+- **Backward compatible:** All 10 consumer components import unchanged function signatures
+
 ✅ **P0 navigation bug FIXED and built. Needs deploy.**
 
 ### BUG-NAV-001 FIX (this session)
