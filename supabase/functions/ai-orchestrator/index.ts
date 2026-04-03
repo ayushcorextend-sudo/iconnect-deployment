@@ -13,7 +13,7 @@ import { corsHeaders } from '../_shared/cors.ts'
 
 const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions'
 const NVIDIA_MODEL   = 'meta/llama-3.1-70b-instruct'
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent'
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent'
 
 const TIMEOUT_MS       = 15_000
 const RATE_LIMIT_MAX   = 30   // requests per window
