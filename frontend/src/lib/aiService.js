@@ -1,125 +1,157 @@
 /**
  * aiService.js — Centralised AI service layer for iConnect
  *
- * ROUTING:
- *   USE_EDGE_FUNCTION=true  → all calls go through /functions/v1/ai-orchestrator
- *                             (server-side NVIDIA→Gemini routing, circuit breaker, rate limit)
- *   USE_EDGE_FUNCTION=false → direct client calls (NVIDIA first, Gemini fallback)
- *                             Flip to true after deploying the ai-orchestrator edge function.
+ * ARCHITECTURE:
+ *   All AI calls route through Supabase Edge Functions:
+ *     - ai-orchestrator: NVIDIA→Gemini fallback, JWT auth, rate limiting, circuit breaker
+ *     - gemini-proxy: Gemini-only, anon key auth (used by ChatBot chat mode only)
  *
- * See: src/docs/EDGE_FUNCTION_SPEC.md for edge function details.
- * All functions return { text, error } — never throws.
+ *   Client features:
+ *     - Streaming: real-time token delivery via SSE for instant UX
+ *     - Request tracing: x-trace-id header for end-to-end debugging
+ *     - Unified error contract: all functions return { text, error } — never throws
+ *     - Input truncation: prompts clamped to safe lengths before sending
+ *     - Shared JSON parsing: single robust parser for all structured AI responses
+ *
+ * SEC-002/SEC-003: No API keys in the browser bundle. Ever.
  */
 import { supabase } from './supabase';
 
-// ── Feature flag ─────────────────────────────────────────────────────────────
-// Set to true once supabase/functions/ai-orchestrator is deployed.
-const USE_EDGE_FUNCTION = true;
+// ── Configuration ───────────────────────────────────────────────────────────
+const SUPABASE_URL      = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const TIMEOUT_MS        = 20_000;  // Client timeout (slightly > server's 15s)
+const MAX_PROMPT_CHARS  = 12_000;  // Match server-side limit
 
-// ── Edge function proxy (Flaw #14: no client-side API keys) ──────────────────
-// SEC-002/SEC-003: No hardcoded URLs or keys — read from env only.
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+// ── Request tracing ─────────────────────────────────────────────────────────
+function traceId() {
+  return crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
-async function callAIViaEdge(action, payload, maxTokens = 512) {
+// ── Streaming SSE reader ────────────────────────────────────────────────────
+/**
+ * Reads an SSE stream and calls onToken for each chunk.
+ * Returns the full concatenated text when done.
+ */
+async function readSSEStream(response, onToken) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullText = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const payload = line.slice(6).trim();
+      if (payload === '[DONE]') continue;
+
+      try {
+        const parsed = JSON.parse(payload);
+        if (parsed.error) throw new Error(parsed.error);
+        const token = parsed.token || '';
+        if (token) {
+          fullText += token;
+          if (onToken) onToken(token, fullText);
+        }
+      } catch { /* skip malformed chunks */ }
+    }
+  }
+
+  return fullText;
+}
+
+// ── Core: call ai-orchestrator (JWT auth) ───────────────────────────────────
+async function callOrchestrator(action, payload, maxTokens = 512, { stream = false, onToken = null } = {}) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return { text: null, error: 'Not authenticated' };
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const trace = traceId();
 
     const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-orchestrator`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
+        'X-Trace-Id': trace,
       },
-      body: JSON.stringify({ action, payload, max_tokens: maxTokens }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return { text: null, error: err.error || `AI service error ${res.status}` };
-    }
-
-    const data = await res.json();
-    return { text: data.data || data.text || '', error: null };
-  } catch (e) {
-    if (e.name === 'AbortError') return { text: null, error: 'AI request timed out' };
-    return { text: null, error: e.message || 'Network error' };
-  }
-}
-
-// ── Direct callers (used when USE_EDGE_FUNCTION=false) ───────────────────────
-// SEC-003: Supabase anon key read from env — never hardcoded.
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-// SEC-002: NVIDIA API key is REMOVED from the browser bundle.
-// It must be stored as a Supabase Edge Function secret (NVIDIA_API_KEY).
-// When USE_EDGE_FUNCTION=true, the ai-orchestrator edge function handles NVIDIA routing.
-// When USE_EDGE_FUNCTION=false, NVIDIA is unavailable client-side — only Gemini is used.
-// See: src/docs/AI_EDGE_FUNCTION_SPEC.md for the edge function specification.
-
-async function callGemini(systemPrompt, userMessage, maxTokens = 512) {
-  // EXAM-1: AbortController timeout — matches the 15s in callAIViaEdge
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-  try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/gemini-proxy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
       body: JSON.stringify({
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userMessage }],
-        maxOutputTokens: maxTokens,
+        action,
+        payload: {
+          system: (payload.system || '').slice(0, MAX_PROMPT_CHARS),
+          user:   (payload.user   || '').slice(0, MAX_PROMPT_CHARS),
+        },
+        max_tokens: maxTokens,
+        stream,
       }),
       signal: controller.signal,
     });
+
     clearTimeout(timeout);
+
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      return { text: null, error: err.error || `API error ${res.status}` };
+      const code = err.code || '';
+      if (code === 'rate_limited') return { text: null, error: 'You\'ve sent too many requests. Please wait a moment.' };
+      if (res.status === 401)      return { text: null, error: 'Session expired. Please refresh the page.' };
+      return { text: null, error: err.error || `AI service error (${res.status})` };
     }
+
+    // Streaming path
+    if (stream && res.headers.get('content-type')?.includes('text/event-stream')) {
+      const text = await readSSEStream(res, onToken);
+      return { text: text || '', error: null };
+    }
+
+    // Non-streaming path
     const data = await res.json();
-    return { text: data.text || '', error: null };
+    return { text: data.data || data.text || '', error: null };
+
   } catch (e) {
-    clearTimeout(timeout);
-    if (e.name === 'AbortError') return { text: null, error: 'AI is taking too long. Please try again.' };
+    if (e.name === 'AbortError') return { text: null, error: 'AI request timed out. Please try again.' };
     return { text: null, error: e.message || 'Network error' };
   }
 }
 
-// ── Unified callAI — routes to edge function or Gemini direct ────────────────
-// NVIDIA is only available via the ai-orchestrator edge function (USE_EDGE_FUNCTION=true).
-// Client-side direct path uses Gemini only — NVIDIA key is no longer in the browser bundle.
-async function callAI(systemPrompt, userMessage, maxTokens = 512) {
-  if (USE_EDGE_FUNCTION) {
-    // ai-orchestrator handles NVIDIA→Gemini routing server-side with rate limiting
-    return callAIViaEdge('generic', { system: systemPrompt, user: userMessage }, maxTokens);
-  }
-  // Direct path: Gemini only (NVIDIA requires edge function — see AI_EDGE_FUNCTION_SPEC.md)
-  return callGemini(systemPrompt, userMessage, maxTokens);
+// ── Unified callAI — used by all 15 AI functions ────────────────────────────
+async function callAI(systemPrompt, userMessage, maxTokens = 512, opts = {}) {
+  return callOrchestrator('generic', { system: systemPrompt, user: userMessage }, maxTokens, opts);
 }
 
-// ── BUG-S: Shared JSON extraction helper ─────────────────────────────────────
-// Strategy: 1) strip markdown fences 2) try JSON.parse on the whole string
-// 3) fall back to extracting the first {...} or [...] block.
-// This handles the case where greedy regex `{[\s\S]*}` could match across
-// multiple sibling JSON objects when the AI prefixes/suffixes extra text.
+// ── Shared JSON extraction helper ───────────────────────────────────────────
+// Strategy: strip markdown fences → try full parse → extract first {...} or [...]
+// Handles AI responses that wrap JSON in markdown code blocks or add extra text.
 function parseAiJson(text) {
-  const clean = text.replace(/```json\s*|```/g, '').trim();
-  // Fast path: the whole string is valid JSON
-  try { return JSON.parse(clean); } catch (_) { /* fall through */ }
-  // Fallback: extract first complete object or array
+  if (!text || typeof text !== 'string') throw new Error('Empty AI response');
+  const clean = text.replace(/```(?:json)?\s*|```/g, '').trim();
+
+  // Fast path: entire string is valid JSON
+  try { return JSON.parse(clean); } catch { /* fall through */ }
+
+  // Extract first complete JSON object
   const objMatch = clean.match(/\{[\s\S]*\}/);
-  if (objMatch) { try { return JSON.parse(objMatch[0]); } catch (_) { /* fall through */ } }
+  if (objMatch) { try { return JSON.parse(objMatch[0]); } catch { /* fall through */ } }
+
+  // Extract first complete JSON array
   const arrMatch = clean.match(/\[[\s\S]*\]/);
-  if (arrMatch) { try { return JSON.parse(arrMatch[0]); } catch (_) { /* fall through */ } }
+  if (arrMatch) { try { return JSON.parse(arrMatch[0]); } catch { /* fall through */ } }
+
   throw new Error('Could not parse AI response as JSON');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXPORTED AI FUNCTIONS (15 features)
+// All return { text, error } or { specificField, error } — never throws.
+// ═══════════════════════════════════════════════════════════════════════════════
 
 // ── 1. Explain a NEET-PG MCQ question ─────────────────────────────────────────
 export async function explainQuestion(question, options, correctKey, existingExplanation) {
@@ -194,7 +226,7 @@ Format: 3-4 bullet points. Under 150 words.`;
 }
 
 // ── 7. Doubt Buster — deep-dive answer for specific medical questions ─────────
-export async function askDoubtBuster(question) {
+export async function askDoubtBuster(question, opts = {}) {
   const system = `You are a senior medical educator specialising in NEET-PG exam preparation.
 For the given doubt/question, provide a thorough explanation:
 - Core concept explanation
@@ -202,11 +234,10 @@ For the given doubt/question, provide a thorough explanation:
 - Memory tips or mnemonics if applicable
 - Common exam traps to avoid
 Use bullet points. Keep under 300 words.`;
-  return callAI(system, question, 600);
+  return callAI(system, question, 600, opts);
 }
 
 // ── 8. Generate a 3-question reading comprehension quiz ───────────────────────
-// Returns { questions: [{q, options:[{k,v}], answer, explanation}], error }
 export async function generateReadingQuiz(bookTitle, subject) {
   const system = `You are a NEET-PG medical exam question setter.
 Generate exactly 3 multiple-choice questions to test understanding of a medical e-book.
@@ -216,17 +247,15 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
   const { text, error } = await callAI(system, msg, 800);
   if (error) return { questions: null, error };
   try {
-    const clean = text.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
+    const parsed = parseAiJson(text);
     if (!Array.isArray(parsed.questions)) throw new Error('Invalid structure');
     return { questions: parsed.questions, error: null };
-  } catch (_) {
+  } catch {
     return { questions: null, error: 'Could not parse quiz. Please try again.' };
   }
 }
 
 // ── 9. Generate a smart note + mnemonic from selected text ────────────────────
-// Returns { note, mnemonic, tags[], error }
 export async function generateSmartNote(originalText, subject) {
   const system = `You are a NEET-PG study coach. Compress the given medical text into:
 1. A concise study note (max 80 words, bullet points)
@@ -238,130 +267,14 @@ Respond ONLY with valid JSON (no markdown):
   const { text, error } = await callAI(system, msg, 400);
   if (error) return { note: null, mnemonic: null, tags: [], error };
   try {
-    const clean = text.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
+    const parsed = parseAiJson(text);
     return { note: parsed.note || '', mnemonic: parsed.mnemonic || '', tags: parsed.tags || [], error: null };
-  } catch (_) {
+  } catch {
     return { note: null, mnemonic: null, tags: [], error: 'Could not parse response.' };
   }
 }
 
-// ── 11. Generate a contextual study plan from clinical logs + persona ─────────
-// Returns { plan: [{day, tasks:[{subject,activity,duration_mins}]}], error }
-export async function generateContextualPlan({ speciality, weakSubjects, strongSubjects, peakHours, weeklyGoalHours, recentCases = [], examDate }) {
-  const system = `You are a NEET-PG study planner. Build a personalised 7-day weekly plan.
-Respond ONLY with valid JSON — no markdown, no extra text:
-{"plan":[{"day":"Monday","tasks":[{"subject":"string","activity":"string","duration_mins":30}]}]}
-Rules: each day has 2-4 tasks; schedule heavy topics during peak hours; revise recent clinical cases; avoid strong subjects unless consolidation needed.`;
-  const daysToExam = examDate
-    ? Math.max(0, Math.floor((new Date(examDate) - Date.now()) / 86400000))
-    : null;
-  const msg = `Speciality: ${speciality || 'General Medicine'}
-Weak subjects: ${weakSubjects?.join(', ') || 'unknown'}
-Strong subjects: ${strongSubjects?.join(', ') || 'unknown'}
-Peak study hours: ${peakHours || 'morning'}
-Weekly goal: ${weeklyGoalHours || 20} hours
-Recent clinical cases: ${recentCases.slice(0, 5).join(', ') || 'none'}
-${daysToExam !== null ? `Days until exam: ${daysToExam}` : ''}
-Generate a focused 7-day plan.`;
-  const { text, error } = await callAI(system, msg, 900);
-  if (error) return { plan: null, error };
-  try {
-    const parsed = parseAiJson(text); // BUG-S: use shared helper
-    if (!Array.isArray(parsed.plan)) throw new Error('Invalid plan structure');
-    return { plan: parsed.plan, error: null };
-  } catch (_) {
-    return { plan: null, error: 'Could not parse study plan. Please try again.' };
-  }
-}
-
-// ── 12. Assess study fatigue level from activity patterns ─────────────────────
-// Returns { level: 'low'|'medium'|'high', message, tips[], error }
-export async function assessFatigueLevel({ dailyMinutes = [], streak = 0, avgSessionsPerDay = 0 }) {
-  const system = `You are a medical student wellbeing advisor.
-Assess cognitive fatigue from study pattern data and give concise feedback.
-Respond ONLY with valid JSON:
-{"level":"low|medium|high","message":"one sentence summary","tips":["tip1","tip2","tip3"]}`;
-  const recentAvg = dailyMinutes.length
-    ? Math.round(dailyMinutes.slice(-7).reduce((a, b) => a + b, 0) / Math.min(dailyMinutes.length, 7))
-    : 0;
-  const msg = `Study data:
-- Recent daily average: ${recentAvg} minutes
-- Current streak: ${streak} days
-- Avg sessions per day: ${avgSessionsPerDay}
-- Last 7 days (minutes): ${dailyMinutes.slice(-7).join(', ') || '0'}
-Assess fatigue and provide 3 short recovery/optimization tips.`;
-  const { text, error } = await callAI(system, msg, 300);
-  if (error) return { level: 'medium', message: null, tips: [], error };
-  try {
-    const parsed = parseAiJson(text); // BUG-S: use shared helper
-    return { level: parsed.level || 'medium', message: parsed.message || '', tips: parsed.tips || [], error: null };
-  } catch (_) {
-    return { level: 'medium', message: 'Unable to assess — keep studying consistently.', tips: [], error: null };
-  }
-}
-
-// ── 13. Generate active recall audio script for a topic ───────────────────────
-// Returns { script, keywords[], error }
-export async function generateActiveRecallAudio(topic, subject) {
-  const system = `You are a NEET-PG tutor creating a spoken active-recall drill.
-Generate a short verbal quiz script (6-8 Q&A pairs) for the given topic.
-Respond ONLY with valid JSON:
-{"script":"Full spoken script with Q&A","keywords":["key1","key2","key3","key4","key5"]}
-Keep the script under 250 words. Use clear spoken language — it will be read aloud.`;
-  const msg = `Topic: ${topic}\nSubject: ${subject || 'Medicine'}\nGenerate an active recall spoken script.`;
-  const { text, error } = await callAI(system, msg, 600);
-  if (error) return { script: null, keywords: [], error };
-  try {
-    const parsed = parseAiJson(text); // BUG-S: use shared helper
-    return { script: parsed.script || '', keywords: parsed.keywords || [], error: null };
-  } catch (_) {
-    return { script: null, keywords: [], error: 'Could not generate recall script.' };
-  }
-}
-
-// ── 14. Generate spaced repetition flashcards from wrong MCQ answers ──────────
-// Returns { cards:[{front,back,subject,difficulty}], error }
-export async function generateSpacedRepetitionCards(wrongAnswers, subject) {
-  const system = `You are a NEET-PG flashcard creator.
-For each wrong MCQ answer provided, generate one concise flashcard.
-Respond ONLY with valid JSON (no markdown):
-{"cards":[{"front":"key concept question (max 60 chars)","back":"clear explanation with correct answer (max 120 chars)","difficulty":"easy|medium|hard"}]}`;
-  const items = wrongAnswers.slice(0, 10).map((w, i) =>
-    `${i + 1}. Q: ${w.question}\n   Correct: ${w.correct_option} — ${w.correct_text}\n   Your answer: ${w.user_option}`
-  ).join('\n\n');
-  const msg = `Subject: ${subject || 'Medicine'}\n\nWrong answers to convert:\n${items}`;
-  const { text, error } = await callAI(system, msg, 800);
-  if (error) return { cards: null, error };
-  try {
-    const parsed = parseAiJson(text); // BUG-S: use shared helper
-    if (!Array.isArray(parsed.cards)) throw new Error('Invalid structure');
-    return { cards: parsed.cards, error: null };
-  } catch (_) {
-    return { cards: null, error: 'Could not parse flashcards.' };
-  }
-}
-
-// ── 15. Grade a subjective / open-ended answer ────────────────────────────────
-// Returns { score, maxScore, feedback, suggestions[], error }
-export async function gradeSubjectiveAnswer(question, studentAnswer, rubric) {
-  const system = `You are a NEET-PG examiner grading a short-answer response.
-Assess the answer against the rubric and respond ONLY with valid JSON:
-{"score":7,"maxScore":10,"feedback":"one concise sentence (max 80 chars)","suggestions":["improvement 1","improvement 2"]}`;
-  const msg = `Question: ${question}\n\nRubric: ${rubric || 'Accuracy, completeness, clinical relevance (10 points)'}\n\nStudent answer:\n${studentAnswer.slice(0, 800)}`;
-  const { text, error } = await callAI(system, msg, 400);
-  if (error) return { score: null, maxScore: 10, feedback: null, suggestions: [], error };
-  try {
-    const parsed = parseAiJson(text); // BUG-S: use shared helper
-    return { score: parsed.score ?? null, maxScore: parsed.maxScore ?? 10, feedback: parsed.feedback || '', suggestions: parsed.suggestions || [], error: null };
-  } catch (_) {
-    return { score: null, maxScore: 10, feedback: 'Could not grade answer.', suggestions: [], error: null };
-  }
-}
-
 // ── 10. Personalised "For You" suggestions on login ──────────────────────────
-// Returns { suggestions: [{icon, title, reason, tag, action}], error }
-// action is one of: 'ebooks' | 'exam' | 'learn' | 'arena-student' | 'calendar' | 'case-sim'
 export async function getPersonalizedSuggestions({ speciality, booksRead, quizScore, totalScore, weeklyMins, lastActive, recentSubjects = [] }) {
   const system = `You are a personalised learning advisor for NEET-PG medical exam aspirants on the iConnect platform.
 Analyse the student's activity data and generate exactly 3 hyper-personalised study suggestions.
@@ -398,11 +311,119 @@ Variation seed: ${new Date().toDateString()} — ensure variety; avoid repeating
   if (error) return { suggestions: null, error };
 
   try {
-    const parsed = parseAiJson(text); // BUG-S: use shared helper
+    const parsed = parseAiJson(text);
     const arr = Array.isArray(parsed) ? parsed : parsed.suggestions;
     if (!Array.isArray(arr) || arr.length === 0) throw new Error('Empty or invalid array');
     return { suggestions: arr.slice(0, 4), error: null };
-  } catch (_) {
+  } catch {
     return { suggestions: null, error: 'Could not parse suggestions.' };
+  }
+}
+
+// ── 11. Generate a contextual study plan from clinical logs + persona ─────────
+export async function generateContextualPlan({ speciality, weakSubjects, strongSubjects, peakHours, weeklyGoalHours, recentCases = [], examDate }) {
+  const system = `You are a NEET-PG study planner. Build a personalised 7-day weekly plan.
+Respond ONLY with valid JSON — no markdown, no extra text:
+{"plan":[{"day":"Monday","tasks":[{"subject":"string","activity":"string","duration_mins":30}]}]}
+Rules: each day has 2-4 tasks; schedule heavy topics during peak hours; revise recent clinical cases; avoid strong subjects unless consolidation needed.`;
+  const daysToExam = examDate
+    ? Math.max(0, Math.floor((new Date(examDate) - Date.now()) / 86400000))
+    : null;
+  const msg = `Speciality: ${speciality || 'General Medicine'}
+Weak subjects: ${weakSubjects?.join(', ') || 'unknown'}
+Strong subjects: ${strongSubjects?.join(', ') || 'unknown'}
+Peak study hours: ${peakHours || 'morning'}
+Weekly goal: ${weeklyGoalHours || 20} hours
+Recent clinical cases: ${recentCases.slice(0, 5).join(', ') || 'none'}
+${daysToExam !== null ? `Days until exam: ${daysToExam}` : ''}
+Generate a focused 7-day plan.`;
+  const { text, error } = await callAI(system, msg, 900);
+  if (error) return { plan: null, error };
+  try {
+    const parsed = parseAiJson(text);
+    if (!Array.isArray(parsed.plan)) throw new Error('Invalid plan structure');
+    return { plan: parsed.plan, error: null };
+  } catch {
+    return { plan: null, error: 'Could not parse study plan. Please try again.' };
+  }
+}
+
+// ── 12. Assess study fatigue level from activity patterns ─────────────────────
+export async function assessFatigueLevel({ dailyMinutes = [], streak = 0, avgSessionsPerDay = 0 }) {
+  const system = `You are a medical student wellbeing advisor.
+Assess cognitive fatigue from study pattern data and give concise feedback.
+Respond ONLY with valid JSON:
+{"level":"low|medium|high","message":"one sentence summary","tips":["tip1","tip2","tip3"]}`;
+  const recentAvg = dailyMinutes.length
+    ? Math.round(dailyMinutes.slice(-7).reduce((a, b) => a + b, 0) / Math.min(dailyMinutes.length, 7))
+    : 0;
+  const msg = `Study data:
+- Recent daily average: ${recentAvg} minutes
+- Current streak: ${streak} days
+- Avg sessions per day: ${avgSessionsPerDay}
+- Last 7 days (minutes): ${dailyMinutes.slice(-7).join(', ') || '0'}
+Assess fatigue and provide 3 short recovery/optimization tips.`;
+  const { text, error } = await callAI(system, msg, 300);
+  if (error) return { level: 'medium', message: null, tips: [], error };
+  try {
+    const parsed = parseAiJson(text);
+    return { level: parsed.level || 'medium', message: parsed.message || '', tips: parsed.tips || [], error: null };
+  } catch {
+    return { level: 'medium', message: 'Unable to assess — keep studying consistently.', tips: [], error: null };
+  }
+}
+
+// ── 13. Generate active recall audio script for a topic ───────────────────────
+export async function generateActiveRecallAudio(topic, subject) {
+  const system = `You are a NEET-PG tutor creating a spoken active-recall drill.
+Generate a short verbal quiz script (6-8 Q&A pairs) for the given topic.
+Respond ONLY with valid JSON:
+{"script":"Full spoken script with Q&A","keywords":["key1","key2","key3","key4","key5"]}
+Keep the script under 250 words. Use clear spoken language — it will be read aloud.`;
+  const msg = `Topic: ${topic}\nSubject: ${subject || 'Medicine'}\nGenerate an active recall spoken script.`;
+  const { text, error } = await callAI(system, msg, 600);
+  if (error) return { script: null, keywords: [], error };
+  try {
+    const parsed = parseAiJson(text);
+    return { script: parsed.script || '', keywords: parsed.keywords || [], error: null };
+  } catch {
+    return { script: null, keywords: [], error: 'Could not generate recall script.' };
+  }
+}
+
+// ── 14. Generate spaced repetition flashcards from wrong MCQ answers ──────────
+export async function generateSpacedRepetitionCards(wrongAnswers, subject) {
+  const system = `You are a NEET-PG flashcard creator.
+For each wrong MCQ answer provided, generate one concise flashcard.
+Respond ONLY with valid JSON (no markdown):
+{"cards":[{"front":"key concept question (max 60 chars)","back":"clear explanation with correct answer (max 120 chars)","difficulty":"easy|medium|hard"}]}`;
+  const items = wrongAnswers.slice(0, 10).map((w, i) =>
+    `${i + 1}. Q: ${w.question}\n   Correct: ${w.correct_option} — ${w.correct_text}\n   Your answer: ${w.user_option}`
+  ).join('\n\n');
+  const msg = `Subject: ${subject || 'Medicine'}\n\nWrong answers to convert:\n${items}`;
+  const { text, error } = await callAI(system, msg, 800);
+  if (error) return { cards: null, error };
+  try {
+    const parsed = parseAiJson(text);
+    if (!Array.isArray(parsed.cards)) throw new Error('Invalid structure');
+    return { cards: parsed.cards, error: null };
+  } catch {
+    return { cards: null, error: 'Could not parse flashcards.' };
+  }
+}
+
+// ── 15. Grade a subjective / open-ended answer ────────────────────────────────
+export async function gradeSubjectiveAnswer(question, studentAnswer, rubric) {
+  const system = `You are a NEET-PG examiner grading a short-answer response.
+Assess the answer against the rubric and respond ONLY with valid JSON:
+{"score":7,"maxScore":10,"feedback":"one concise sentence (max 80 chars)","suggestions":["improvement 1","improvement 2"]}`;
+  const msg = `Question: ${question}\n\nRubric: ${rubric || 'Accuracy, completeness, clinical relevance (10 points)'}\n\nStudent answer:\n${studentAnswer.slice(0, 800)}`;
+  const { text, error } = await callAI(system, msg, 400);
+  if (error) return { score: null, maxScore: 10, feedback: null, suggestions: [], error };
+  try {
+    const parsed = parseAiJson(text);
+    return { score: parsed.score ?? null, maxScore: parsed.maxScore ?? 10, feedback: parsed.feedback || '', suggestions: parsed.suggestions || [], error: null };
+  } catch {
+    return { score: null, maxScore: 10, feedback: 'Could not grade answer.', suggestions: [], error: null };
   }
 }
