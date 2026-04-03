@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useNavigationType } from 'react-router-dom';
 import {
   supabase,
   authSignOut,
@@ -86,8 +86,9 @@ export default function App() {
 // ─── Inner application ────────────────────────────────────────────────────────
 function MainApp() {
   const { isAuthLoading, session, setAuthRole } = useAuth();
-  const navigate  = useNavigate();
-  const location  = useLocation();
+  const navigate       = useNavigate();
+  const location       = useLocation();
+  const navigationType = useNavigationType();
   const authBootedRef = useRef(false); // prevents re-firing setPage('dashboard') on token refresh
 
   // Auth store — granular selectors
@@ -160,7 +161,15 @@ function MainApp() {
   const initRouter       = useAppStore(s => s.initRouter);
   const syncFromLocation = useAppStore(s => s.syncFromLocation);
   useEffect(() => { initRouter(navigate, location); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { syncFromLocation(location.pathname); }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Only sync page from URL when the user navigated via browser back/forward (POP).
+  // Programmatic setPage() calls use navigate() which is PUSH/REPLACE — skipping those
+  // prevents the double-update race where navigate('/ebooks') fires syncFromLocation('/')
+  // (old URL still in location closure) and resets Zustand page back to 'dashboard'.
+  useEffect(() => {
+    if (navigationType === 'POP') {
+      syncFromLocation(location.pathname);
+    }
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchUsers = useCallback(async () => {
     try {

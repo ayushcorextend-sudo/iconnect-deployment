@@ -66,9 +66,11 @@ export const useAppStore = create((set, get) => ({
     imperativeNavigate(toPath(page));
   },
 
-  // Sync page when browser back/forward changes the URL
+  // Sync page when browser back/forward changes the URL.
+  // Guard: skip if page is already correct — prevents redundant re-renders.
   syncFromLocation: (pathname) => {
     const page = fromPath(pathname);
+    if (page === get().page) return;
     set({ page, notifPanel: false });
   },
 

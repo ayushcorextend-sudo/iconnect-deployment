@@ -6,11 +6,28 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-04-03 — Comprehensive bug fix pass: navigation rendering, AI 502, WebSocket retry, DB schema (admin_calendar_events + content_type)
+2026-04-03 — P0 navigation stale-content bug FIXED: syncFromLocation race condition eliminated via useNavigationType guard
 
 ---
 
 ## Current State
+✅ **P0 navigation bug FIXED and built. Needs deploy.**
+
+### BUG-NAV-001 FIX (this session)
+- **Root cause confirmed:** `syncFromLocation` was running on EVERY `location.pathname` change, including programmatic `navigate()` calls (PUSH events). When `setPage('ebooks')` called `navigate('/ebooks')`, React could render with `page='ebooks'` but `location.pathname='/'` (old URL still in closure). `syncFromLocation('/')` then RESET page back to 'dashboard', causing the one-page-behind bug.
+- **Fix 1 — App.jsx:** Only call `syncFromLocation` when `navigationType === 'POP'` (browser back/forward + direct URL load). Programmatic PUSH/REPLACE navigations skip it entirely.
+- **Fix 2 — useAppStore.js:** Added `if (page === get().page) return;` guard in `syncFromLocation` to prevent redundant re-renders.
+- **Files changed:** `frontend/src/App.jsx` (import useNavigationType, guard effect), `frontend/src/stores/useAppStore.js` (no-op guard)
+- **Build:** ✅ passes
+
+### ⚠️ STILL OPEN: BUG-NAV-002 (deep-link fails — loads Dashboard instead of target page)
+This is a separate bug. `initRouter` sets page from URL on mount, but the auth effect calls `setPage(urlPage)` which may navigate away. Needs investigation after BUG-NAV-001 is confirmed fixed in production.
+
+### ⚠️ STILL OPEN: BUG-AUTH-001 (admin buttons visible on public login page)
+Low-risk security cosmetic issue. Not blocking.
+
+---
+
 ✅ **ARCHITECTURAL SURGERY COMPLETE. All 4 phases deployed to Vercel (commit 1975334).**
 
 ### Surgery Summary
