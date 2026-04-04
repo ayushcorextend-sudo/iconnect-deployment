@@ -8,11 +8,16 @@ export default function WebinarCalendarTab({ addToast }) {
   const [wForm, setWForm] = useState({ title: '', speaker: '', scheduled_at: '', duration_min: 60, join_url: '', description: '' });
   const [showWForm, setShowWForm] = useState(false);
   const [savingW, setSavingW] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
 
   useEffect(() => {
-    supabase.from('admin_webinars').select('*').order('scheduled_at').then(({ data }) => {
+    supabase.from('admin_webinars').select('*').order('scheduled_at').then(({ data, error }) => {
+      if (error) { setFetchError('Failed to load webinars. Please refresh.'); return; }
       if (data?.length) setWebinars(data);
-    }).catch(() => {});
+    }).catch((e) => {
+      setFetchError('Failed to load webinars. Please refresh.');
+      console.warn('WebinarCalendarTab: fetch error:', e.message);
+    });
   }, []);
 
   const handleAddWebinar = async () => {
@@ -27,9 +32,7 @@ export default function WebinarCalendarTab({ addToast }) {
       setWForm({ title: '', speaker: '', scheduled_at: '', duration_min: 60, join_url: '', description: '' });
     } catch (e) {
       console.warn('WebinarCalendarTab: failed to add webinar:', e.message);
-      setWebinars(prev => [...prev, { ...wForm, id: `local_${Date.now()}` }]);
-      addToast('success', 'Webinar added (offline).');
-      setShowWForm(false);
+      addToast('error', 'Failed to schedule webinar. Please try again.');
     } finally {
       setSavingW(false);
     }
@@ -42,6 +45,11 @@ export default function WebinarCalendarTab({ addToast }) {
 
   return (
     <div>
+      {fetchError && (
+        <div role="alert" style={{ marginBottom: 14, padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#DC2626', fontSize: 13 }}>
+          {fetchError}
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>Scheduled Webinars ({webinars.length})</div>
         <button className="btn btn-p btn-sm" onClick={() => setShowWForm(s => !s)}>

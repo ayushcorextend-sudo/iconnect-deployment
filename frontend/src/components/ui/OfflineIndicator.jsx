@@ -8,6 +8,7 @@
 import { useEffect } from 'react';
 import { useOfflineStore } from '../../stores/useOfflineStore';
 import { onSyncMessage, getPendingCount } from '../../lib/offlineSync';
+import { Z } from '../../styles/zIndex';
 
 export default function OfflineIndicator() {
   const { isOnline, pendingCount, setPendingCount, onSyncComplete, initNetworkListeners } = useOfflineStore();
@@ -39,7 +40,7 @@ export default function OfflineIndicator() {
       role="status"
       aria-live="polite"
       style={{
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: Z.offlineIndicator,
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         padding: '8px 16px',
         background: isOnline ? '#10B981' : '#EF4444',

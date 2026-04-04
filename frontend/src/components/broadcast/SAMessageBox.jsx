@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { Z } from '../../styles/zIndex';
 
 /* ═══════════════════════════════════════════════════
    TYPE CONFIG (local copy for SAMessageBox)
@@ -121,7 +122,7 @@ export function SAMessageBox({ userId, darkMode }) {
           position: 'fixed',
           top: 88,
           right: 22,
-          zIndex: 999,
+          zIndex: Z.saMessageTrigger,
           cursor: 'pointer',
           width: 54,
           height: 54,
@@ -156,7 +157,7 @@ export function SAMessageBox({ userId, darkMode }) {
       {/* Label below */}
       <div style={{
         position: 'fixed',
-        top: 144, right: 10, zIndex: 999,
+        top: 144, right: 10, zIndex: Z.saMessageTrigger,
         fontSize: 9, fontWeight: 800, color: '#EF4444',
         textAlign: 'center', letterSpacing: '0.5px',
         textTransform: 'uppercase', whiteSpace: 'nowrap',
@@ -170,7 +171,7 @@ export function SAMessageBox({ userId, darkMode }) {
         <div
           onClick={() => setIsOpen(false)}
           style={{
-            position: 'fixed', inset: 0, zIndex: 1200,
+            position: 'fixed', inset: 0, zIndex: Z.saMessageModal,
             background: 'rgba(0,0,0,0.65)',
             backdropFilter: 'blur(6px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',

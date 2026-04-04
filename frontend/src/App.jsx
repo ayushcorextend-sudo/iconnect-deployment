@@ -353,6 +353,20 @@ function MainApp() {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
+  // ── Global unhandled promise rejection handler ────────────────────────────
+  // Catches any promise that rejects without a .catch() handler. Shows a toast
+  // so users get feedback instead of silent failures.
+  useEffect(() => {
+    const handler = (e) => {
+      // Skip AbortError — these are intentional (component unmount cleanup)
+      if (e.reason?.name === 'AbortError') return;
+      const msg = e.reason?.message || 'An unexpected error occurred.';
+      addToast('error', msg);
+    };
+    window.addEventListener('unhandledrejection', handler);
+    return () => window.removeEventListener('unhandledrejection', handler);
+  }, [addToast]);
+
   // ── System dark mode listener (only fires if user hasn't set a preference) ─
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
