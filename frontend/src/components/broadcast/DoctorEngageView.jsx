@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import FilterDropdown from './FilterDropdown';
+import { useSubmit } from '../../hooks/useSubmit';
 
 /* ═══════════════════════════════════════════════════
    TYPE CONFIG
@@ -48,14 +49,18 @@ export default function DoctorEngageView({ userId, addToast, darkMode, onBack })
   const scoreDropRef = useRef(null);
 
   const [form, setForm]           = useState({ title: '', body: '', type: 'info' });
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { submit: submitDispatch, isSubmitting } = useSubmit({
+    onError: (err) => addToast?.('error', 'Dispatch failed: ' + (err.message || 'Try again')),
+  });
   const [rightTab, setRightTab]   = useState('broadcast');
   const [confirmPending, setConfirmPending] = useState(false);
   const confirmTimerRef = useRef(null);
 
   // Event form
   const [eventForm, setEventForm]     = useState({ title: '', date: '', description: '', color: '#EF4444' });
-  const [eventSubmitting, setEventSubmitting] = useState(false);
+  const { submit: submitEvent, isSubmitting: eventSubmitting } = useSubmit({
+    onError: (err) => addToast?.('error', 'Failed to push event: ' + (err.message || 'Check admin_calendar_events table')),
+  });
   const [recentEvents, setRecentEvents]       = useState([]);
   const [eventsLoading, setEventsLoading]     = useState(false);
 
@@ -201,7 +206,7 @@ export default function DoctorEngageView({ userId, addToast, darkMode, onBack })
   const allFilteredSelected = filteredUsers.length > 0 && filteredUsers.every(u => selectedIds.has(u.id));
 
   // Dispatch — 2-step confirmation (no confirm() dialog)
-  const handleDispatch = async () => {
+  const handleDispatch = () => {
     if (selectedIds.size === 0) return;
     if (!form.title.trim()) { addToast?.('error', 'Title is required.'); return; }
     if (!form.body.trim())  { addToast?.('error', 'Message body is required.'); return; }
@@ -213,12 +218,10 @@ export default function DoctorEngageView({ userId, addToast, darkMode, onBack })
     }
     clearTimeout(confirmTimerRef.current);
     setConfirmPending(false);
-    setIsSubmitting(true);
-    try {
+    submitDispatch(async () => {
       const tc = TYPE_CONFIG[form.type] || TYPE_CONFIG.info;
       const payloads = [...selectedIds].map(uid => ({
-        user_id: uid,
-        sender_id: userId,
+        user_id: uid, sender_id: userId,
         title: form.title.trim(), body: form.body.trim(),
         type: form.type, icon: tc.icon, is_read: false,
       }));
@@ -227,19 +230,14 @@ export default function DoctorEngageView({ userId, addToast, darkMode, onBack })
       addToast?.('success', `✅ Broadcast sent to ${selectedIds.size} doctor(s)!`);
       setSelectedIds(new Set());
       setForm({ title: '', body: '', type: 'info' });
-    } catch (err) {
-      addToast?.('error', 'Dispatch failed: ' + (err.message || 'Try again'));
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   // Push event
-  const handleEventDispatch = async () => {
+  const handleEventDispatch = () => {
     if (!eventForm.title.trim()) { addToast?.('error', 'Event title is required.'); return; }
     if (!eventForm.date)         { addToast?.('error', 'Event date is required.'); return; }
-    setEventSubmitting(true);
-    try {
+    submitEvent(async () => {
       const { data: inserted, error } = await supabase
         .from('admin_calendar_events')
         .insert([{ title: eventForm.title.trim(), date: eventForm.date, description: eventForm.description.trim() || null, color: eventForm.color, is_compulsory: true, created_by: userId || null }])
@@ -248,11 +246,7 @@ export default function DoctorEngageView({ userId, addToast, darkMode, onBack })
       addToast?.('success', `📅 Event "${eventForm.title}" pushed to all doctor calendars!`);
       setEventForm({ title: '', date: '', description: '', color: '#EF4444' });
       setRecentEvents(prev => [inserted, ...prev].slice(0, 10));
-    } catch (err) {
-      addToast?.('error', 'Failed to push event: ' + (err.message || 'Check admin_calendar_events table'));
-    } finally {
-      setEventSubmitting(false);
-    }
+    });
   };
 
   const handleDeleteEvent = async id => {

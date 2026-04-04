@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase, getUserContentStates, toggleBookmark, updateReadingProgress, getNotes, saveNote, deleteNote } from '../lib/supabase';
+import { useSubmit } from '../hooks/useSubmit';
 import { trackActivity, startTimer, stopTimer } from '../lib/trackActivity';
 import PDFReaderView from './ebooks/PDFReaderView';
 import LibraryFilterBar from './ebooks/LibraryFilterBar';
@@ -35,6 +36,7 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
   const [selectedSubject, setSelectedSubject] = useState('All');
   const [showOnlyBookmarked, setShowOnlyBookmarked] = useState(false);
   const [sortBy, setSortBy] = useState('newest');
+  const { submit: submitBookmark } = useSubmit();
 
   useEffect(() => setLocalArtifacts(artifacts), [artifacts]);
 
@@ -163,19 +165,21 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
     if (ok) setNotes(prev => prev.filter(n => n.id !== noteId));
   };
 
-  const handleBookmark = async () => {
+  const handleBookmark = () => {
     if (!viewer || !currentUserId) return;
     const key = String(viewer.id);
     const newVal = !(contentStates[key]?.isBookmarked || false);
     setContentStates(prev => ({ ...prev, [key]: { ...prev[key], isBookmarked: newVal } }));
-    try {
-      await toggleBookmark(currentUserId, viewer.id, newVal);
-      addToast('success', newVal ? '🔖 Bookmarked!' : 'Bookmark removed');
-    } catch (e) {
-      console.warn('EBooksPage: failed to toggle bookmark:', e.message);
-      setContentStates(prev => ({ ...prev, [key]: { ...prev[key], isBookmarked: !newVal } }));
-      addToast('error', 'Could not update bookmark');
-    }
+    submitBookmark(async () => {
+      try {
+        await toggleBookmark(currentUserId, viewer.id, newVal);
+        addToast('success', newVal ? '🔖 Bookmarked!' : 'Bookmark removed');
+      } catch (e) {
+        console.warn('EBooksPage: failed to toggle bookmark:', e.message);
+        setContentStates(prev => ({ ...prev, [key]: { ...prev[key], isBookmarked: !newVal } }));
+        addToast('error', 'Could not update bookmark');
+      }
+    });
   };
 
   // PDF Reader view

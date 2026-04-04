@@ -134,7 +134,7 @@ export default function DiaryPanel({ date, userId, onClose, addToast, onDiarySav
       {/* Panel */}
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0, width: '100%', maxWidth: 420,
-        background: '#fff', zIndex: Z.diary, boxShadow: '-8px 0 32px rgba(0,0,0,0.12)',
+        background: 'var(--surf)', zIndex: Z.diary, boxShadow: '-8px 0 32px rgba(0,0,0,0.12)',
         display: 'flex', flexDirection: 'column', animation: 'slideInRight .25s ease-out',
       }}>
         {/* Header */}

@@ -89,7 +89,7 @@ export default function EngageLanding({ onSelectDoctors, onSelectCAs, darkMode }
             onMouseEnter={() => setHovered('doctors')}
             onMouseLeave={() => setHovered(null)}
             style={{
-              width: 360, padding: 36, borderRadius: 28, cursor: 'pointer',
+              width: '100%', maxWidth: 360, padding: 36, borderRadius: 28, cursor: 'pointer',
               background: hovered === 'doctors'
                 ? 'linear-gradient(145deg, #1D4ED8, #2563EB, #1E40AF)'
                 : (dm ? 'linear-gradient(145deg, #1E293B, #1E3A5F)' : 'linear-gradient(145deg, #EFF6FF, #DBEAFE)'),
@@ -139,7 +139,7 @@ export default function EngageLanding({ onSelectDoctors, onSelectCAs, darkMode }
             onMouseEnter={() => setHovered('cas')}
             onMouseLeave={() => setHovered(null)}
             style={{
-              width: 360, padding: 36, borderRadius: 28, cursor: 'pointer',
+              width: '100%', maxWidth: 360, padding: 36, borderRadius: 28, cursor: 'pointer',
               background: hovered === 'cas'
                 ? 'linear-gradient(145deg, #6D28D9, #7C3AED, #5B21B6)'
                 : (dm ? 'linear-gradient(145deg, #1E293B, #1A0F2E)' : 'linear-gradient(145deg, #F5F3FF, #EDE9FE)'),

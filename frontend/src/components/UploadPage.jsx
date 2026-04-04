@@ -5,6 +5,7 @@ import { auditContent } from '../lib/aiService';
 import AIResponseBox from './AIResponseBox';
 import ConfirmModal from './ui/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
+import { useSubmit } from '../hooks/useSubmit';
 
 const EMOJIS = ['📗', '📘', '📙', '📕'];
 
@@ -17,7 +18,9 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
   const [thumbnailFile, setThumbnailFile] = useState(null);
   const [thumbnailPreview, setThumbnailPreview] = useState(null);
   const [prog, setProg] = useState(0);
-  const [uploading, setUploading] = useState(false);
+  const { submit: handleUpload, isSubmitting: uploading } = useSubmit({
+    onError: (err) => { addToast('error', err.message || 'Upload failed. Please try again.'); setProg(0); },
+  });
   const [done, setDone] = useState(false);
   const [form, setForm] = useState({ title: '', subject: '', access: 'all', description: '' });
   const [aiAudit, setAiAudit] = useState({ loading: false, text: null, error: null });
@@ -78,7 +81,7 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
     reader.readAsDataURL(f);
   };
 
-  const submit = async () => {
+  const submit = () => {
     if (!file) { addToast('error', 'Please select a PDF.'); return; }
     if (!form.title.trim() || !form.subject) { addToast('error', 'Title and category are required.'); return; }
 
@@ -88,10 +91,8 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
       return;
     }
 
-    setUploading(true);
     setProg(10);
-
-    try {
+    handleUpload(async () => {
       const emoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
       const size = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -103,10 +104,7 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
       const { error: storageError } = await supabase.storage
         .from('artifacts')
         .upload(filePath, file, { cacheControl: '3600', upsert: false });
-
-      if (storageError) {
-        throw new Error('Storage upload failed: ' + storageError.message);
-      }
+      if (storageError) throw new Error('Storage upload failed: ' + storageError.message);
 
       const file_url = supabase.storage.from('artifacts').getPublicUrl(filePath).data.publicUrl;
 
@@ -129,52 +127,24 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
       // ── STEP 3: Insert DB row (FATAL — stop on any error) ──
       setProg(80);
       const insertPayload = {
-        title: form.title.trim(),
-        subject: form.subject,
-        type: 'PDF',
-        size,
-        uploaded_by: uploaderName || 'Unknown',
-        uploaded_by_id: authUserId,
-        status: 'pending',
-        emoji,
-        access: form.access,
-        downloads: 0,
-        file_url,
-        thumbnail_url,
-        description: form.description || '',
-        date: today,
+        title: form.title.trim(), subject: form.subject, type: 'PDF', size,
+        uploaded_by: uploaderName || 'Unknown', uploaded_by_id: authUserId,
+        status: 'pending', emoji, access: form.access, downloads: 0,
+        file_url, thumbnail_url, description: form.description || '', date: today,
       };
-
       const { data: inserted, error: dbError } = await supabase
-        .from('artifacts')
-        .insert(insertPayload)
-        .select()
-        .single();
+        .from('artifacts').insert(insertPayload).select().single();
+      if (dbError) throw new Error('Database insert failed: ' + dbError.message);
 
-      if (dbError) {
-        throw new Error('Database insert failed: ' + dbError.message);
-      }
-
-      // ── STEP 4: Only on confirmed DB success — update UI and show toast ──
+      // ── STEP 4: Only on confirmed DB success — update UI ──
       setProg(100);
-      const newArtifact = {
-        ...insertPayload,
-        id: inserted.id,
-        uploadedBy: uploaderName || 'Unknown',
-      };
+      const newArtifact = { ...insertPayload, id: inserted.id, uploadedBy: uploaderName || 'Unknown' };
       setDone(true);
       setMyArtifacts(prev => [newArtifact, ...prev]);
       setCurrentPage(1);
       onUpload(newArtifact);
       addToast('success', `"${form.title.trim()}" submitted for approval!`);
-
-    } catch (err) {
-      // Show exact error message — never silently swallow failures
-      addToast('error', err.message || 'Upload failed. Please try again.');
-      setProg(0);
-    } finally {
-      setUploading(false);
-    }
+    });
   };
 
   const reset = () => {

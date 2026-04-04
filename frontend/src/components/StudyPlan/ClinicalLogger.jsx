@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { trackActivity } from '../../lib/trackActivity';
+import { useSubmit } from '../../hooks/useSubmit';
 
 const DIFFICULTIES = ['easy', 'medium', 'hard'];
 const DIFF_COLORS = { easy: '#10B981', medium: '#F59E0B', hard: '#EF4444' };
@@ -11,7 +12,9 @@ export default function ClinicalLogger({ userId, addToast }) {
   const [form, setForm] = useState(BLANK);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const { submit: submitLog, isSubmitting: saving } = useSubmit({
+    onError: (e) => addToast?.('error', 'Failed to save: ' + e.message),
+  });
   const [expanded, setExpanded] = useState(null);
 
   useEffect(() => { if (userId) fetchLogs(); }, [userId]);
@@ -34,11 +37,10 @@ export default function ClinicalLogger({ userId, addToast }) {
     }
   }
 
-  async function handleSubmit(e) {
+  function handleSubmit(e) {
     e.preventDefault();
     if (!form.case_title.trim()) { addToast?.('error', 'Case title is required.'); return; }
-    setSaving(true);
-    try {
+    submitLog(async () => {
       const { data: inserted, error } = await supabase.from('clinical_logs').insert({
         user_id: userId,
         case_title: form.case_title.trim(),
@@ -51,11 +53,7 @@ export default function ClinicalLogger({ userId, addToast }) {
       setForm(BLANK);
       await fetchLogs();
       trackActivity('clinical_case_logged', inserted?.id || '');
-    } catch (e) {
-      addToast?.('error', 'Failed to save: ' + e.message);
-    } finally {
-      setSaving(false);
-    }
+    });
   }
 
   async function handleDelete(id) {
