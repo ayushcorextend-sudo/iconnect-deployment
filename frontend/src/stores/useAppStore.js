@@ -13,7 +13,7 @@ const fromPath = (pathname) => {
 const VALID_PAGES = new Set([
   'dashboard', 'ebooks', 'upload', 'leaderboard', 'activity', 'notifications',
   'profile', 'users', 'reports', 'settings', 'registration', 'conferences',
-  'exam', 'broadcast', 'performance', 'learn', 'arena-host', 'arena-student',
+  'exam', 'broadcast', 'performance', 'learn', 'live-arena', 'arena-host', 'arena-student',
   'calendar', 'case-sim', 'study-plan', 'exam-manage', 'social', 'groups',
   'kahoot', 'notes',
 ]);
@@ -138,7 +138,9 @@ export const useAppStore = create((set, get) => ({
       })
       .subscribe((status, err) => {
         if (status === 'CHANNEL_ERROR') {
-          console.warn('[Realtime] Channel error for notifications — will retry:', err?.message);
+          console.warn('[Realtime] Channel error for notifications — removing to prevent infinite retry:', err?.message);
+          supabase.removeChannel(channel);
+          _channels.delete(key);
         }
         if (status === 'TIMED_OUT') {
           console.warn('[Realtime] Channel timed out — removing to prevent infinite retry');

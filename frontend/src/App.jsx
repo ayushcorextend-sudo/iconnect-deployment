@@ -333,8 +333,8 @@ function MainApp() {
   // popups across all tabs on every refresh. Now only guards exam sessions.
   useEffect(() => {
     if (!role) return;
-    // Only intercept unload when user is actively taking an exam
-    const isExamActive = page === 'exam' || page === 'arena-student';
+    // Only intercept unload for live arena (ExamPage owns its own guard)
+    const isExamActive = page === 'arena-student';
     if (!isExamActive) return;
     const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
     window.addEventListener('beforeunload', handler);
@@ -658,6 +658,17 @@ function MainApp() {
       case 'performance':  return <MyPerformancePage userId={userId} />;
       case 'notes':        return <NotesPage />;
       case 'learn':        return <LearnHub userId={userId} addToast={addToast} />;
+      case 'live-arena':   return (
+        <div className="page">
+          <div className="empty">
+            <div className="empty-ic">⚔️</div>
+            <div className="empty-t">Live Arena</div>
+            <div className="empty-d" style={{ color: darkMode ? '#9CA3AF' : '#6B7280' }}>
+              Coming soon — live quiz battles with other doctors.
+            </div>
+          </div>
+        </div>
+      );
       case 'arena-host':   return <LiveArenaHost userId={userId} addToast={addToast} />;
       case 'arena-student': return <LiveArenaStudent userId={userId} addToast={addToast} />;
       case 'calendar':     return <StudyCalendar userId={userId} addToast={addToast} />;

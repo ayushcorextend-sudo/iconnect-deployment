@@ -38,6 +38,15 @@ export default function ExamPage({ addToast }) {
     if (selected) idempotencyKeyRef.current = crypto.randomUUID();
   }, [selected?.id]);
 
+  // Warn before closing tab ONLY while exam is in progress (not before start, not after submit)
+  useEffect(() => {
+    const examInProgress = questions.length > 0 && !submitted && !submitting;
+    if (!examInProgress) return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [questions.length, submitted, submitting]);
+
   const loadSubjects = useCallback(() => {
     setSubjectsLoading(true);
     setSubjectsError(false);

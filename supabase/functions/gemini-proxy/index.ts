@@ -15,12 +15,12 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { getCorsHeaders, corsPreflightResponse } from '../_shared/cors.ts'
 
-const GEMINI_MODEL = 'gemini-2.5-flash-lite'
+const GEMINI_MODEL = 'gemini-2.5-flash'
 const GEMINI_BASE  = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}`
 const TIMEOUT_MS   = 15_000
 const MAX_MESSAGES = 50    // Prevent absurdly long context
 const MAX_MSG_CHARS = 4000 // Per-message character limit
-const MAX_OUTPUT_TOKENS = 800
+const MAX_OUTPUT_TOKENS = 2000 // Hard cap for cost control
 
 // ── Structured logging ──────────────────────────────────────────────────────
 function log(level: 'info' | 'warn' | 'error', msg: string, meta: Record<string, unknown> = {}): void {
@@ -119,7 +119,7 @@ serve(async (req) => {
   }
 
   // ── Parse & validate ──────────────────────────────────────────────────────
-  let body: { messages?: Array<{ role: string; content: string }>; system?: string; stream?: boolean }
+  let body: { messages?: Array<{ role: string; content: string }>; system?: string; stream?: boolean; maxTokens?: number; temperature?: number }
   try {
     body = await req.json()
   } catch {
@@ -127,6 +127,8 @@ serve(async (req) => {
   }
 
   const { system = '', stream: wantStream = false } = body
+  const outputTokens = Math.min(body.maxTokens ?? MAX_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS)
+  const temperature  = typeof body.temperature === 'number' ? Math.min(Math.max(body.temperature, 0), 2) : 0.7
   const messages = (body.messages || []).slice(0, MAX_MESSAGES)
 
   if (messages.length === 0) {
@@ -155,7 +157,7 @@ serve(async (req) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: geminiContents,
-          generationConfig: { maxOutputTokens: MAX_OUTPUT_TOKENS, temperature: 0.7 },
+          generationConfig: { maxOutputTokens: outputTokens, temperature },
         }),
       }),
       TIMEOUT_MS
@@ -164,6 +166,12 @@ serve(async (req) => {
     if (!geminiRes.ok) {
       const errText = await geminiRes.text()
       log('error', `Gemini ${geminiRes.status}`, { traceId, detail: errText.slice(0, 200) })
+      if (geminiRes.status === 429) {
+        return jsonResponse(
+          { error: 'AI service is busy. Please wait a moment and try again.' },
+          429, origin, traceId
+        )
+      }
       return jsonResponse(
         { error: `Gemini error: ${geminiRes.status}`, detail: errText.slice(0, 200) },
         502, origin, traceId

@@ -3,7 +3,7 @@
  *
  * ARCHITECTURE:
  *   All AI calls route through Supabase Edge Functions:
- *     - ai-orchestrator: NVIDIA→Gemini fallback, JWT auth, rate limiting, circuit breaker
+ *     - ai-orchestrator: Gemini, JWT auth, rate limiting, circuit breaker
  *     - gemini-proxy: Gemini-only, anon key auth (used by ChatBot chat mode only)
  *
  *   Client features:
@@ -103,6 +103,9 @@ async function callOrchestrator(action, payload, maxTokens = 512, { stream = fal
       const code = err.code || '';
       if (code === 'rate_limited') return { text: null, error: 'You\'ve sent too many requests. Please wait a moment.' };
       if (res.status === 401)      return { text: null, error: 'Session expired. Please refresh the page.' };
+      if (res.status === 404)      return { text: null, error: 'AI service is unavailable. Please try again later.' };
+      if (res.status === 429)      return { text: null, error: 'AI service is busy. Please wait a moment and try again.' };
+      if (res.status === 502 || res.status === 503) return { text: null, error: 'AI service is temporarily unavailable. Please try again in a few seconds.' };
       return { text: null, error: err.error || `AI service error (${res.status})` };
     }
 

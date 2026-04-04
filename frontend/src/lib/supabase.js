@@ -5,6 +5,13 @@ export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321',
   import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6eHN5ZXpucHVkb21lcXhibnZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIzMjQ1NjEsImV4cCI6MjA4NzkwMDU2MX0.4w2UkRl3rxq2WOiQDmY4aMPGUhQ_5V4W8hridmGmy9o',
   {
+    auth: {
+      storageKey: 'iconnect-auth',       // named key prevents collisions with other apps
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+      lock: { timeout: 10000 },          // 10s — handles React Strict Mode double-mount
+    },
     realtime: {
       params: { eventsPerSecond: 2 },
       timeout: 30000, // 30s timeout — prevents infinite retry storms
