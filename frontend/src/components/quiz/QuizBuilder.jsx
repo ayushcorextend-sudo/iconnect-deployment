@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { SPECIALITIES } from '../../data/constants';
 import ConfirmModal from '../ui/ConfirmModal';
 import { QuizQuestionInsertSchema } from '../../schemas/question';
+import { useSubmit } from '../../hooks/useSubmit';
 
 const OPTION_KEYS = ['A', 'B', 'C', 'D'];
 
@@ -25,8 +26,10 @@ export default function QuizBuilder({ userId, addToast }) {
   const [description, setDescription] = useState('');
   const [timeLimitSec, setTimeLimitSec] = useState(600);
   const [questions, setQuestions]     = useState([blankQuestion()]);
-  const [saving, setSaving]           = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const { submit: submitQuiz, isSubmitting: saving } = useSubmit({
+    onError: (e) => addToast('error', 'Save failed: ' + e.message),
+  });
   const [editQuizId, setEditQuizId]   = useState(null);
 
   useEffect(() => { loadQuizzes(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -107,8 +110,7 @@ export default function QuizBuilder({ userId, addToast }) {
       return { ...q, options: q.options.map(o => o.label === optLabel ? { ...o, text } : o) };
     }));
 
-  const save = async (asDraft = false) => {
-    if (saving) return; // prevent double-submit race between click and state update
+  const save = (asDraft = false) => {
     if (!title.trim())  { addToast('error', 'Quiz title is required.'); return; }
     if (!subject)       { addToast('error', 'Subject is required.'); return; }
     for (let i = 0; i < questions.length; i++) {
@@ -118,44 +120,37 @@ export default function QuizBuilder({ userId, addToast }) {
     }
     if (userId?.startsWith('local_')) { addToast('error', 'Cannot save in demo mode.'); return; }
 
-    setSaving(true);
-    try {
+    // BUG-X: validate every question against the canonical schema before any DB write.
+    const questionRows = questions.map((q, i) => ({
+      quiz_id: editQuizId || '__placeholder__',
+      sort_order: i,
+      stem: q.stem.trim(),
+      options: q.options,
+      correct_key: q.correctKey,
+      explanation: q.explanation || undefined,
+    }));
+    for (let i = 0; i < questionRows.length; i++) {
+      const result = QuizQuestionInsertSchema.safeParse(questionRows[i]);
+      if (!result.success) {
+        addToast('error', `Question ${i + 1}: ${result.error.errors[0]?.message || 'Validation failed'}`);
+        return;
+      }
+    }
+
+    submitQuiz(async () => {
       const status = asDraft ? 'draft' : 'pending';
 
-      // BUG-X: validate every question against the canonical schema before any DB write.
-      // This ensures admin-created content is always safe to render on the student side.
-      const questionRows = questions.map((q, i) => ({
-        quiz_id: editQuizId || '__placeholder__', // replaced below after quiz insert
-        sort_order: i,
-        stem: q.stem.trim(),
-        options: q.options,
-        correct_key: q.correctKey,
-        explanation: q.explanation || undefined,
-      }));
-      for (let i = 0; i < questionRows.length; i++) {
-        const result = QuizQuestionInsertSchema.safeParse(questionRows[i]);
-        if (!result.success) {
-          const msg = result.error.errors[0]?.message || 'Validation failed';
-          addToast('error', `Question ${i + 1}: ${msg}`);
-          return;
-        }
-      }
-
       if (editQuizId) {
-        // Update existing
         const { error: qzErr } = await supabase.from('quizzes')
           .update({ title: title.trim(), subject, description, time_limit_sec: timeLimitSec, status })
           .eq('id', editQuizId);
         if (qzErr) throw qzErr;
 
-        // Replace all questions
         await supabase.from('quiz_questions').delete().eq('quiz_id', editQuizId);
         const rows = questionRows.map(r => ({ ...r, quiz_id: editQuizId }));
         const { error: qqErr } = await supabase.from('quiz_questions').insert(rows);
         if (qqErr) throw qqErr;
-        addToast('success', asDraft ? 'Draft saved.' : 'Quiz submitted for approval!');
       } else {
-        // Insert quiz
         const { data: qz, error: qzErr } = await supabase
           .from('quizzes')
           .insert({ title: title.trim(), subject, description, time_limit_sec: timeLimitSec, status, created_by: userId })
@@ -165,17 +160,13 @@ export default function QuizBuilder({ userId, addToast }) {
         const rows = questionRows.map(r => ({ ...r, quiz_id: qz.id }));
         const { error: qqErr } = await supabase.from('quiz_questions').insert(rows);
         if (qqErr) throw qqErr;
-        addToast('success', asDraft ? 'Draft saved.' : 'Quiz submitted for approval!');
       }
 
+      addToast('success', asDraft ? 'Draft saved.' : 'Quiz submitted for approval!');
       await loadQuizzes();
       resetForm();
       setView('list');
-    } catch (e) {
-      addToast('error', 'Save failed: ' + e.message);
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   const statusCfg = {

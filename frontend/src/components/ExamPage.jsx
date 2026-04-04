@@ -5,6 +5,7 @@ import { explainQuestion } from '../lib/aiService';
 import { captureException } from '../lib/sentry';
 import AIResponseBox from './AIResponseBox';
 import { useAuth } from '../context/AuthContext';
+import { useSubmit } from '../hooks/useSubmit';
 
 const OPTS = ['A', 'B', 'C', 'D'];
 
@@ -18,7 +19,12 @@ export default function ExamPage({ addToast }) {
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState({});        // { questionId: 'A'|'B'|'C'|'D' }
   const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const { submit: submitExam, isSubmitting: submitting } = useSubmit({
+    onError: (err) => {
+      captureException(err);
+      addToast('error', 'Failed to submit exam. Please try again.');
+    },
+  });
   const [score, setScore] = useState(null);
   const [aiExplains, setAiExplains] = useState({}); // { [qId]: { loading, text, error } }
 
@@ -77,11 +83,9 @@ export default function ExamPage({ addToast }) {
     setAnswers(prev => ({ ...prev, [qid]: opt }));
   };
 
-  const handleSubmit = async () => {
-    if (submitting || submitted) return;
-    setSubmitting(true);
-    try {
-      // Server-side scoring — no client-side score calculation
+  const handleSubmit = () => {
+    if (submitted) return; // don't re-submit a completed exam
+    submitExam(async () => {
       const { data, error } = await supabase.functions.invoke('submit-exam', {
         body: {
           subject_id: selected.id,
@@ -106,7 +110,7 @@ export default function ExamPage({ addToast }) {
       await trackActivity(data.passed ? 'quiz_passed' : 'quiz_attempted', `exam_${selected.id}`, examDuration);
       await trackActivity('exam_set_completed', `exam_${selected.id}`, examDuration);
 
-      // Auto-create spaced repetition cards for wrong answers (not handled by edge function)
+      // Auto-create spaced repetition cards for wrong answers (non-critical)
       try {
         if (user?.id) {
           const wrongQs = questions.filter(q => answers[q.id] && answers[q.id] !== q.correct);
@@ -116,9 +120,9 @@ export default function ExamPage({ addToast }) {
               user_id: user.id,
               front: q.question,
               // EXAM-2: guard against undefined q.correct before .toLowerCase()
-            back: q.correct
-              ? `Correct: ${q.correct}. ${q[`option_${q.correct.toLowerCase()}`] || ''}${q.explanation ? ' — ' + q.explanation : ''}`
-              : q.explanation || 'See explanation for details.',
+              back: q.correct
+                ? `Correct: ${q.correct}. ${q[`option_${q.correct.toLowerCase()}`] || ''}${q.explanation ? ' — ' + q.explanation : ''}`
+                : q.explanation || 'See explanation for details.',
               subject: selected.name,
               difficulty: q.difficulty || 'medium',
               source_question_id: q.id,
@@ -132,15 +136,9 @@ export default function ExamPage({ addToast }) {
           }
         }
       } catch (srErr) {
-        // SR card creation is non-critical — log but don't block the result display
         captureException(srErr);
       }
-    } catch (err) {
-      captureException(err);
-      addToast('error', 'Failed to submit exam. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
+    });
   };
 
   const handleAIExplain = async (rq) => {

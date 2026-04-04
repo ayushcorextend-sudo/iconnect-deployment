@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { generateSmartNote } from '../lib/aiService';
 import { Z } from '../styles/zIndex';
 import { useAuth } from '../context/AuthContext';
+import { useSubmit } from '../hooks/useSubmit';
 
 /**
  * SmartNotesPanel — slide-out panel for AI-compressed study notes.
@@ -19,8 +20,14 @@ export default function SmartNotesPanel({ onClose, currentArtifact }) {
   // Create-mode state
   const [creating, setCreating] = useState(false);
   const [originalText, setOriginalText] = useState('');
-  const [aiLoading, setAiLoading] = useState(false);
   const [draft, setDraft] = useState(null); // { note, mnemonic, tags, error }
+  const { submit: submitGenerate, isSubmitting: aiLoading } = useSubmit();
+  const { submit: submitSave, isSubmitting: isSavingNote } = useSubmit({
+    onError: (e) => {
+      console.warn('SmartNotesPanel save failed:', e.message);
+      setDraft(prev => prev ? { ...prev, error: 'Failed to save note. Please try again.' } : prev);
+    },
+  });
 
   useEffect(() => {
     if (!userId) { setLoading(false); return; }
@@ -45,21 +52,21 @@ export default function SmartNotesPanel({ onClose, currentArtifact }) {
     setLoading(false);
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     if (!originalText.trim()) return;
-    setAiLoading(true);
     setDraft(null);
-    const result = await generateSmartNote(
-      originalText,
-      currentArtifact?.subject || 'Medicine',
-    );
-    setDraft(result);
-    setAiLoading(false);
+    submitGenerate(async () => {
+      const result = await generateSmartNote(
+        originalText,
+        currentArtifact?.subject || 'Medicine',
+      );
+      setDraft(result);
+    });
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!userId || !draft || draft.error) return;
-    try {
+    submitSave(async () => {
       const { data, error } = await supabase.from('smart_notes').insert([{
         user_id: userId,
         artifact_id: currentArtifact?.id || null,
@@ -70,16 +77,12 @@ export default function SmartNotesPanel({ onClose, currentArtifact }) {
         tags: draft.tags || [],
         is_starred: false,
       }]).select().single();
-      if (!error && data) {
-        setNotes(prev => [data, ...prev]);
-        setCreating(false);
-        setOriginalText('');
-        setDraft(null);
-      }
-    } catch (e) {
-      console.warn('SmartNotesPanel save failed:', e.message);
-      setDraft(prev => prev ? { ...prev, error: 'Failed to save note. Please try again.' } : prev);
-    }
+      if (error) throw error;
+      setNotes(prev => [data, ...prev]);
+      setCreating(false);
+      setOriginalText('');
+      setDraft(null);
+    });
   };
 
   const handleStar = async (note) => {
@@ -227,12 +230,14 @@ export default function SmartNotesPanel({ onClose, currentArtifact }) {
                 )}
                 <button
                   onClick={handleSave}
+                  disabled={isSavingNote}
                   style={{
                     width: '100%', padding: '8px', borderRadius: 8, border: 'none',
-                    background: '#10B981', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                    background: isSavingNote ? '#6EE7B7' : '#10B981', color: '#fff', fontWeight: 700, fontSize: 12,
+                    cursor: isSavingNote ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  💾 Save Note
+                  {isSavingNote ? 'Saving…' : '💾 Save Note'}
                 </button>
               </div>
             )}

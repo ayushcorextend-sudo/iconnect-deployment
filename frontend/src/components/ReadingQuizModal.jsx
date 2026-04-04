@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { trackActivity } from '../lib/trackActivity';
 import { Z } from '../styles/zIndex';
 import { useAuth } from '../context/AuthContext';
+import { useSubmit } from '../hooks/useSubmit';
 
 /**
  * ReadingQuizModal — Proof of Learning
@@ -18,7 +19,9 @@ export default function ReadingQuizModal({ artifact, onClose, onComplete }) {
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
-  const [saving, setSaving] = useState(false);
+  const { submit: submitQuiz, isSubmitting: saving } = useSubmit({
+    onError: (e) => console.warn('ReadingQuizModal: failed to save reading progress:', e.message),
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -40,7 +43,7 @@ export default function ReadingQuizModal({ artifact, onClose, onComplete }) {
     return () => { cancelled = true; };
   }, [artifact]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     let correct = 0;
     questions.forEach((q, i) => {
       if (answers[i] === q.answer) correct++;
@@ -51,9 +54,7 @@ export default function ReadingQuizModal({ artifact, onClose, onComplete }) {
     setSubmitted(true);
     setPhase('result');
 
-    // Save to reading_progress and award points
-    setSaving(true);
-    try {
+    submitQuiz(async () => {
       if (user?.id) {
         await supabase.from('reading_progress').upsert([{
           user_id: user.id,
@@ -74,10 +75,8 @@ export default function ReadingQuizModal({ artifact, onClose, onComplete }) {
           await supabase.rpc('increment_user_score', { p_user_id: user.id, p_points: pts }).catch(() => {});
         }
       }
-    } catch (e) { console.warn('ReadingQuizModal: failed to save reading progress:', e.message); }
-    setSaving(false);
-
-    if (onComplete) onComplete({ score: correct, total, pts });
+      if (onComplete) onComplete({ score: correct, total, pts });
+    });
   };
 
   const allAnswered = questions.length > 0 && Object.keys(answers).length === questions.length;

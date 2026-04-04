@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { STATES, DISTRICTS_BY_STATE, SPECIALITIES, PROG_YEARS, getZone, ZONE_CONFIG } from '../data/constants';
 import { registerUser, uploadVerificationCertificate } from '../lib/supabase';
 import ProfileCompletionPage from './ProfileCompletionPage';
+import { useSubmit } from '../hooks/useSubmit';
 
 const PW_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,}$/;
 const MCI_REGEX = /^[A-Z]{1,5}-\d{4}-\d{4,6}$/;
@@ -163,7 +164,12 @@ const buildProfilePayload = (form) => {
 export default function RegistrationPage({ addToast, setPage, onRegisterSuccess }) {
   const now = new Date().getFullYear();
   const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
+  const { submit: submitRegistration, isSubmitting: loading } = useSubmit({
+    onError: (err) => {
+      addToast('error', err.message || 'Registration failed. Please try again.');
+      setError(err.message || 'Registration failed. Please try again.');
+    },
+  });
   const [done, setDone] = useState(false);
   const [doneData, setDoneData] = useState(null);
   const [error, setError] = useState('');
@@ -284,16 +290,14 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
     setCertFile(file);
   };
 
-  const handleSubmit = async () => {
-    if (loading) return; // prevent double-submit race between click and state update
+  const handleSubmit = () => {
     setError('');
     if (!form.mciNumber.trim()) { setError('MCI/NMC number is required'); return; }
     if (!MCI_REGEX.test(form.mciNumber.trim())) {
       setError('MCI/NMC format: STATE-YEAR-NUMBER (e.g. MH-2024-123456)'); return;
     }
-    setLoading(true);
-    let certUrl = null;
-    try {
+    submitRegistration(async () => {
+      let certUrl = null;
       const profile = buildProfilePayload(form);
       const result = await registerUser(form.email.trim().toLowerCase(), form.password, profile);
 
@@ -324,12 +328,7 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
 
       setDoneData({ certUrl });
       setDone(true);
-    } catch (err) {
-      addToast('error', err.message || 'Registration failed. Please try again.');
-      setError(err.message || 'Registration failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   if (done) {
