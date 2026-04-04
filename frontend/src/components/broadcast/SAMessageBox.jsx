@@ -1,16 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Z } from '../../styles/zIndex';
-
-/* ═══════════════════════════════════════════════════
-   TYPE CONFIG (local copy for SAMessageBox)
-   ═══════════════════════════════════════════════════ */
-const TYPE_CONFIG = {
-  info:    { label: 'Info',    icon: 'ℹ️',  color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
-  success: { label: 'Success', icon: '✅', color: '#10B981', bg: '#ECFDF5', border: '#A7F3D0' },
-  warn:    { label: 'Warning', icon: '⚠️',  color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' },
-  error:   { label: 'Alert',   icon: '🚨', color: '#EF4444', bg: '#FEF2F2', border: '#FECACA' },
-};
+import { TYPE_CONFIG } from './broadcastTypes';
 
 const SA_TYPE_LABELS = {
   info:    { label: 'Information',       icon: 'ℹ️'  },
@@ -111,13 +102,17 @@ export function SAMessageBox({ userId, darkMode }) {
           to   { opacity: 1; transform: scale(1) translateY(0); }
         }
         .sa-letter-modal { animation: sa-letter-in 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+        @media (max-width: 480px) {
+          .sa-trigger { top: 68px !important; right: 8px !important; width: 42px !important; height: 42px !important; font-size: 18px !important; }
+          .sa-label   { display: none !important; }
+        }
       `}</style>
 
       {/* ── Floating trigger ── */}
       <div
         title="You have a message from the Super Admin"
         onClick={() => { setIsOpen(true); setIsPulsing(false); }}
-        className={isPulsing ? 'sa-pulse-anim' : 'sa-float-anim'}
+        className={`${isPulsing ? 'sa-pulse-anim' : 'sa-float-anim'} sa-trigger`}
         style={{
           position: 'fixed',
           top: 88,
@@ -155,7 +150,7 @@ export function SAMessageBox({ userId, darkMode }) {
         )}
       </div>
       {/* Label below */}
-      <div style={{
+      <div className="sa-label" style={{
         position: 'fixed',
         top: 144, right: 10, zIndex: Z.saMessageTrigger,
         fontSize: 9, fontWeight: 800, color: '#EF4444',
@@ -207,6 +202,7 @@ export function SAMessageBox({ userId, darkMode }) {
               </div>
               <button
                 onClick={() => setIsOpen(false)}
+                aria-label="Close messages"
                 style={{
                   background: 'rgba(255,255,255,0.1)', border: 'none', color: '#E0E7FF',
                   cursor: 'pointer', borderRadius: 10, padding: '8px 12px', fontSize: 16,

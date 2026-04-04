@@ -260,6 +260,11 @@
 }
 .chatbot-doubt-reset:hover { color: #4F46E5; }
 
+/* ── Tablet ── */
+@media (min-width: 481px) and (max-width: 768px) {
+  .chatbot-drawer { width: min(380px, calc(100vw - 48px)); }
+}
+
 /* ── Mobile ── */
 @media (max-width: 480px) {
   .chatbot-drawer { width: 100vw; }

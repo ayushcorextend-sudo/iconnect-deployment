@@ -118,8 +118,8 @@ export default function QuestionEditor({ subject, onBack, addToast }) {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                    <button onClick={() => openEdit(q)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, padding: 4 }}>✏️</button>
-                    <button onClick={() => setPendingDelete(q)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, padding: 4 }}>🗑️</button>
+                    <button aria-label="Edit question" onClick={() => openEdit(q)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, padding: 4 }}>✏️</button>
+                    <button aria-label="Delete question" onClick={() => setPendingDelete(q)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, padding: 4 }}>🗑️</button>
                   </div>
                 </div>
               );
@@ -142,7 +142,7 @@ export default function QuestionEditor({ subject, onBack, addToast }) {
           <div className="modal" style={{ maxWidth: 560, width: '95vw' }} onClick={e => e.stopPropagation()}>
             <div className="mh">
               <div className="mt">{modal === 'add' ? '➕ Add Question' : '✏️ Edit Question'}</div>
-              <button className="mc" onClick={() => setModal(null)}>×</button>
+              <button aria-label="Close" className="mc" onClick={() => setModal(null)}>×</button>
             </div>
             <div className="mb" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
               <div className="fg">

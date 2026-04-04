@@ -155,9 +155,9 @@ export default function StudyCalendar({ userId, addToast }) {
         <div className="card" style={{ padding: 20 }}>
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <button onClick={prevMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#374151', padding: '4px 8px' }}>‹</button>
+            <button aria-label="Previous month" onClick={prevMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#374151', padding: '4px 8px' }}>‹</button>
             <div style={{ fontWeight: 700, fontSize: 16 }}>{MONTHS[month]} {year}</div>
-            <button onClick={nextMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#374151', padding: '4px 8px' }}>›</button>
+            <button aria-label="Next month" onClick={nextMonth} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#374151', padding: '4px 8px' }}>›</button>
           </div>
 
           {/* Day labels */}

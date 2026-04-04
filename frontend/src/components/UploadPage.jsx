@@ -3,6 +3,7 @@ import { SPECIALITIES } from '../data/constants';
 import { supabase, deleteArtifact, updateArtifact } from '../lib/supabase';
 import { auditContent } from '../lib/aiService';
 import AIResponseBox from './AIResponseBox';
+import { Z } from '../styles/zIndex';
 import ConfirmModal from './ui/ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import { useSubmit } from '../hooks/useSubmit';
@@ -450,7 +451,7 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
       {/* ── Edit Modal ──────────────────────────────────────────────── */}
       {editTarget && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          style={{ position: 'fixed', inset: 0, zIndex: Z.readingModal, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
           onClick={() => setEditTarget(null)}
         >
           <div
@@ -459,7 +460,7 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
           >
             <div style={{ padding: '14px 20px', borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ fontWeight: 700, fontSize: 15 }}>Edit Artifact</div>
-              <button onClick={() => setEditTarget(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#9CA3AF' }}>×</button>
+              <button aria-label="Close" onClick={() => setEditTarget(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#9CA3AF' }}>×</button>
             </div>
             <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div className="fg">
@@ -501,7 +502,7 @@ export default function UploadPage({ onUpload, addToast, artifacts = [], onDelet
       {/* ── Preview Modal ─────────────────────────────────────────── */}
       {previewItem && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          style={{ position: 'fixed', inset: 0, zIndex: Z.readingModal, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
           onClick={() => setPreviewItem(null)}
         >
           <div

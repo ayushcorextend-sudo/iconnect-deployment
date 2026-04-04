@@ -21,6 +21,8 @@ export default function QuizPlayer({ quizId, userId, addToast, onBack }) {
   // QUIZ-2: track the 350ms auto-advance timeout + mounted state
   const advanceRef  = useRef(null);
   const isMountedRef = useRef(true);
+  // QUIZ-5: prevent timer + auto-advance + submit button from all calling finish() concurrently
+  const finishCalledRef = useRef(false);
 
   // Results
   const [score, setScore]     = useState(0);
@@ -70,6 +72,10 @@ export default function QuizPlayer({ quizId, userId, addToast, onBack }) {
   }, [quizId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const finish = useCallback(async (finalAnswers) => {
+    // QUIZ-5: synchronous ref guard — prevents timer, auto-advance, and submit from racing
+    if (finishCalledRef.current) return;
+    finishCalledRef.current = true;
+
     clearInterval(timerRef.current);
 
     // QUIZ-3: surface error instead of silent return
@@ -241,7 +247,7 @@ export default function QuizPlayer({ quizId, userId, addToast, onBack }) {
             <button className="btn btn-s btn-sm" onClick={() => setCurrent(c => c + 1)}>Skip →</button>
           ) : (
             // QUIZ-1: use answersRef.current so Submit always has latest answers
-            <button className="btn btn-p btn-sm" onClick={() => finish(answersRef.current)}>Submit Quiz</button>
+            <button className="btn btn-p btn-sm" disabled={saving} onClick={() => finish(answersRef.current)}>Submit Quiz</button>
           )}
         </div>
       </div>

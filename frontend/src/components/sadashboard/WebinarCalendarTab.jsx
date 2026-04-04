@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useSubmit } from '../../hooks/useSubmit';
 
 const fmtDt = (d) => d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
@@ -7,8 +8,13 @@ export default function WebinarCalendarTab({ addToast }) {
   const [webinars, setWebinars] = useState([]);
   const [wForm, setWForm] = useState({ title: '', speaker: '', scheduled_at: '', duration_min: 60, join_url: '', description: '' });
   const [showWForm, setShowWForm] = useState(false);
-  const [savingW, setSavingW] = useState(false);
   const [fetchError, setFetchError] = useState(null);
+  const { submit, isSubmitting: savingW } = useSubmit({
+    onError: (e) => {
+      console.warn('WebinarCalendarTab: failed to add webinar:', e.message);
+      addToast('error', 'Failed to schedule webinar. Please try again.');
+    },
+  });
 
   useEffect(() => {
     supabase.from('admin_webinars').select('*').order('scheduled_at').then(({ data, error }) => {
@@ -22,20 +28,14 @@ export default function WebinarCalendarTab({ addToast }) {
 
   const handleAddWebinar = async () => {
     if (!wForm.title || !wForm.scheduled_at) { addToast('error', 'Title and date are required.'); return; }
-    setSavingW(true);
-    try {
+    await submit(async () => {
       const { data, error } = await supabase.from('admin_webinars').insert([wForm]).select().single();
       if (error) throw error;
       setWebinars(prev => [...prev, data]);
       addToast('success', 'Webinar scheduled!');
       setShowWForm(false);
       setWForm({ title: '', speaker: '', scheduled_at: '', duration_min: 60, join_url: '', description: '' });
-    } catch (e) {
-      console.warn('WebinarCalendarTab: failed to add webinar:', e.message);
-      addToast('error', 'Failed to schedule webinar. Please try again.');
-    } finally {
-      setSavingW(false);
-    }
+    });
   };
 
   const handleDeleteWebinar = async (id) => {
@@ -92,7 +92,7 @@ export default function WebinarCalendarTab({ addToast }) {
                       🚀 Join
                     </a>
                   )}
-                  <button onClick={() => handleDeleteWebinar(w.id)} style={{ background: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>🗑</button>
+                  <button aria-label="Delete webinar" onClick={() => handleDeleteWebinar(w.id)} style={{ background: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>🗑</button>
                 </div>
               </div>
             </div>

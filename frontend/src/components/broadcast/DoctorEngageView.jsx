@@ -2,16 +2,8 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import FilterDropdown from './FilterDropdown';
 import { useSubmit } from '../../hooks/useSubmit';
-
-/* ═══════════════════════════════════════════════════
-   TYPE CONFIG
-   ═══════════════════════════════════════════════════ */
-const TYPE_CONFIG = {
-  info:    { label: 'Info',    icon: 'ℹ️',  color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
-  success: { label: 'Success', icon: '✅', color: '#10B981', bg: '#ECFDF5', border: '#A7F3D0' },
-  warn:    { label: 'Warning', icon: '⚠️',  color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' },
-  error:   { label: 'Alert',   icon: '🚨', color: '#EF4444', bg: '#FEF2F2', border: '#FECACA' },
-};
+import { TYPE_CONFIG } from './broadcastTypes';
+import { Z } from '../../styles/zIndex';
 
 /* ═══════════════════════════════════════════════════
    SCORE BUCKETS
@@ -284,7 +276,7 @@ export default function DoctorEngageView({ userId, addToast, darkMode, onBack })
       {/* ── TOP BAR: Back + Title + Filters ── overflow:visible so dropdown panels show below */}
       <div style={{
         background: cardBg, borderBottom: `1px solid ${border}`,
-        flexShrink: 0, overflow: 'visible', position: 'relative', zIndex: 10,
+        flexShrink: 0, overflow: 'visible', position: 'relative', zIndex: Z.local,
       }}>
         {/* Row 1: back + title + search */}
         <div style={{
@@ -340,7 +332,7 @@ export default function DoctorEngageView({ userId, addToast, darkMode, onBack })
         <div style={{
           padding: '0 16px 10px',
           display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', overflow: 'visible',
-          position: 'relative', zIndex: 10,
+          position: 'relative', zIndex: Z.local,
         }}>
           <FilterDropdown
             id="speciality" label="Speciality" icon="🩺"
@@ -404,7 +396,7 @@ export default function DoctorEngageView({ userId, addToast, darkMode, onBack })
               <span style={{ fontSize: 9, opacity: 0.7 }}>{activeDropdown === 'score' ? '▲' : '▼'}</span>
             </button>
             {activeDropdown === 'score' && (
-              <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 200, minWidth: 220, background: dm ? '#1E293B' : '#fff', border: `1px solid ${border}`, borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', padding: '8px 0' }}>
+              <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: Z.modal, minWidth: 220, background: dm ? '#1E293B' : '#fff', border: `1px solid ${border}`, borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', padding: '8px 0' }}>
                 {SCORE_BUCKETS.map(b => (
                   <label key={b.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', cursor: 'pointer', background: filters.scoreRanges.includes(b.key) ? (dm ? accent + '18' : '#EFF6FF') : 'transparent' }}>
                     <input type="checkbox" checked={filters.scoreRanges.includes(b.key)} onChange={() => toggleFilter('scoreRanges', b.key)} style={{ width: 15, height: 15, accentColor: accent, cursor: 'pointer' }} />
@@ -445,7 +437,7 @@ export default function DoctorEngageView({ userId, addToast, darkMode, onBack })
                 border: `1px solid ${dm ? '#1E40AF' : '#BFDBFE'}`,
               }}>
                 {chip.label}
-                <button onClick={e => { e.stopPropagation(); chip.remove(); }} style={{ background: 'none', border: 'none', color: accent, cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 }}>×</button>
+                <button aria-label="Remove filter" onClick={e => { e.stopPropagation(); chip.remove(); }} style={{ background: 'none', border: 'none', color: accent, cursor: 'pointer', padding: 0, fontSize: 12, lineHeight: 1 }}>×</button>
               </span>
             ))}
           </div>
@@ -678,7 +670,7 @@ export default function DoctorEngageView({ userId, addToast, darkMode, onBack })
                         <div style={{ fontSize: 12, fontWeight: 600, color: textP, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</div>
                         <div style={{ fontSize: 10, color: textS }}>{ev.date}</div>
                       </div>
-                      <button onClick={() => handleDeleteEvent(ev.id)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: 14 }}>✕</button>
+                      <button onClick={() => handleDeleteEvent(ev.id)} aria-label="Remove event" style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: 14 }}>✕</button>
                     </div>
                   ))}
                 </div>

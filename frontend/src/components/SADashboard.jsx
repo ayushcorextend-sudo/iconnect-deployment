@@ -3,6 +3,7 @@ import Avatar from './Avatar';
 import { supabase, deleteArtifact, updateArtifact } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { sendNotification } from '../lib/sendNotification';
+import { Z } from '../styles/zIndex';
 import SuperAdminApprovals from './SuperAdminApprovals';
 import UserManagement from './superadmin/UserManagement';
 import ConfirmModal from './ui/ConfirmModal';
@@ -174,7 +175,7 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
     <div className="page">
       {/* Close dropdown on outside click */}
       {openMenu && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpenMenu(null)} />
+        <div style={{ position: 'fixed', inset: 0, zIndex: Z.dropdownBackdrop }} onClick={() => setOpenMenu(null)} />
       )}
 
       <div className="ph">
@@ -305,7 +306,7 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="mh">
               <div className="mt">Review Registration</div>
-              <button className="mc" onClick={() => setReviewUser(null)}>×</button>
+              <button aria-label="Close" className="mc" onClick={() => setReviewUser(null)}>×</button>
             </div>
             <div className="mb">
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, background: '#F9FAFB', borderRadius: 8, padding: 14 }}>
@@ -355,7 +356,7 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="mh">
               <div className="mt">✏️ Edit Artifact</div>
-              <button className="mc" onClick={() => setEditTarget(null)}>×</button>
+              <button aria-label="Close" className="mc" onClick={() => setEditTarget(null)}>×</button>
             </div>
             <div className="mb">
               <div className="fg">

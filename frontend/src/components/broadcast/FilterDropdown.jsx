@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Z } from '../../styles/zIndex';
 
 /* ═══════════════════════════════════════════════════
    DROPDOWN FILTER PILL — for top filter bar
@@ -55,8 +56,8 @@ export default function FilterDropdown({ id, label, icon, options, selected, onT
         <div
           ref={panelRef}
           style={{
-            position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 200,
-            minWidth: 220, maxWidth: 280, maxHeight: 280, overflowY: 'auto',
+            position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: Z.modal,
+            minWidth: 180, maxWidth: 'min(280px, calc(100vw - 32px))', maxHeight: 280, overflowY: 'auto',
             background: dm ? '#1E293B' : '#fff',
             border: `1px solid ${border}`,
             borderRadius: 14,

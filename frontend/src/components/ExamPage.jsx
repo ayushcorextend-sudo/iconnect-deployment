@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { trackActivity, startTimer, stopTimer } from '../lib/trackActivity';
 import { explainQuestion } from '../lib/aiService';
@@ -30,6 +30,13 @@ export default function ExamPage({ addToast }) {
 
   // EXAM-4: retry state for subjects load failure
   const [subjectsError, setSubjectsError] = useState(false);
+
+  // Stable idempotency key per exam session — generated once when the user selects
+  // a subject, not on every submit click (which would defeat idempotency on page-refresh resubmit)
+  const idempotencyKeyRef = useRef(null);
+  useEffect(() => {
+    if (selected) idempotencyKeyRef.current = crypto.randomUUID();
+  }, [selected?.id]);
 
   const loadSubjects = useCallback(() => {
     setSubjectsLoading(true);
@@ -90,7 +97,7 @@ export default function ExamPage({ addToast }) {
         body: {
           subject_id: selected.id,
           answers,  // { [questionId]: 'A'|'B'|'C'|'D' }
-          idempotency_key: crypto.randomUUID(),
+          idempotency_key: idempotencyKeyRef.current,
         }
       });
       if (error) throw error;

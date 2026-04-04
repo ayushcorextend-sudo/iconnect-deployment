@@ -210,8 +210,8 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
           {activeFilterCount > 0 && <span style={{ color: '#7C3AED', fontWeight: 600 }}> · {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active</span>}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className={`btn btn-sm ${viewMode === 'grid' ? 'btn-p' : 'btn-s'}`} onClick={() => setVM('grid')}>⊞</button>
-          <button className={`btn btn-sm ${viewMode === 'list' ? 'btn-p' : 'btn-s'}`} onClick={() => setVM('list')}>☰</button>
+          <button aria-label="Grid view" className={`btn btn-sm ${viewMode === 'grid' ? 'btn-p' : 'btn-s'}`} onClick={() => setVM('grid')}>⊞</button>
+          <button aria-label="List view" className={`btn btn-sm ${viewMode === 'list' ? 'btn-p' : 'btn-s'}`} onClick={() => setVM('list')}>☰</button>
         </div>
       </div>
 
@@ -293,8 +293,8 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
                   <span style={{ fontSize: 11, color: '#6B7280' }}>⬇️ {a.downloads.toLocaleString()}</span>
                   {role === 'superadmin' && a.status === 'pending' ? (
                     <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
-                      <button className="btn btn-p btn-sm" onClick={() => { onApprove(a.id); addToast('success', 'Approved!'); }}>✅</button>
-                      <button className="btn btn-d btn-sm" onClick={() => { onReject(a.id); addToast('error', 'Rejected'); }}>✗</button>
+                      <button aria-label="Approve" className="btn btn-p btn-sm" onClick={() => { onApprove(a.id); addToast('success', 'Approved!'); }}>✅</button>
+                      <button aria-label="Reject" className="btn btn-d btn-sm" onClick={() => { onReject(a.id); addToast('error', 'Rejected'); }}>✗</button>
                     </div>
                   ) : a.status === 'approved' ? (
                     <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
@@ -357,8 +357,8 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
                           ? <button className="btn btn-p btn-sm" onClick={() => handleRead(a)}>{savedPage > 1 ? 'Resume' : 'Read'}</button>
                           : role === 'superadmin'
                             ? <div style={{ display: 'flex', gap: 4 }}>
-                                <button className="btn btn-p btn-sm" onClick={() => { onApprove(a.id); addToast('success', 'Approved!'); }}>✅</button>
-                                <button className="btn btn-d btn-sm" onClick={() => { onReject(a.id); addToast('error', 'Rejected'); }}>✗</button>
+                                <button aria-label="Approve" className="btn btn-p btn-sm" onClick={() => { onApprove(a.id); addToast('success', 'Approved!'); }}>✅</button>
+                                <button aria-label="Reject" className="btn btn-d btn-sm" onClick={() => { onReject(a.id); addToast('error', 'Rejected'); }}>✗</button>
                               </div>
                             : <span style={{ fontSize: 11, color: '#6B7280' }}>Pending Verification</span>}
                       </td>

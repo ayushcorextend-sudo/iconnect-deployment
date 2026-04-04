@@ -8,6 +8,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { semanticSearch, keywordSearch } from '../../lib/semanticSearch';
+import { Z } from '../../styles/zIndex';
 import { useAppStore } from '../../stores/useAppStore';
 
 export default function SemanticSearch({ onSelectArtifact }) {
@@ -100,7 +101,7 @@ export default function SemanticSearch({ onSelectArtifact }) {
       {/* Results Dropdown */}
       {results.length > 0 && (
         <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: Z.modal,
           background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10,
           marginTop: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
           overflow: 'hidden',
@@ -159,7 +160,7 @@ export default function SemanticSearch({ onSelectArtifact }) {
 
       {!loading && query.trim().length >= 2 && results.length === 0 && mode !== 'idle' && (
         <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: Z.modal,
           background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10,
           marginTop: 6, padding: '16px 14px', textAlign: 'center',
           color: '#6B7280', fontSize: 13,

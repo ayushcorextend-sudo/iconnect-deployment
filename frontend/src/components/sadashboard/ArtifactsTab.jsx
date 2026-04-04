@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { sendNotification } from '../../lib/sendNotification';
+import { Z } from '../../styles/zIndex';
 
 export default function ArtifactsTab({ pending, onApprove, onReject, addToast, setLocalArtifacts, artifacts, openMenu, setOpenMenu, handlePreview, handleEditOpen, setPendingDeleteId }) {
   const [rejectPending, setRejectPending] = useState(null); // { id, title }
@@ -71,7 +72,7 @@ export default function ArtifactsTab({ pending, onApprove, onReject, addToast, s
                   ⋮
                 </button>
                 {openMenu === a.id && (
-                  <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 100, minWidth: 130, padding: 4, border: '1px solid #E5E7EB' }}>
+                  <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: Z.dropdown, minWidth: 130, padding: 4, border: '1px solid #E5E7EB' }}>
                     <button
                       onClick={() => handleEditOpen(a)}
                       style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 14px', fontSize: 13, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}
@@ -93,7 +94,7 @@ export default function ArtifactsTab({ pending, onApprove, onReject, addToast, s
       }
       {rejectPending && (
         <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: Z.confirmModal, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={() => setRejectPending(null)}
         >
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400, margin: '0 16px', boxShadow: '0 16px 48px rgba(0,0,0,0.2)' }}>

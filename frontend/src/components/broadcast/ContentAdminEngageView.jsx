@@ -1,15 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-
-/* ═══════════════════════════════════════════════════
-   TYPE CONFIG (local copy)
-   ═══════════════════════════════════════════════════ */
-const TYPE_CONFIG = {
-  info:    { label: 'Info',    icon: 'ℹ️',  color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE' },
-  success: { label: 'Success', icon: '✅', color: '#10B981', bg: '#ECFDF5', border: '#A7F3D0' },
-  warn:    { label: 'Warning', icon: '⚠️',  color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A' },
-  error:   { label: 'Alert',   icon: '🚨', color: '#EF4444', bg: '#FEF2F2', border: '#FECACA' },
-};
+import { TYPE_CONFIG } from './broadcastTypes';
+import { Z } from '../../styles/zIndex';
 
 /* ═══════════════════════════════════════════════════
    CONTENT ADMIN ENGAGE VIEW — new superadmin tool
@@ -184,7 +176,7 @@ export default function ContentAdminEngageView({ userId, addToast, darkMode, onB
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', overflow: 'hidden', background: bg }}>
 
       {/* TOP BAR — overflow:visible so filter dropdowns show below */}
-      <div style={{ background: cardBg, borderBottom: `1px solid ${border}`, flexShrink: 0, overflow: 'visible', position: 'relative', zIndex: 10 }}>
+      <div style={{ background: cardBg, borderBottom: `1px solid ${border}`, flexShrink: 0, overflow: 'visible', position: 'relative', zIndex: Z.local }}>
         <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <button
             onClick={onBack}
@@ -240,7 +232,7 @@ export default function ContentAdminEngageView({ userId, addToast, darkMode, onB
                 {label} <span style={{ fontSize: 9, opacity: 0.7 }}>{activeDropdown === id ? '▲' : '▼'}</span>
               </button>
               {activeDropdown === id && (
-                <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 200, minWidth: 200, background: dm ? '#1E293B' : '#fff', border: `1px solid ${border}`, borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', padding: '8px 0' }}>
+                <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: Z.modal, minWidth: 200, background: dm ? '#1E293B' : '#fff', border: `1px solid ${border}`, borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', padding: '8px 0' }}>
                   {opts.map(opt => (
                     <button key={opt.v} onClick={() => { set(opt.v); setActiveDropdown(null); }}
                       style={{ display: 'block', width: '100%', padding: '9px 16px', border: 'none', cursor: 'pointer', textAlign: 'left', fontSize: 12, fontWeight: val === opt.v ? 700 : 400, background: val === opt.v ? (dm ? accent + '22' : '#F5F3FF') : 'transparent', color: val === opt.v ? accent : textP }}>

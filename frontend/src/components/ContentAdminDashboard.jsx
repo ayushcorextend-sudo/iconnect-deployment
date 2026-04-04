@@ -213,8 +213,8 @@ export default function ContentAdminDashboard({ userId, userName, role, setPage,
                         <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: sc.bg, color: sc.color, flexShrink: 0 }}>{sc.label}</span>
                         {(a.status === 'pending' || a.status === 'rejected') && (
                           <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                            <button onClick={() => openEdit(a)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>✏️</button>
-                            <button onClick={() => setPendingDelete(a)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
+                            <button aria-label="Edit artifact" onClick={() => openEdit(a)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>✏️</button>
+                            <button aria-label="Delete artifact" onClick={() => setPendingDelete(a)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
                           </div>
                         )}
                       </div>
@@ -251,7 +251,7 @@ export default function ContentAdminDashboard({ userId, userName, role, setPage,
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="mh">
               <div className="mt">{editTarget.status === 'rejected' ? '✏️ Edit & Re-submit' : '✏️ Edit Artifact'}</div>
-              <button className="mc" onClick={() => setEditTarget(null)}>×</button>
+              <button aria-label="Close" className="mc" onClick={() => setEditTarget(null)}>×</button>
             </div>
             <div className="mb">
               {editTarget.status === 'rejected' && editTarget.rejection_reason && (

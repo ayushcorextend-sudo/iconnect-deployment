@@ -1,14 +1,25 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 
 const ALLOWED_ORIGIN = 'https://iconnect-med.vercel.app'
+const ALLOWED_LOCAL_ORIGINS = new Set(['http://localhost:3000', 'http://localhost:5173'])
 
 const corsHeaders = (origin: string) => ({
-  'Access-Control-Allow-Origin': origin === ALLOWED_ORIGIN || origin.startsWith('http://localhost') ? origin : ALLOWED_ORIGIN,
+  'Access-Control-Allow-Origin': origin === ALLOWED_ORIGIN || ALLOWED_LOCAL_ORIGINS.has(origin) ? origin : ALLOWED_ORIGIN,
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'authorization, content-type',
 })
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+}
+
 function approvalHtml(doctorName: string, doctorEmail: string, mciNumber: string, college: string): string {
+  const n = escapeHtml(doctorName), e = escapeHtml(doctorEmail), m = escapeHtml(mciNumber), c = escapeHtml(college)
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><style>
@@ -33,12 +44,12 @@ body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 
     <p>Your account has been approved</p>
   </div>
   <div class="body">
-    <p>Dear <strong>${doctorName}</strong>,</p>
+    <p>Dear <strong>${n}</strong>,</p>
     <p>We are pleased to inform you that your iConnect account has been <strong>approved</strong> by our admin team.</p>
     <div class="info-box">
-      <div class="info-row"><span class="label">Email</span><span class="value">${doctorEmail}</span></div>
-      <div class="info-row"><span class="label">MCI Number</span><span class="value">${mciNumber}</span></div>
-      <div class="info-row"><span class="label">College</span><span class="value">${college}</span></div>
+      <div class="info-row"><span class="label">Email</span><span class="value">${e}</span></div>
+      <div class="info-row"><span class="label">MCI Number</span><span class="value">${m}</span></div>
+      <div class="info-row"><span class="label">College</span><span class="value">${c}</span></div>
     </div>
     <p>You can now login using the email and password you set during registration.</p>
     <a href="https://iconnect-med.vercel.app" class="btn">Access iConnect Platform &rarr;</a>
@@ -49,9 +60,10 @@ body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 
 </body></html>`
 }
 
-function rejectionHtml(doctorName: string, doctorEmail: string, mciNumber: string, rejectionReason: string): string {
-  const reasonBlock = rejectionReason
-    ? `<div class="info-box"><strong>Reason provided:</strong><br>${rejectionReason}</div>`
+function rejectionHtml(doctorName: string, _doctorEmail: string, mciNumber: string, rejectionReason: string): string {
+  const n = escapeHtml(doctorName), m = escapeHtml(mciNumber), r = escapeHtml(rejectionReason)
+  const reasonBlock = r
+    ? `<div class="info-box"><strong>Reason provided:</strong><br>${r}</div>`
     : ''
   return `<!DOCTYPE html>
 <html>
@@ -72,8 +84,8 @@ body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 
     <p>iConnect &mdash; Icon Lifescience</p>
   </div>
   <div class="body">
-    <p>Dear <strong>${doctorName}</strong>,</p>
-    <p>After reviewing your registration (MCI: ${mciNumber}), we were unable to verify your account at this time.</p>
+    <p>Dear <strong>${n}</strong>,</p>
+    <p>After reviewing your registration (MCI: ${m}), we were unable to verify your account at this time.</p>
     ${reasonBlock}
     <p>Please contact <strong>support@iconnect.in</strong> with your correct MCI registration documents to resolve this.</p>
     <p style="font-size:13px;color:#6B7280;">If you believe this is an error, please reach out with your MCI certificate and a photo ID.</p>

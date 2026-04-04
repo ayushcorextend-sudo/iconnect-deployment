@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { getCached, setCached } from '../lib/dataCache';
 import LeaderboardRow from './leaderboard/LeaderboardRow';
 import { useAuth } from '../context/AuthContext';
+import { Z } from '../styles/zIndex';
 
 function calculateStreak(logs) {
   const dates = new Set((logs || []).map(l => l.created_at.split('T')[0]));
@@ -339,7 +340,7 @@ export default function LeaderboardPage({ setPage }) {
       {/* Sticky personal rank footer */}
       {!loading && (
         <div style={{
-          position: 'sticky', bottom: 0, zIndex: 50,
+          position: 'sticky', bottom: 0, zIndex: Z.topBar,
           background: 'linear-gradient(135deg,#1E1B4B,#3730A3)',
           borderRadius: '12px 12px 0 0',
           padding: '12px 18px',

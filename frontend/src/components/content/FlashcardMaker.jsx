@@ -115,7 +115,7 @@ export default function FlashcardMaker({ userId, addToast }) {
                   </div>
                   <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: sc.bg, color: sc.color }}>{sc.label}</span>
                   {d.status !== 'approved' && (
-                    <button onClick={() => setPendingDeleteId(d.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
+                    <button aria-label="Delete flashcard" onClick={() => setPendingDeleteId(d.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
                   )}
                 </div>
               );

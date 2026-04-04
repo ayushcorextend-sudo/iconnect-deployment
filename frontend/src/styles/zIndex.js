@@ -1,11 +1,12 @@
 // Centralized z-index scale — never use magic numbers inline
 export const Z = {
-  base:          0,
-  raised:        1,
-  local:         10,
-  topBar:        50,
-  sidebar:       100,
-  dropdown:      150,
+  base:             0,
+  raised:           1,
+  local:            10,
+  topBar:           50,
+  sidebar:          100,
+  dropdownBackdrop: 99,   // click-capture overlay that closes an open dropdown
+  dropdown:         150,
   modal:         200,
   readingModal:  300,
   smartNotes:    400,

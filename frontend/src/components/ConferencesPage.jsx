@@ -24,7 +24,7 @@ export default function ConferencesPage({ role, addToast }) {
   useEffect(() => {
     supabase.from('conferences').select('*').order('start_date', { ascending: true })
       .then(({ data }) => { if (data?.length) setConferences(data); })
-      .catch(() => {})
+      .catch(e => console.warn('[ConferencesPage] failed to load conferences:', e.message))
       .finally(() => setLoading(false));
   }, []);
 

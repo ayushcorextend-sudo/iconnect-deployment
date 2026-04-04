@@ -22,7 +22,7 @@ export default function ConfirmModal({ message, onConfirm, onCancel, confirmLabe
       >
         <div className="mh">
           <div className="mt">{danger ? '⚠️ Confirm' : '🔔 Confirm'}</div>
-          <button className="mc" onClick={onCancel}>×</button>
+          <button aria-label="Close" className="mc" onClick={onCancel}>×</button>
         </div>
         <div className="mb">
           <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.6, margin: 0 }}>{message}</p>

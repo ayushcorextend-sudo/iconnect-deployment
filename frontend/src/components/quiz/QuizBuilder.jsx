@@ -210,10 +210,10 @@ export default function QuizBuilder({ userId, addToast }) {
                     {sc.label}
                   </span>
                   {(q.status === 'draft' || q.status === 'rejected') && (
-                    <button onClick={() => openEdit(q)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>✏️</button>
+                    <button onClick={() => openEdit(q)} aria-label="Edit quiz" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>✏️</button>
                   )}
                   {q.status !== 'approved' && (
-                    <button onClick={() => setPendingDeleteId(q.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
+                    <button onClick={() => setPendingDeleteId(q.id)} aria-label="Delete quiz" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
                   )}
                 </div>
               );

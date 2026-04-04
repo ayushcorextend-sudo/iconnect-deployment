@@ -165,7 +165,7 @@ export default function VideoManager({ userId, addToast }) {
                 </div>
                 <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: sc.bg, color: sc.color, flexShrink: 0 }}>{sc.label}</span>
                 {v.status !== 'approved' && (
-                  <button onClick={() => setPendingDeleteId(v.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
+                  <button aria-label="Delete video" onClick={() => setPendingDeleteId(v.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
                 )}
               </div>
             );

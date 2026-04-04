@@ -3,6 +3,7 @@ import Avatar from './Avatar';
 import { STATES, SPECIALITIES, PROG_YEARS, DISTRICTS_BY_STATE } from '../data/constants';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { useSubmit } from '../hooks/useSubmit';
 
 const ROLE_LABELS = {
   superadmin:   { label: 'Super Admin',   icon: '🛡️', color: '#7C3AED', bg: 'rgba(124,58,237,0.1)' },
@@ -14,8 +15,10 @@ export default function ProfilePage({ addToast }) {
   const now = new Date().getFullYear();
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState(user?.id ?? null);
+  const { submit, isSubmitting: saving } = useSubmit({
+    onError: (e) => addToast('error', e.message || 'Could not save profile. Please try again.'),
+  });
   const [role, setRole] = useState('doctor');
   const [form, setForm] = useState({
     name: '', email: '', phone: '',
@@ -144,8 +147,7 @@ export default function ProfilePage({ addToast }) {
         addToast('error', 'Enter a valid 10-digit Indian mobile number.'); return;
       }
     }
-    setSaving(true);
-    try {
+    await submit(async () => {
       const base = {
         id: userId,
         name: form.name.trim(),
@@ -168,11 +170,7 @@ export default function ProfilePage({ addToast }) {
       if (error) throw error;
       setEditing(false);
       addToast('success', 'Profile saved!');
-    } catch (e) {
-      addToast('error', e.message || 'Could not save profile. Please try again.');
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   if (loading) return (

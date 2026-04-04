@@ -312,7 +312,7 @@ function MainApp() {
       // SEC-004: Flush any activity logs saved to localStorage during a previous
       // page close (the beforeunload fallback in trackActivity.js).
       // Auth is established at this point so the flush uses proper credentials.
-      flushPendingFromStorage().catch(() => {});
+      flushPendingFromStorage().catch(e => console.warn('[App] flushPendingFromStorage failed:', e.message));
 
       // Kick off parallel post-login data fetches — none are blocking for render
       const parallelFetches = [
@@ -392,7 +392,7 @@ function MainApp() {
       setUser(uid, r);
       fetchNotifs(uid);
       if (r === 'superadmin' || r === 'contentadmin') fetchUsers();
-      fetchArtifacts(r).then(data => { if (data?.length) setArtifacts(data); }).catch(() => {});
+      fetchArtifacts(r).then(data => { if (data?.length) setArtifacts(data); }).catch(e => console.warn('[App] fetchArtifacts (login) failed:', e.message));
       // Track daily login
       const todayKey = `iconnect_daily_login_${uid}_${new Date().toDateString()}`;
       if (!localStorage.getItem(todayKey)) {
@@ -575,6 +575,7 @@ function MainApp() {
             pendingMessage={pendingMessage}
             onDismissPendingMessage={() => setPendingMessage(null)}
             addToast={addToast}
+            darkMode={darkMode}
           />
       }
       <Toasts toasts={toasts} />

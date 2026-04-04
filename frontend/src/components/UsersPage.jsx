@@ -3,6 +3,7 @@ import Avatar from './Avatar';
 import { STATES } from '../data/constants';
 import { supabase } from '../lib/supabase';
 import ConfirmModal from './ui/ConfirmModal';
+import { useSubmit } from '../hooks/useSubmit';
 
 const PAGE_SIZE = 25;
 
@@ -36,7 +37,9 @@ export default function UsersPage({ addToast, role, userId }) {
   const [adminSearchResult, setAdminSearchResult] = useState(null);
   const [adminSearching, setAdminSearching] = useState(false);
   const [newAdminRole, setNewAdminRole] = useState('contentadmin');
-  const [promoting, setPromoting] = useState(false);
+  const { submit: submitGrant, isSubmitting: promoting } = useSubmit({
+    onError: (e) => addToast('error', 'Failed: ' + e.message),
+  });
 
   // Debounce search input by 300ms
   useEffect(() => {
@@ -136,16 +139,15 @@ export default function UsersPage({ addToast, role, userId }) {
 
   const grantAdminRole = async () => {
     if (!adminSearchResult || adminSearchResult === 'not_found') return;
-    setPromoting(true);
-    const { error } = await supabase.from('profiles').update({ role: newAdminRole }).eq('id', adminSearchResult.id);
-    if (error) { addToast('error', 'Failed: ' + error.message); setPromoting(false); return; }
-    addToast('success', `${adminSearchResult.name || adminSearchResult.email} is now ${newAdminRole === 'superadmin' ? 'Super Admin' : 'Content Admin'}.`);
-    setAdminSearchResult(null);
-    setAdminSearch('');
-    // Refresh list
-    const { data } = await supabase.from('profiles').select('id,name,email,role,created_at').in('role', ['superadmin', 'contentadmin']).order('created_at', { ascending: false });
-    setAdmins(data || []);
-    setPromoting(false);
+    await submitGrant(async () => {
+      const { error } = await supabase.from('profiles').update({ role: newAdminRole }).eq('id', adminSearchResult.id);
+      if (error) throw error;
+      addToast('success', `${adminSearchResult.name || adminSearchResult.email} is now ${newAdminRole === 'superadmin' ? 'Super Admin' : 'Content Admin'}.`);
+      setAdminSearchResult(null);
+      setAdminSearch('');
+      const { data } = await supabase.from('profiles').select('id,name,email,role,created_at').in('role', ['superadmin', 'contentadmin']).order('created_at', { ascending: false });
+      setAdmins(data || []);
+    });
   };
 
   const revokeAdminRole = async (adminId, adminName) => {
@@ -287,7 +289,7 @@ export default function UsersPage({ addToast, role, userId }) {
                           }
                         </td>
                         <td>
-                          <button className="btn btn-s btn-sm" onClick={() => setSel(u)}>👁</button>
+                          <button className="btn btn-s btn-sm" aria-label="View doctor profile" onClick={() => setSel(u)}>👁</button>
                         </td>
                       </tr>
                     ))}
@@ -436,7 +438,7 @@ export default function UsersPage({ addToast, role, userId }) {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="mh">
               <div className="mt">Doctor Profile</div>
-              <button className="mc" onClick={() => setSel(null)}>×</button>
+              <button className="mc" aria-label="Close profile" onClick={() => setSel(null)}>×</button>
             </div>
             <div className="mb">
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, background: '#F9FAFB', borderRadius: 8, padding: 14 }}>

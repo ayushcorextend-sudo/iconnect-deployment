@@ -37,7 +37,7 @@ export default function SettingsPage({ addToast }) {
     // Load Kahoot PIN
     supabase.from('app_settings').select('value').eq('key', 'kahoot_pin').maybeSingle()
       .then(({ data }) => setKahootPin(data?.value || ''))
-      .catch(() => {});
+      .catch(e => console.warn('[SettingsPage] failed to load kahoot_pin:', e.message));
   }, []);
 
   const savePrefs = async (updated) => {

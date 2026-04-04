@@ -631,7 +631,7 @@ export default function UserManagement({ addToast }) {
           <div className="modal" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
             <div className="mh">
               <span>📣 Send Notification</span>
-              <button onClick={() => !sending && setShowModal(false)} className="mh-close">×</button>
+              <button aria-label="Close" onClick={() => !sending && setShowModal(false)} className="mh-close">×</button>
             </div>
             <div style={{ padding: '20px 24px' }}>
               <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, padding: '10px 14px', marginBottom: 18, fontSize: 13, color: '#1D4ED8' }}>

@@ -309,7 +309,7 @@ export default function SuperAdminApprovals({ addToast }) {
           >
             <div className="mh">
               <div className="mt">{reviewItem._icon} Review & Edit — {reviewItem._typeLabel}</div>
-              <button className="mc" onClick={closeModal}>×</button>
+              <button aria-label="Close" className="mc" onClick={closeModal}>×</button>
             </div>
 
             {reviewLoading ? (

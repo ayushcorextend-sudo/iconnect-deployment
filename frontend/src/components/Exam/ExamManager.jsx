@@ -129,8 +129,8 @@ export default function ExamManager({ userId, addToast }) {
                   >
                     📝 Questions
                   </button>
-                  <button onClick={() => openEdit(s)} style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 8, cursor: 'pointer', padding: '6px 8px', fontSize: 14 }}>✏️</button>
-                  <button onClick={() => setPendingDelete(s)} style={{ background: 'none', border: '1px solid #FEE2E2', borderRadius: 8, cursor: 'pointer', padding: '6px 8px', fontSize: 14 }}>🗑️</button>
+                  <button aria-label="Edit exam set" onClick={() => openEdit(s)} style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 8, cursor: 'pointer', padding: '6px 8px', fontSize: 14 }}>✏️</button>
+                  <button aria-label="Delete exam set" onClick={() => setPendingDelete(s)} style={{ background: 'none', border: '1px solid #FEE2E2', borderRadius: 8, cursor: 'pointer', padding: '6px 8px', fontSize: 14 }}>🗑️</button>
                 </div>
               </div>
             );
@@ -144,7 +144,7 @@ export default function ExamManager({ userId, addToast }) {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="mh">
               <div className="mt">{modal === 'add' ? '➕ New Exam Subject' : '✏️ Edit Subject'}</div>
-              <button className="mc" onClick={() => setModal(null)}>×</button>
+              <button aria-label="Close" className="mc" onClick={() => setModal(null)}>×</button>
             </div>
             <div className="mb">
               <div className="fg">

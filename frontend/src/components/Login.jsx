@@ -33,7 +33,8 @@ const MODE = {
   contentadmin: { heading: 'Content Admin Portal',   sub: 'Content Admin credentials required',    color: '#2563EB', bg: '#EFF6FF', border: '#BFDBFE', icon: '📚' },
 };
 
-export default function Login({ onLogin, onRegister, pendingMessage, onDismissPendingMessage, addToast }) {
+export default function Login({ onLogin, onRegister, pendingMessage, onDismissPendingMessage, addToast, darkMode }) {
+  const dm = darkMode;
   const tenant = useTenantStore(s => s.tenant);
 
   // Auth mode: 'doctor' | 'superadmin' | 'contentadmin'
@@ -205,8 +206,8 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
   const tabStyle = (t) => ({
     flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
     fontWeight: 500, fontSize: 13,
-    background: tab === t ? (authMode === 'doctor' ? '#4F46E5' : MODE[authMode].color) : '#F3F4F6',
-    color: tab === t ? '#fff' : '#6B7280',
+    background: tab === t ? (authMode === 'doctor' ? '#4F46E5' : MODE[authMode].color) : (dm ? '#1E293B' : '#F3F4F6'),
+    color: tab === t ? '#fff' : (dm ? '#94A3B8' : '#6B7280'),
     transition: 'all 0.15s',
   });
 
@@ -450,15 +451,15 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
                 disabled={loading === 'google'}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  gap: 10, padding: '12px 16px', borderRadius: 10, border: '1px solid #E5E7EB',
-                  background: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500, color: '#374151',
+                  gap: 10, padding: '12px 16px', borderRadius: 10, border: `1px solid ${dm ? '#334155' : '#E5E7EB'}`,
+                  background: dm ? '#1E293B' : '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 500, color: dm ? '#E2E8F0' : '#374151',
                   boxShadow: '0 1px 2px rgba(0,0,0,0.06)', marginBottom: 8,
                 }}
               >
                 {loading === 'google' ? <Spinner /> : GOOGLE_ICON}
                 {loading === 'google' ? 'Redirecting…' : 'Continue with Google'}
               </button>
-              <p style={{ textAlign: 'center', fontSize: 12, color: '#9CA3AF', marginTop: 4, marginBottom: 12 }}>
+              <p style={{ textAlign: 'center', fontSize: 12, color: dm ? '#64748B' : '#9CA3AF', marginTop: 4, marginBottom: 12 }}>
                 You'll complete your profile after signing in
               </p>
               {error && (
@@ -474,11 +475,11 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
             <>
               {/* Divider */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0 16px' }}>
-                <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                <div style={{ flex: 1, height: 1, background: dm ? '#334155' : '#E5E7EB' }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: dm ? '#475569' : '#9CA3AF', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                   Admin Access
                 </span>
-                <div style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+                <div style={{ flex: 1, height: 1, background: dm ? '#334155' : '#E5E7EB' }} />
               </div>
 
               {/* Admin buttons */}

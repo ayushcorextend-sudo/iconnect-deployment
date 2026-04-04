@@ -207,8 +207,8 @@ export default function CADashboard({ userId, userName, setPage, notifications =
                 {/* Edit + Delete (pending/rejected only) */}
                 {canEdit && (
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                    <button onClick={() => openEdit(a)} title={a.status === 'rejected' ? 'Edit & Re-submit' : 'Edit'} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>✏️</button>
-                    <button onClick={() => setPendingDeleteId(a.id)} title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
+                    <button onClick={() => openEdit(a)} aria-label={a.status === 'rejected' ? 'Edit & re-submit' : 'Edit artifact'} title={a.status === 'rejected' ? 'Edit & Re-submit' : 'Edit'} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>✏️</button>
+                    <button onClick={() => setPendingDeleteId(a.id)} aria-label="Delete artifact" title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: 4 }}>🗑️</button>
                   </div>
                 )}
               </div>
@@ -223,7 +223,7 @@ export default function CADashboard({ userId, userName, setPage, notifications =
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="mh">
               <div className="mt">{editTarget.status === 'rejected' ? '✏️ Edit & Re-submit' : '✏️ Edit Artifact'}</div>
-              <button className="mc" onClick={() => setEditTarget(null)}>×</button>
+              <button aria-label="Close" className="mc" onClick={() => setEditTarget(null)}>×</button>
             </div>
             <div className="mb">
               {/* Show admin feedback at top for rejected items */}

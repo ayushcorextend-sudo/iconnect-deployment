@@ -89,11 +89,11 @@ export default function PDFReaderView({
             >
               🔖 {isBookmarked ? 'Saved' : 'Bookmark'}
             </button>
-            <button className="pdf-btn" onClick={() => handleZoom(zoom - 25)}>−</button>
+            <button aria-label="Zoom out" className="pdf-btn" onClick={() => handleZoom(zoom - 25)}>−</button>
             <span style={{ color: 'rgba(255,255,255,.6)', fontSize: 12, minWidth: 38, textAlign: 'center' }}>{zoom}%</span>
-            <button className="pdf-btn" onClick={() => handleZoom(zoom + 25)}>+</button>
+            <button aria-label="Zoom in" className="pdf-btn" onClick={() => handleZoom(zoom + 25)}>+</button>
             <button className="pdf-btn" onClick={() => handleZoom(100)}>Reset</button>
-            <button className="pdf-btn" onClick={() => setFS(f => !f)}>{fullscreen ? '⤡' : '⤢'}</button>
+            <button aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} className="pdf-btn" onClick={() => setFS(f => !f)}>{fullscreen ? '⤡' : '⤢'}</button>
             {fullscreen && <button className="pdf-btn" onClick={handleClose}>✕ Close</button>}
           </div>
         </div>
@@ -106,7 +106,7 @@ export default function PDFReaderView({
           {/* Watermark tiles */}
           <div style={{
             position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden',
-            display: 'flex', flexWrap: 'wrap', alignContent: 'flex-start', zIndex: 10,
+            display: 'flex', flexWrap: 'wrap', alignContent: 'flex-start', zIndex: Z.local,
           }}>
             {Array.from({ length: 24 }).map((_, i) => (
               <div key={i} style={{
@@ -168,12 +168,12 @@ export default function PDFReaderView({
           position: 'fixed', top: 0, right: 0, height: '100vh', width: 320,
           background: 'var(--white)', borderLeft: '1px solid var(--border)',
           boxShadow: '-4px 0 24px rgba(0,0,0,0.14)',
-          zIndex: 200, display: 'flex', flexDirection: 'column',
+          zIndex: Z.modal, display: 'flex', flexDirection: 'column',
           fontFamily: 'Inter, sans-serif',
         }}>
           <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F9FAFB' }}>
             <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>📝 My Notes</div>
-            <button onClick={() => setShowNotes(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#6B7280', lineHeight: 1 }}>×</button>
+            <button aria-label="Close notes" onClick={() => setShowNotes(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#6B7280', lineHeight: 1 }}>×</button>
           </div>
           <div style={{ padding: 14, borderBottom: '1px solid var(--border)' }}>
             <textarea

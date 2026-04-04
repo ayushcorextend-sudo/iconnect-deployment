@@ -3,6 +3,7 @@ import { getDiaryEntry, upsertDiaryEntry } from '../../lib/supabase';
 import { trackActivity } from '../../lib/trackActivity';
 import { supabase } from '../../lib/supabase';
 import { Z } from '../../styles/zIndex';
+import { useSubmit } from '../../hooks/useSubmit';
 
 const MOODS = [
   { key: 'great', emoji: '😄', label: 'Great' },
@@ -42,9 +43,11 @@ export default function DiaryPanel({ date, userId, onClose, addToast, onDiarySav
   const [studyHours, setStudyHours] = useState(0);
   const [goalsMet, setGoalsMet] = useState(false);
   const [dayLogs, setDayLogs] = useState([]);
-  const [saving, setSaving] = useState(false);
   const [isNew, setIsNew] = useState(true);
   const debounceRef = useRef(null);
+  const { submit, isSubmitting: saving } = useSubmit({
+    onError: (e) => addToast?.('error', 'Could not save diary: ' + e.message),
+  });
 
   useEffect(() => {
     if (!date || !userId) return;
@@ -79,8 +82,7 @@ export default function DiaryPanel({ date, userId, onClose, addToast, onDiarySav
 
   async function saveDiary(updates) {
     if (!userId || !date) return;
-    setSaving(true);
-    try {
+    await submit(async () => {
       const { error } = await upsertDiaryEntry(userId, date, {
         mood: updates.mood ?? mood,
         personal_notes: updates.notes ?? notes,
@@ -93,11 +95,7 @@ export default function DiaryPanel({ date, userId, onClose, addToast, onDiarySav
         trackActivity('diary_entry', date);
         onDiarySaved?.(date);
       }
-    } catch (e) {
-      addToast?.('error', 'Could not save diary: ' + e.message);
-    } finally {
-      setSaving(false);
-    }
+    });
   }
 
   function handleNotesChange(val) {
@@ -136,15 +134,16 @@ export default function DiaryPanel({ date, userId, onClose, addToast, onDiarySav
         position: 'fixed', top: 0, right: 0, bottom: 0, width: '100%', maxWidth: 420,
         background: 'var(--surf)', zIndex: Z.diary, boxShadow: '-8px 0 32px rgba(0,0,0,0.12)',
         display: 'flex', flexDirection: 'column', animation: 'slideInRight .25s ease-out',
+        paddingRight: 'env(safe-area-inset-right, 0px)',
       }}>
         {/* Header */}
-        <div style={{ padding: '16px 18px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <div style={{ padding: '16px 18px', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: '#111827' }}>📒 Daily Diary</div>
             <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>{formatDate(date)}</div>
           </div>
           {saving && <div style={{ fontSize: 10, color: '#9CA3AF', paddingTop: 6 }}>Saving…</div>}
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#9CA3AF', lineHeight: 1, paddingTop: 2 }}>✕</button>
+          <button onClick={onClose} aria-label="Close diary" style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#9CA3AF', lineHeight: 1, paddingTop: 2 }}>✕</button>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
