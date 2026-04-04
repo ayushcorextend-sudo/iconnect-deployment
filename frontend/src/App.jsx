@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useCallback, useMemo, useRef } from 'react';
+import { lazy, Suspense, useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation, useNavigationType } from 'react-router-dom';
 import {
   supabase,
@@ -71,6 +71,18 @@ function PageLoader() {
   );
 }
 
+/**
+ * PageGuard — renders children ONLY when `expectedPage` matches the current
+ * Zustand page state. This is the nuclear guard against stale content: even if
+ * React's Suspense/key reconciliation has a race, the guard will render null
+ * rather than showing content from a different page.
+ */
+function PageGuard({ expectedPage, children }) {
+  const currentPage = useAppStore(s => s.page);
+  if (currentPage !== expectedPage) return null;
+  return children;
+}
+
 // ─── Outer shell ─────────────────────────────────────────────────────────────
 export default function App() {
   return (
@@ -112,6 +124,17 @@ function MainApp() {
   // App store — GRANULAR selectors to prevent full-tree re-renders.
   // Reactive state (only these trigger re-renders when they change):
   const page          = useAppStore(s => s.page);
+  // NAV-FIX: Monotonic counter that increments on every page change.
+  // Combined with page name as a composite key, this guarantees React
+  // fully unmounts the old component tree — even if Suspense/lazy-loading
+  // causes React to attempt reconciliation with stale Fiber nodes.
+  const pageGenRef = useRef(0);
+  const prevPageRef = useRef(page);
+  if (page !== prevPageRef.current) {
+    pageGenRef.current += 1;
+    prevPageRef.current = page;
+  }
+  const pageKey = `${page}::${pageGenRef.current}`;
   const darkMode      = useAppStore(s => s.darkMode);
   const sidebarOpen   = useAppStore(s => s.sidebarOpen);
   const notifPanel    = useAppStore(s => s.notifPanel);
@@ -662,9 +685,18 @@ function MainApp() {
           <Suspense fallback={null}>
             <OnboardingBanner role={role} currentPage={page} setPage={setPage} />
           </Suspense>
-          <PageErrorBoundary key={page} resetKey={page}>
-            <Suspense fallback={<PageLoader />}>
-              {renderPage()}
+          {/* NAV-FIX: Triple-layer defense against stale page content:
+              1. pageKey (page::counter) on ErrorBoundary — forces full unmount,
+                 even for same-page re-navigations
+              2. pageKey on Suspense — prevents React from reusing lazy-resolved
+                 Fiber trees across page transitions
+              3. PageGuard — runtime check: renders null if Zustand page state
+                 doesn't match what renderPage() was called with */}
+          <PageErrorBoundary key={pageKey} resetKey={page}>
+            <Suspense key={pageKey} fallback={<PageLoader />}>
+              <PageGuard expectedPage={page}>
+                {renderPage()}
+              </PageGuard>
             </Suspense>
           </PageErrorBoundary>
         </div>

@@ -160,7 +160,7 @@ export default function LiveArenaStudent({ userId, addToast }) {
   // ── JOIN FORM ────────────────────────────────────────────────
   if (phase === 'join') {
     return (
-      <div>
+      <div className="page">
         <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>🏟️ Join Live Arena</div>
         <div className="card" style={{ maxWidth: 360 }}>
           <div className="fg">

@@ -61,6 +61,10 @@ export const useAppStore = create((set, get) => ({
       console.warn(`[useAppStore] setPage: rejected unknown page "${page}"`);
       return;
     }
+    // NAV-FIX: skip no-op navigations to the same page — prevents redundant
+    // re-renders and potential stale-content races from double setPage calls
+    // (e.g. initRouter + auth loadProfile both setting the deep-link page).
+    if (page === get().page) return;
     set({ page, notifPanel: false });
     // BUG-O: use module-level imperativeNavigate, not Zustand state
     imperativeNavigate(toPath(page));

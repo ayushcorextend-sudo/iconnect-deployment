@@ -6,13 +6,28 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-04-03 — PWA install rebuilt (BUG-V) + deep-link fix (BUG-NAV-002).
+2026-04-04 — NAV-FIX: triple-layer defense against stale page content on navigation.
 
 ---
 
 ## Current State
+✅ **NAV-FIX: Dual-content rendering bug on /arena-student FIXED — needs deploy.**
 ✅ **PWA install system REBUILT — needs deploy.**
 ✅ **BUG-NAV-002 FIXED — deep-linking now works after login.**
+
+### NAV-FIX: Stale Page Content (this session)
+- **Symptom:** Navigating to `/arena-student` showed BOTH LearnHub content (Mock Tests tabs, quiz cards) AND LiveArenaStudent (Join Arena PIN form) stacked together. TopBar and Sidebar correctly showed "Live Arena".
+- **Investigation:** Exhaustively read App.jsx, LiveArenaStudent.jsx, LearnHub.jsx, DoctorDashboard.jsx, OnboardingBanner.jsx, useAppStore.js, Sidebar.jsx, constants.js, PageErrorBoundary.jsx. Checked git history (30+ commits). Built and verified chunk separation. All individual pieces are logically correct — the `switch` cases are clean, components don't cross-import, sidebar has no duplicates.
+- **Root cause:** React 19 concurrent rendering + Suspense lazy-loading race condition. The `key={page}` approach (attempted 3 times in commits e5faf0d, 3e0706a, be22033) was insufficient — React's Fiber reconciler can briefly show stale Suspense-resolved content during page transitions when both the old and new lazy chunks are cached.
+- **Fix — 3 files changed:**
+  1. **`frontend/src/App.jsx`** — Triple-layer defense:
+     - `PageGuard` component: runtime validation that Zustand page state matches the expected page, returns null if mismatched
+     - Composite `pageKey` (`page::counter`) using monotonic ref counter, preventing React from ever reusing stale Fiber nodes
+     - Both `PageErrorBoundary` and `Suspense` now keyed with `pageKey` (was just `page` on ErrorBoundary)
+  2. **`frontend/src/stores/useAppStore.js`** — `setPage` now skips no-op navigations (`if (page === get().page) return`) to prevent redundant re-renders from double setPage calls (initRouter + auth loadProfile)
+  3. **`frontend/src/components/arena/LiveArenaStudent.jsx`** — Join form wrapped in `<div className="page">` for consistent layout (was bare `<div>`)
+- **Build:** ✅ passes (56 precache entries, chunks properly separated)
+- **Deploy needed:** Push to main → Vercel auto-deploys
 
 ### BUG-NAV-002 FIX (this session)
 - **Root cause:** The `login()` callback in App.jsx (line 369) hardcoded `setPage('dashboard')` after every login. When a user visited `/ebooks` → saw Login → logged in, the URL bar still showed `/ebooks` (React conditional render, no redirect) but the callback always went to dashboard.
