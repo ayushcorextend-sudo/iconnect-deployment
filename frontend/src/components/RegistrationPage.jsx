@@ -285,6 +285,7 @@ export default function RegistrationPage({ addToast, setPage, onRegisterSuccess 
   };
 
   const handleSubmit = async () => {
+    if (loading) return; // prevent double-submit race between click and state update
     setError('');
     if (!form.mciNumber.trim()) { setError('MCI/NMC number is required'); return; }
     if (!MCI_REGEX.test(form.mciNumber.trim())) {

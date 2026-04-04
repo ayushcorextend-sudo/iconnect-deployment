@@ -14,6 +14,7 @@ export default function UsersPage({ addToast, role, userId }) {
   const [totalCount, setTotalCount] = useState(0);
   const [pageData, setPageData] = useState([]);
   const [pageLoading, setPageLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -82,7 +83,10 @@ export default function UsersPage({ addToast, role, userId }) {
         })));
         setTotalCount(count || 0);
       }
-    } catch (e) { console.warn('UsersPage: failed to fetch user page:', e.message); }
+    } catch (e) {
+      console.warn('UsersPage: failed to fetch user page:', e.message);
+      setFetchError('Failed to load users. Please refresh.');
+    }
     setPageLoading(false);
   }, [pageNum, debouncedSearch, districtFilter, stateFilter]);
 
@@ -229,7 +233,12 @@ export default function UsersPage({ addToast, role, userId }) {
 
           {/* Table */}
           <div className="card">
-            {pageLoading ? (
+            {fetchError ? (
+              <div role="alert" style={{ textAlign: 'center', padding: '32px 0', color: '#DC2626' }}>
+                {fetchError}
+                <button onClick={() => { setFetchError(null); }} style={{ display: 'block', margin: '8px auto 0', fontSize: 12, color: '#2563EB', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>Retry</button>
+              </div>
+            ) : pageLoading ? (
               <div style={{ textAlign: 'center', padding: '32px 0', color: '#9CA3AF' }}>
                 <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid #E5E7EB', borderTopColor: '#2563EB', animation: 'spin 0.8s linear infinite', margin: '0 auto 8px' }} />
                 Loading users…

@@ -93,7 +93,7 @@ export default function ProfilePage({ addToast }) {
             .select('subject, completed_at').eq('user_id', uid).eq('completed', true)
             .order('completed_at', { ascending: false })
             .then(({ data: rows }) => { if (rows?.length) setCompletedSubjects(rows); })
-            .catch(() => {});
+            .catch((e) => { console.warn('ProfilePage: subject_completion fetch failed:', e.message); });
 
           try {
             const { data: scoreRow } = await supabase

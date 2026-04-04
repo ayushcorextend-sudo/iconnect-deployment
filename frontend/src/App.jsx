@@ -316,11 +316,13 @@ function MainApp() {
 
       // Kick off parallel post-login data fetches — none are blocking for render
       const parallelFetches = [
-        fetchNotifs(uid),
-        fetchArtifacts(r).then(data => { if (data?.length) setArtifacts(data); }).catch(() => {}),
+        fetchNotifs(uid).catch(e => console.warn('[App] fetchNotifs failed:', e.message)),
+        fetchArtifacts(r).then(data => { if (data?.length) setArtifacts(data); }).catch(e => console.warn('[App] fetchArtifacts failed:', e.message)),
       ];
-      if (r === 'superadmin' || r === 'contentadmin') parallelFetches.push(fetchUsers());
-      await Promise.all(parallelFetches).catch(() => {});
+      if (r === 'superadmin' || r === 'contentadmin') {
+        parallelFetches.push(fetchUsers().catch(e => console.warn('[App] fetchUsers failed:', e.message)));
+      }
+      await Promise.all(parallelFetches);
     }
 
     loadProfile();

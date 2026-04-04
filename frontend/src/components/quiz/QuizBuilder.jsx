@@ -108,6 +108,7 @@ export default function QuizBuilder({ userId, addToast }) {
     }));
 
   const save = async (asDraft = false) => {
+    if (saving) return; // prevent double-submit race between click and state update
     if (!title.trim())  { addToast('error', 'Quiz title is required.'); return; }
     if (!subject)       { addToast('error', 'Subject is required.'); return; }
     for (let i = 0; i < questions.length; i++) {

@@ -1,6 +1,7 @@
 import ReadingQuizModal from '../ReadingQuizModal';
 import SmartNotesPanel from '../SmartNotesPanel';
 import { useSignedUrl } from '../../hooks/useSignedUrl';
+import { Z } from '../../styles/zIndex';
 
 const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -15,7 +16,7 @@ export default function PDFReaderView({
   const signedFileUrl = useSignedUrl(viewer?.file_url);
 
   return (
-    <div className="page" style={fullscreen ? { position: 'fixed', inset: 0, zIndex: 150, background: '#525659', margin: 0, padding: 0 } : {}}>
+    <div className="page" style={fullscreen ? { position: 'fixed', inset: 0, zIndex: Z.readingModal, background: '#525659', margin: 0, padding: 0 } : {}}>
       {!fullscreen && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
           <button className="btn btn-s btn-sm" onClick={handleClose}>← Back</button>

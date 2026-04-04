@@ -194,7 +194,7 @@ export default function ReadingQuizModal({ artifact, onClose, onComplete }) {
               ))}
               <button
                 onClick={handleSubmit}
-                disabled={!allAnswered}
+                disabled={!allAnswered || saving}
                 style={{
                   width: '100%', padding: '11px', borderRadius: 10, border: 'none',
                   background: allAnswered ? 'linear-gradient(135deg,#4F46E5,#7C3AED)' : '#E5E7EB',
