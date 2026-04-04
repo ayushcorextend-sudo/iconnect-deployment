@@ -228,7 +228,7 @@ export default function DayDetailPanel({ date, userId, onClose, refreshDashboard
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-gray-900 capitalize">
-                          {log.activity_type.replace(/_/g, ' ')}
+                          {log.activity_type?.replace(/_/g, ' ') ?? 'Unknown activity'}
                         </div>
                         {log.duration_minutes > 0 && (
                           <div className="text-xs text-gray-500">{log.duration_minutes} min</div>
