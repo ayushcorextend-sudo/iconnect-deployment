@@ -11,7 +11,9 @@ export const ACTIVITY_LABEL = {
 
 export function relTime(ts) {
   if (!ts) return '';
-  const s = Math.floor((Date.now() - new Date(ts)) / 1000);
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return '';
+  const s = Math.floor((Date.now() - d) / 1000);
   if (s < 60) return 'just now';
   if (s < 3600) return Math.floor(s / 60) + 'm ago';
   if (s < 86400) return Math.floor(s / 3600) + 'h ago';

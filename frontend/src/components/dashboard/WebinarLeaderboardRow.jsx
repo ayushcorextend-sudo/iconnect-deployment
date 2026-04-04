@@ -3,9 +3,12 @@ import { supabase } from '../../lib/supabase';
 import { trackActivity } from '../../lib/trackActivity';
 import Avatar from '../Avatar';
 
-const fmtDt = (d) => d
-  ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-  : '—';
+const fmtDt = (d) => {
+  if (!d) return '—';
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return '—';
+  return dt.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
 
 function WebinarLeaderboardRow({
   nextWebinar,

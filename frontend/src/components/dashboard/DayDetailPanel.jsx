@@ -4,7 +4,9 @@ import { Z } from '../../styles/zIndex';
 
 const relTime = (d) => {
   if (!d) return '';
-  return new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return '';
+  return dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 };
 
 const ACT_ICONS = {
@@ -95,9 +97,12 @@ export default function DayDetailPanel({ date, userId, onClose, refreshDashboard
     setEditMode(true);
   }
 
-  const fmtDate = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  });
+  const fmtDate = (d) => {
+    if (!d) return '—';
+    const dt = new Date(d + 'T00:00:00');
+    if (isNaN(dt.getTime())) return '—';
+    return dt.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  };
 
   return (
     <div

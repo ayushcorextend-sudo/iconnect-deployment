@@ -176,7 +176,9 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
           const now = new Date();
           const weekDays = Array(7).fill(0);
           logs.forEach(l => {
+            if (!l.created_at) return;
             const d = new Date(l.created_at);
+            if (isNaN(d.getTime())) return;
             if (Math.floor((now - d) / 86400000) < 7) {
               const dow = (d.getDay() + 6) % 7;
               weekDays[dow] += 1;
@@ -195,7 +197,10 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         // ── 90-day heatmap from lightweight query ─────────
         const byDate = {};
         (heatmap || []).forEach(l => {
-          const dateStr = new Date(l.created_at).toISOString().split('T')[0];
+          if (!l.created_at) return;
+          const d = new Date(l.created_at);
+          if (isNaN(d.getTime())) return;
+          const dateStr = d.toISOString().split('T')[0];
           byDate[dateStr] = (byDate[dateStr] || 0) + 1;
         });
         (diaryEntries || []).forEach(d => {
@@ -319,6 +324,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
       const uid = userIdProp;
       if (!uid) return;
       const webinarTime = new Date(nextWebinar.scheduled_at);
+      if (isNaN(webinarTime.getTime())) { setReminderSaving(false); return; }
       const remindAt = new Date(webinarTime.getTime() - reminderLeadMins * 60 * 1000);
       await supabase.from('user_reminders').insert([{
         user_id: uid,
