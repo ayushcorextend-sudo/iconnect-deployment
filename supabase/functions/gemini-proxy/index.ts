@@ -15,7 +15,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { getCorsHeaders, corsPreflightResponse } from '../_shared/cors.ts'
 
-const GEMINI_MODEL = 'gemini-2.5-flash'
+const GEMINI_MODEL = 'gemini-2.0-flash'
 const GEMINI_BASE  = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}`
 const TIMEOUT_MS   = 15_000
 const MAX_MESSAGES = 50    // Prevent absurdly long context
@@ -150,9 +150,9 @@ serve(async (req) => {
 
   // ── Call Gemini ───────────────────────────────────────────────────────────
   try {
-    const endpoint = wantStream ? 'streamGenerateContent?alt=sse' : 'generateContent'
+    const endpoint = wantStream ? 'streamGenerateContent?alt=sse&key=' : 'generateContent?key='
     const geminiRes = await withTimeout(
-      fetch(`${GEMINI_BASE}:${endpoint}&key=${GEMINI_API_KEY}`, {
+      fetch(`${GEMINI_BASE}:${endpoint}${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
