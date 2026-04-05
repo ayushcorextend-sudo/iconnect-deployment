@@ -1,0 +1,431 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   iCONNECT — MOBILE PWA FOUNDATION
+   Single source of truth for all mobile-first overrides, safe-area support,
+   tap targets (WCAG 2.5.5), fluid typography, and native-app-feel behaviors.
+
+   Loaded AFTER index.css so specificity wins via source order, not !important.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Safe-area inset tokens (notch / home indicator / Dynamic Island) ── */
+:root {
+  --safe-top:    env(safe-area-inset-top,    0px);
+  --safe-right:  env(safe-area-inset-right,  0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left,   0px);
+
+  /* Bottom nav geometry — consumed by .main padding so content never hides behind it */
+  --bottom-nav-h: 64px;
+  --bottom-nav-total: calc(var(--bottom-nav-h) + var(--safe-bottom));
+
+  /* Fluid typography scale — desktop stays the same, mobile shrinks gracefully */
+  --fs-xs:   clamp(11px, 2.8vw, 12px);
+  --fs-sm:   clamp(12px, 3.2vw, 13px);
+  --fs-base: clamp(13px, 3.6vw, 14px);
+  --fs-md:   clamp(14px, 3.8vw, 15px);
+  --fs-lg:   clamp(16px, 4.4vw, 18px);
+  --fs-xl:   clamp(18px, 5vw,   22px);
+  --fs-2xl:  clamp(20px, 5.8vw, 26px);
+  --fs-3xl:  clamp(22px, 6.5vw, 30px);
+}
+
+/* Enable viewport-fit extension globally — paired with <meta viewport content="...viewport-fit=cover"> */
+html { height: 100%; }
+body {
+  /* Prevent iOS rubber-band bounce leaking white */
+  overscroll-behavior-y: none;
+  /* Dynamic viewport height on mobile browsers (accounts for URL bar show/hide) */
+  min-height: 100dvh;
+}
+
+/* Prevent iOS from zooming on input focus (font-size must be ≥16px on inputs) */
+@media (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   APP SHELL — Always-paint skeleton shown before JS boots
+   ══════════════════════════════════════════════════════════════════════════ */
+.app-shell-loader {
+  position: fixed; inset: 0;
+  background: linear-gradient(135deg, #EEF2FF 0%, #F8FAFC 50%, #F5F3FF 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 9999;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  animation: appShellFadeOut 0.3s ease-out 0.1s forwards;
+  pointer-events: none;
+}
+.app-shell-loader.app-shell-visible { animation: none; opacity: 1; pointer-events: auto; }
+@keyframes appShellFadeOut { to { opacity: 0; visibility: hidden; } }
+.app-shell-logo {
+  width: 72px; height: 72px; border-radius: 20px;
+  background: linear-gradient(135deg, #4F46E5, #7C3AED);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 34px; font-weight: 800; color: white;
+  box-shadow: 0 16px 40px rgba(79, 70, 229, 0.35);
+  animation: appShellPulse 1.6s ease-in-out infinite;
+}
+@keyframes appShellPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 16px 40px rgba(79, 70, 229, 0.35); }
+  50%      { transform: scale(1.04); box-shadow: 0 20px 52px rgba(79, 70, 229, 0.45); }
+}
+.app-shell-title { margin-top: 18px; font-size: 17px; font-weight: 700; color: #1E1B4B; letter-spacing: -0.02em; }
+.app-shell-sub { margin-top: 4px; font-size: 12px; color: #6B7280; }
+.app-shell-spinner {
+  margin-top: 22px; width: 28px; height: 28px; border-radius: 50%;
+  border: 3px solid rgba(79, 70, 229, 0.18);
+  border-top-color: #4F46E5;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SAFE-AREA APPLICATION — top bar, sidebar, FAB, main content, bottom nav
+   ══════════════════════════════════════════════════════════════════════════ */
+.topbar-v2, .topbar {
+  padding-top: var(--safe-top);
+  height: calc(var(--topbar-h) + var(--safe-top)) !important;
+}
+.sidebar-v2, .sidebar {
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+}
+.main { padding-right: var(--safe-right); }
+.chatbot-fab {
+  bottom: calc(20px + var(--safe-bottom)) !important;
+  right: calc(20px + var(--safe-right)) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE BREAKPOINT OVERHAUL — ≤768px (phones + small tablets portrait)
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* Core page padding — accounts for safe-area + bottom nav clearance */
+  .page {
+    padding: 14px 14px calc(var(--bottom-nav-total) + 20px) 14px !important;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* ── TAP TARGETS — WCAG 2.5.5 AAA: 48×48px minimum (Material), 44 (Apple) ── */
+  .nav-item-v2,
+  .topbar-icon-btn,
+  .sb-logout-btn,
+  .sb-install-btn,
+  .tab,
+  .btn,
+  .btn-sm,
+  .chatbot-tab,
+  .chatbot-action-btn,
+  .chatbot-close-btn,
+  .admin-btn,
+  .login-btn {
+    min-height: 44px !important;
+  }
+  .nav-item-v2 { padding: 12px 14px !important; }
+  .topbar-icon-btn { width: 44px !important; height: 44px !important; }
+  input.login-input, .fi-in, .fi-sel {
+    min-height: 44px !important;
+    padding: 11px 14px !important;
+  }
+
+  /* ── TYPOGRAPHY SCALE — fluid via clamp() ── */
+  .pt { font-size: var(--fs-2xl) !important; line-height: 1.2 !important; }
+  .ps { font-size: var(--fs-sm) !important; line-height: 1.4 !important; }
+  h1 { font-size: var(--fs-3xl) !important; }
+  h2 { font-size: var(--fs-xl) !important; }
+  h3 { font-size: var(--fs-lg) !important; }
+  .stat-v { font-size: var(--fs-2xl) !important; }
+  .stat-l { font-size: var(--fs-xs) !important; }
+
+  /* ── GRID FIXES — stat cards always 2×2, never collapse to 1col ── */
+  .sg4 {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .sg3 {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .sg2, .grid2, .grid3 {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* ── TEXT TRUNCATION — allow wrapping instead of cut-off ── */
+  .pt, .ps, .stat-l, .nav-item-v2, .tab {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+  }
+
+  /* Card padding tightened on mobile */
+  .card { padding: 14px !important; border-radius: 14px; }
+
+  /* ── LOGIN CARD — fill screen minus margins, no overflow ── */
+  .login-bg { padding: 16px !important; padding-top: calc(20px + var(--safe-top)) !important; padding-bottom: calc(20px + var(--safe-bottom)) !important; }
+  .login-card {
+    width: 100% !important;
+    max-width: min(420px, 92vw) !important;
+    padding: 22px !important;
+    border-radius: 18px !important;
+  }
+  .login-logo-wrap { margin-bottom: 20px !important; }
+  .login-field { margin-bottom: 12px !important; }
+
+  /* ── CA DASHBOARD — stack sidebar + main vertically ── */
+  .ca-dashboard-layout {
+    flex-direction: column !important;
+    gap: 14px !important;
+  }
+  .ca-dashboard-sidebar {
+    width: 100% !important;
+  }
+  .ca-dashboard-sidebar .card {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ca-dashboard-sidebar .card::-webkit-scrollbar { display: none; }
+  .ca-dashboard-sidebar .card > button {
+    flex: 0 0 auto !important;
+    border-left: none !important;
+    border-bottom: 3px solid transparent !important;
+    white-space: nowrap !important;
+  }
+  .ca-dashboard-sidebar .card > button[data-active="true"] {
+    border-bottom-color: #2563EB !important;
+    border-left: none !important;
+  }
+
+  /* ── PDF NOTES PANEL — full-screen drawer on mobile (was hardcoded 320px) ── */
+  .pdf-notes-panel-mobile {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    padding-top: var(--safe-top) !important;
+    padding-bottom: var(--safe-bottom) !important;
+  }
+
+  /* ── CHATBOT DRAWER — bottom sheet on mobile ── */
+  .chatbot-drawer {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 92vh !important;
+    height: 92dvh !important;
+    top: auto !important;
+    bottom: 0 !important;
+    right: 0 !important;
+    border-radius: 20px 20px 0 0 !important;
+    transform: translateY(100%);
+    transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+    padding-bottom: var(--safe-bottom);
+    will-change: transform;
+  }
+  .chatbot-drawer-open { transform: translateY(0); }
+  .chatbot-drawer.chatbot-dragging { transition: none; }
+  .chatbot-drawer::before {
+    content: '';
+    display: block;
+    width: 36px; height: 4px; border-radius: 2px;
+    background: var(--border);
+    margin: 8px auto 4px;
+    flex-shrink: 0;
+  }
+
+  /* Main content clearance for bottom nav */
+  .main {
+    padding-bottom: var(--bottom-nav-total);
+    margin-left: 0 !important;
+  }
+
+  /* Hide desktop sidebar expand caret at mobile size */
+  .sb-footer-v2 { padding-bottom: calc(var(--bottom-nav-total) + 10px); }
+
+  /* Prevent sidebar overlay from being occluded by bottom nav */
+  .sidebar-v2, .sidebar { padding-bottom: calc(var(--safe-bottom) + 10px); }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SMALL PHONE BREAKPOINT — ≤480px (iPhone SE, mini, cramped devices)
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .page { padding: 12px 12px calc(var(--bottom-nav-total) + 16px) 12px !important; }
+  .card { padding: 12px !important; }
+  .sg4, .sg3 { gap: 8px !important; }
+  .stat { padding: 12px !important; }
+  .ph { margin-bottom: 14px !important; }
+
+  /* Login card becomes edge-to-edge */
+  .login-card { max-width: calc(100vw - 24px) !important; padding: 20px !important; }
+
+  /* Tabs shouldn't horizontally truncate on cramped screens */
+  .tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { flex: 0 0 auto; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BOTTOM NAVIGATION BAR — rendered by BottomNav.jsx at <768px
+   ══════════════════════════════════════════════════════════════════════════ */
+.bottom-nav {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: var(--bottom-nav-total);
+  padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-top: 1px solid var(--border);
+  display: none;
+  align-items: stretch;
+  z-index: 90;
+  box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.04);
+}
+.bottom-nav-inner {
+  display: flex;
+  flex: 1;
+  align-items: stretch;
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+}
+.bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--muted);
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.18s ease, transform 0.18s ease;
+  min-height: 52px;
+}
+.bottom-nav-item:active { transform: scale(0.94); }
+.bottom-nav-item.active { color: var(--blue); }
+.bottom-nav-item.active::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  width: 24px; height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--blue);
+  transform: translateX(-50%);
+}
+.bottom-nav-item svg { width: 22px; height: 22px; }
+.bottom-nav-badge {
+  position: absolute;
+  top: 6px;
+  left: calc(50% + 8px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #EF4444;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+@media (max-width: 768px) {
+  .bottom-nav { display: flex; }
+}
+
+[data-theme="dark"] .bottom-nav {
+  background: rgba(15, 23, 42, 0.86);
+  border-top-color: #334155;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DASHBOARD SKELETON (premium perceived performance)
+   ══════════════════════════════════════════════════════════════════════════ */
+.dashboard-skeleton { display: flex; flex-direction: column; gap: 14px; }
+.dashboard-skeleton-hero {
+  height: 80px; border-radius: 14px;
+  background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.dashboard-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+.dashboard-skeleton-card {
+  height: 100px; border-radius: 14px;
+  background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.dashboard-skeleton-wide {
+  height: 160px; border-radius: 14px;
+  background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+[data-theme="dark"] .dashboard-skeleton-hero,
+[data-theme="dark"] .dashboard-skeleton-card,
+[data-theme="dark"] .dashboard-skeleton-wide {
+  background: linear-gradient(90deg, #1E293B 25%, #334155 50%, #1E293B 75%);
+  background-size: 200% 100%;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOTION — 60fps transitions, respect prefers-reduced-motion
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* GPU-accelerate key transforms for 60fps feel */
+.chatbot-drawer,
+.sidebar-v2,
+.sidebar,
+.bottom-nav-item,
+.nav-item-v2 {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   STANDALONE PWA MODE — tweaks only active when installed to home screen
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (display-mode: standalone) {
+  /* When installed, hide any "install" prompts */
+  .pwa-install-banner, .sb-install-btn { display: none !important; }
+
+  /* Slightly more chrome since there's no browser URL bar */
+  body { -webkit-user-select: none; user-select: none; }
+  body input, body textarea, body [contenteditable] {
+    -webkit-user-select: text; user-select: text;
+  }
+}

@@ -21,6 +21,8 @@ export default function ChatBot({ chatBotMode = null, setChatBotMode }) {
   const [notesDownloading, setNotesDownloading] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const drawerRef = useRef(null);
+  const dragStateRef = useRef({ startY: 0, currentY: 0, dragging: false });
 
   useEffect(() => {
     if (open) {
@@ -150,6 +152,36 @@ export default function ChatBot({ chatBotMode = null, setChatBotMode }) {
     setNotesDownloading(false);
   };
 
+  // ── Swipe-to-dismiss (mobile bottom-sheet gesture) ──────────────────
+  // Only engages when the drawer is laid out as a bottom sheet (<=768px).
+  // Pulls the drawer down via transform; releases past the threshold close it.
+  const handleTouchStart = (e) => {
+    if (window.innerWidth > 768) return;
+    const t = e.touches[0];
+    dragStateRef.current = { startY: t.clientY, currentY: t.clientY, dragging: true };
+    if (drawerRef.current) drawerRef.current.classList.add('chatbot-dragging');
+  };
+  const handleTouchMove = (e) => {
+    const state = dragStateRef.current;
+    if (!state.dragging || !drawerRef.current) return;
+    const t = e.touches[0];
+    const delta = t.clientY - state.startY;
+    if (delta <= 0) return; // only allow downward swipes
+    state.currentY = t.clientY;
+    drawerRef.current.style.transform = `translateY(${delta}px)`;
+  };
+  const handleTouchEnd = () => {
+    const state = dragStateRef.current;
+    if (!state.dragging || !drawerRef.current) return;
+    const delta = state.currentY - state.startY;
+    drawerRef.current.classList.remove('chatbot-dragging');
+    drawerRef.current.style.transform = '';
+    dragStateRef.current = { startY: 0, currentY: 0, dragging: false };
+    // Dismiss threshold: 120px or ~25% of viewport, whichever is smaller
+    const threshold = Math.min(120, window.innerHeight * 0.25);
+    if (delta > threshold) setOpen(false);
+  };
+
   const { count: todayCount } = getRateLimitData();
   const remaining = RATE_LIMIT - (todayCount || 0);
   const hasMessages = messages.length > 0;
@@ -162,10 +194,19 @@ export default function ChatBot({ chatBotMode = null, setChatBotMode }) {
 
       {open && <div className="chatbot-backdrop" onClick={() => setOpen(false)} />}
 
-      <div className={`chatbot-drawer ${open ? 'chatbot-drawer-open' : ''}`}>
+      <div
+        ref={drawerRef}
+        className={`chatbot-drawer ${open ? 'chatbot-drawer-open' : ''}`}
+      >
 
-        {/* Header */}
-        <div className="chatbot-header">
+        {/* Header — also acts as the swipe-to-dismiss handle on mobile */}
+        <div
+          className="chatbot-header"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
+        >
           <div className="chatbot-header-icon"><Sparkles size={18} /></div>
           <div className="chatbot-header-text">
             <div className="chatbot-header-title">iConnect Assistant</div>

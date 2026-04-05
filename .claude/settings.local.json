@@ -33,7 +33,8 @@
       "Bash(rm:*)",
       "Bash(BASE_URL=https://iconnect-med.vercel.app npx playwright:*)",
       "Bash(npx vercel:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(supabase secrets:*)"
     ]
   }
 }

@@ -23,3 +23,11 @@ createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </StrictMode>,
 )
+
+// Signal the app-shell splash in index.html to fade out now that React has mounted.
+// Uses a double rAF so the first real paint lands before we dismiss the shell.
+requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new CustomEvent('app-ready'))
+  })
+})

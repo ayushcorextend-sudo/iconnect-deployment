@@ -164,7 +164,7 @@ export default function PDFReaderView({
 
       {/* Notes side-panel */}
       {showNotes && (
-        <div style={{
+        <div className="pdf-notes-panel-mobile" style={{
           position: 'fixed', top: 0, right: 0, height: '100vh', width: 320,
           background: 'var(--white)', borderLeft: '1px solid var(--border)',
           boxShadow: '-4px 0 24px rgba(0,0,0,0.14)',

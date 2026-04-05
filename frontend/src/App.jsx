@@ -24,6 +24,8 @@ import { useTenantStore } from './stores/useTenantStore';
 // Always-present shell components (eager)
 import Login from './components/Login';
 import Sidebar from './components/Sidebar';
+import BottomNav from './components/ui/BottomNav';
+import useIsMobile from './hooks/useIsMobile';
 import TopBar from './components/TopBar';
 import Toasts from './components/Toasts';
 const ChatBot = lazy(() => import('./components/ChatBot'));
@@ -162,6 +164,9 @@ function MainApp() {
   // Chat store — granular
   const chatBotMode    = useChatStore(s => s.chatBotMode);
   const setChatBotMode = useChatStore(s => s.setChatBotMode);
+
+  // Responsive — drives BottomNav visibility on narrow viewports
+  const isMobile = useIsMobile(768);
 
   // Tenant store — granular
   const tenant      = useTenantStore(s => s.tenant);
@@ -739,6 +744,16 @@ function MainApp() {
         <Suspense fallback={null}>
           <ChatBot chatBotMode={chatBotMode} setChatBotMode={setChatBotMode} />
         </Suspense>
+        {isMobile && (
+          <BottomNav
+            role={role}
+            page={page}
+            setPage={setPage}
+            unreadCount={unreadCount}
+            pendingCount={pendingCount}
+            onOpenAI={() => setChatBotMode('chat')}
+          />
+        )}
       </div>
       <OfflineIndicator />
       <PWAInstallBanner />

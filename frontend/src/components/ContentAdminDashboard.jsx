@@ -125,10 +125,10 @@ export default function ContentAdminDashboard({ userId, userName, role, setPage,
       </div>
 
       {/* Layout: sidebar + main */}
-      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      <div className="ca-dashboard-layout" style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
 
         {/* Sidebar */}
-        <div style={{ width: 200, flexShrink: 0 }}>
+        <div className="ca-dashboard-sidebar" style={{ width: 200, flexShrink: 0 }}>
           <div className="card" style={{ padding: '8px 0' }}>
             {SIDEBAR_TABS.map(t => (
               <button

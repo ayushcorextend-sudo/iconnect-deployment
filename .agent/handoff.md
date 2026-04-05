@@ -6,7 +6,158 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-04-04 — NAV-FIX: triple-layer defense against stale page content on navigation.
+2026-04-06 — ENTERPRISE-PWA: App Shell Model, BottomNav, offline, push/biometric scaffolds.
+
+---
+
+## 2026-04-06 — Enterprise-grade mobile PWA foundation
+
+### What shipped this session
+Goal: take the mobile experience from "responsive web-wrapper" to enterprise-grade PWA
+(App Shell Model, Lighthouse-95+-ready, offline-first, 60fps feel, installable, future
+push/biometric capability). User explicitly asked for a long-term asset, not a quick fix.
+
+**New files:**
+- `frontend/src/styles/mobile.css` — single source of truth for mobile. Safe-area vars
+  (`--safe-top/right/bottom/left`), fluid type scale (`--fs-xs` … `--fs-2xl` via
+  `clamp()`), bottom-nav height vars, 48px tap-target minimums, iOS input zoom fix
+  (`font-size: 16px !important` on mobile inputs), `overscroll-behavior-y: none`,
+  `.chatbot-drawer` bottom-sheet layout at ≤768px, `.ca-dashboard-layout`/
+  `.ca-dashboard-sidebar` horizontal-scroll tab row mobile variant, `.pdf-notes-panel-mobile`
+  full-screen override, `.bottom-nav` frosted-glass (`backdrop-filter: saturate(180%) blur(20px)`),
+  `@media (display-mode: standalone)` rules, `@media (prefers-reduced-motion: reduce)` guards.
+- `frontend/src/hooks/useIsMobile.js` — SSR-safe `matchMedia` hook + `useIsStandalone`
+  for detecting installed-PWA mode.
+- `frontend/src/components/ui/DashboardSkeleton.jsx` — skeleton matching dashboard
+  visual footprint for perceived-performance loads.
+- `frontend/src/components/ui/BottomNav.jsx` — memoized role-aware bottom tab bar
+  (5 items for doctor / contentadmin / superadmin). Items map to existing Zustand
+  `page` keys. Doctor's AI tab calls `onOpenAI` (setChatBotMode('chat')) instead of
+  navigating. `navigator.vibrate(8)` for haptics on supported devices. Badges wired
+  to `unreadCount` / `pendingCount` via `badgeKey`.
+- `frontend/src/lib/pushNotifications.js` — Web Push client helper (stub). Exports
+  `isPushSupported`, `getPushPermission`, `subscribeToPush`, `unsubscribeFromPush`,
+  `hasActiveSubscription`. Uses `VITE_VAPID_PUBLIC_KEY`. Header docs enumerate the
+  server-side TODOs (VAPID keygen, Supabase secrets, `push_subscriptions` migration,
+  `push-subscribe` / `push-send` edge functions, SW push event handler).
+- `frontend/src/lib/biometric.js` — WebAuthn client helper (stub). Exports
+  `isBiometricSupported`, `hasPlatformAuthenticator`, `registerBiometric`,
+  `authenticateWithBiometric`. Uses `navigator.credentials.create/get` with
+  `authenticatorAttachment: 'platform'`, `userVerification: 'required'`. Header docs
+  enumerate server-side TODOs (`webauthn_credentials` migration, `webauthn-challenge`
+  and `webauthn-verify` edge functions using `@simplewebauthn/server`, `VITE_RP_ID`).
+- `frontend/public/offline.html` — branded offline page with gradient background,
+  animated logo, status pill, auto-reload on `online` event, `prefers-color-scheme`
+  dark mode, safe-area aware. Replaces generic browser "No internet" screen.
+
+**Files modified:**
+- `frontend/vite.config.js` — comprehensive PWA upgrade:
+  - Manifest: `display_override: ['window-controls-overlay','standalone','minimal-ui']`,
+    `id: '/'`, `start_url: '/?source=pwa'`, `lang: 'en-IN'`, `orientation: 'portrait-primary'`,
+    `categories: ['education','medical','productivity']`, icons split into `any` +
+    `maskable` purposes, `shortcuts` (Dashboard, E-Books, Exams, Ask AI), `share_target`
+    (`/?share=1`), `screenshots`.
+  - Workbox: `skipWaiting`, `clientsClaim`, `cleanupOutdatedCaches`, `navigateFallback: 'index.html'`,
+    `navigateFallbackDenylist` (API/auth paths excluded), `maximumFileSizeToCacheInBytes: 5MB`.
+  - Runtime caching:
+    - `fonts.googleapis.com` → StaleWhileRevalidate
+    - `fonts.gstatic.com` → CacheFirst 1 year
+    - `supabase.co/storage/` → CacheFirst 7 days (signed URLs immutable per lifetime)
+    - `supabase.co/rest/v1/activity_logs` → NetworkOnly + BackgroundSync (offline
+      retry via `activity-sync` queue)
+    - `supabase.co/auth/` → NetworkOnly (security)
+    - `supabase.co/functions/` → NetworkOnly
+    - `supabase.co/rest/v1/*` → **NetworkFirst** (4s timeout, 10-min cache) — chosen
+      over SWR to avoid cross-user RLS data leakage
+    - Images → StaleWhileRevalidate 30 days
+- `frontend/index.html` —
+  - `viewport` gets `maximum-scale=1.0, user-scalable=no, viewport-fit=cover`
+  - Dual `theme-color` (light/dark media queries), `color-scheme: light dark`,
+    `format-detection: telephone=no`
+  - Multiple apple-touch-icon sizes
+  - Preconnect to `fonts.googleapis.com` and `fonts.gstatic.com`
+  - **App Shell Splash**: inline `#app-shell-splash` with `.as-logo` (gradient "i"),
+    `.as-title`, `.as-sub`, `.as-spinner`, animated via inline CSS. Paints BEFORE
+    React boots. Inline script listens for `app-ready` CustomEvent to fade+remove;
+    8-second failsafe so nobody gets stranded.
+- `frontend/src/main.jsx` — dispatches `app-ready` CustomEvent via double
+  `requestAnimationFrame` after `createRoot().render()` so the splash fades out
+  once React has painted its first frame.
+- `frontend/src/index.css` — `@import './styles/mobile.css'` added after theme.css.
+  `.login-card` width changed from `420px` to `min(420px, 92vw)` + `max-width: 420px`
+  so it never overflows narrow viewports.
+- `frontend/src/App.jsx` — imports `BottomNav` + `useIsMobile`. `const isMobile =
+  useIsMobile(768)`. `<BottomNav role page setPage unreadCount pendingCount onOpenAI />`
+  conditionally rendered inside the shell when `isMobile` is true. AI tap calls
+  `setChatBotMode('chat')`.
+- `frontend/src/components/ContentAdminDashboard.jsx` — added `className="ca-dashboard-layout"`
+  and `className="ca-dashboard-sidebar"` to the flex layout/sidebar at lines 128/131
+  so mobile.css can reflow to a vertical stack with horizontal scroll tabs at ≤768px
+  (inline `display: flex` and `width: 200` kept for desktop; mobile class overrides).
+- `frontend/src/components/ebooks/PDFReaderView.jsx` — added `className="pdf-notes-panel-mobile"`
+  to the notes side-panel so mobile.css makes it full-viewport on ≤768px (still
+  320px fixed on desktop via inline styles).
+- `frontend/src/components/ChatBot.jsx` — swipe-to-dismiss gesture. Added `drawerRef`,
+  `dragStateRef`. `onTouchStart/Move/End/Cancel` on the chat header only engage
+  when `innerWidth <= 768`. Drags apply `transform: translateY(Δy)` live; release
+  past 120px (or 25% of viewport) triggers `setOpen(false)`. `chatbot-dragging` class
+  disables transition during drag.
+
+### Build status
+✅ **Verified via `npx vite build --outDir /sessions/epic-awesome-turing/dist-verify --emptyOutDir`:**
+`✓ 2286 modules transformed · built in 7.05s · 59 precache entries (1532.67 KiB) · sw.js + workbox-*.js generated`
+The in-tree `dist/` cannot be replaced from this sandbox (permission-denied on old
+chunk unlinks) — user should run `rm -rf frontend/dist && npm run build` locally
+before deploying. The transform itself is clean.
+
+### Current state
+- ✅ **CLIENT-SIDE PWA IS COMPLETE** and enterprise-grade.
+- ⚠️ **Push + Biometric are CLIENT-SIDE STUBS** — fully scaffolded but require
+  backend work to be functional (see Tier-2/3 below).
+
+### Tier-2 follow-ups (backend work required — NOT landed this session)
+**Push Notifications:**
+1. Generate VAPID keys: `npx web-push generate-vapid-keys`
+2. Set Supabase secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+3. Set frontend env: `VITE_VAPID_PUBLIC_KEY` (same public value) in `.env.local`
+4. Create migration `supabase/migrations/YYYYMMDDHHMMSS_push_subscriptions.sql`:
+   `user_id uuid refs auth.users`, `endpoint text`, `p256dh text`, `auth text`,
+   `created_at timestamptz`, RLS: user can only read/write own rows.
+5. Edge functions: `push-subscribe` (upsert subscription), `push-unsubscribe`,
+   `push-send` (use `web-push` npm lib from edge function or Node worker).
+6. Workbox is `generateSW` mode — to add a `push` event handler, either switch to
+   `injectManifest` with a custom `src/sw.js`, OR use the in-app `showNotification`
+   API after `self.registration` is available. The handler template is in
+   `pushNotifications.js` header comments for copy-paste.
+
+**Biometric (WebAuthn):**
+1. Create migration `supabase/migrations/YYYYMMDDHHMMSS_webauthn_credentials.sql`
+   with the schema documented in `biometric.js` header (id, user_id, credential_id,
+   public_key, counter, transports, device_name, created_at, last_used_at + RLS).
+2. Edge functions: `webauthn-challenge` (random challenge + RP info), `webauthn-verify`
+   (uses `@simplewebauthn/server` to verify attestation + assertion, returns Supabase
+   JWT to set session).
+3. Frontend env: `VITE_RP_ID` = production domain (e.g. `iconnect-med.vercel.app`).
+4. Wire a "Sign in with Face ID / Touch ID" button into `LoginPage` that calls
+   `authenticateWithBiometric()` when a credential exists for the entered email.
+5. Post-login in `AuthContext`: offer `registerBiometric()` as a progressive
+   enhancement after first successful password login.
+
+### Tier-3 polish opportunities (future)
+- Skeleton screens wired into each dashboard page's Suspense fallback (scaffold is
+  `DashboardSkeleton.jsx`)
+- PWA screenshot assets (currently reuses icon-512.png as placeholder screenshot)
+- iOS splash screens (apple-touch-startup-image) at all device sizes
+- Lighthouse CI in GitHub Actions to enforce 95+ PWA score on PRs
+- Web Share Target handler: `/?share=1` currently just opens home — wire it to
+  a "Save to notes" flow for doctors receiving shared articles.
+
+### Files NOT touched this session (by design)
+- `supabase/migrations/*` — no DB changes landed
+- `supabase/functions/*` — no new edge functions landed
+- `frontend/src/components/Sidebar.jsx` — stays as the desktop/≥768px nav
+- All `.bak` files
+- Any store — state model unchanged
 
 ---
 
