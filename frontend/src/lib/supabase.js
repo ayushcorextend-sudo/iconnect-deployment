@@ -10,7 +10,6 @@ export const supabase = createClient(
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true,
-      lock: { timeout: 10000 },          // 10s — handles React Strict Mode double-mount
     },
     realtime: {
       params: { eventsPerSecond: 2 },

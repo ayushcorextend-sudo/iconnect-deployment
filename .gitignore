@@ -1,3 +1,4 @@
 .vercel
 frontend/dist_test/
 frontend/playwright-report/
+.env*.local
