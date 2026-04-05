@@ -2,107 +2,42 @@
  * aiService.js — Centralised AI service layer for iConnect
  *
  * ARCHITECTURE:
- *   All AI calls route through Supabase Edge Functions:
- *     - ai-orchestrator: Gemini, JWT auth, rate limiting, circuit breaker
- *     - gemini-proxy: Gemini-only, anon key auth (used by ChatBot chat mode only)
+ *   All AI calls route through gemini-proxy (Supabase Edge Function).
+ *   Auth: Supabase anon key — never expires, no token refresh bugs.
+ *   ChatBot chat mode calls gemini-proxy independently (ChatBot.jsx).
  *
  *   Client features:
- *     - Streaming: real-time token delivery via SSE for instant UX
- *     - Request tracing: x-trace-id header for end-to-end debugging
  *     - Unified error contract: all functions return { text, error } — never throws
  *     - Input truncation: prompts clamped to safe lengths before sending
  *     - Shared JSON parsing: single robust parser for all structured AI responses
  *
  * SEC-002/SEC-003: No API keys in the browser bundle. Ever.
  */
-import { supabase } from './supabase';
 
 // ── Configuration ───────────────────────────────────────────────────────────
 const SUPABASE_URL      = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-const TIMEOUT_MS        = 20_000;  // Client timeout (slightly > server's 15s)
-const MAX_PROMPT_CHARS  = 12_000;  // Match server-side limit
+const PROXY_URL         = `${SUPABASE_URL}/functions/v1/gemini-proxy`;
+const TIMEOUT_MS        = 20_000;
+const MAX_PROMPT_CHARS  = 12_000;
 
-// ── Request tracing ─────────────────────────────────────────────────────────
-function traceId() {
-  return crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
+// ── Core: call gemini-proxy (anon key auth) ─────────────────────────────────
+async function callAI(systemPrompt, userMessage, maxTokens = 512, opts = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-// ── Streaming SSE reader ────────────────────────────────────────────────────
-/**
- * Reads an SSE stream and calls onToken for each chunk.
- * Returns the full concatenated text when done.
- */
-async function readSSEStream(response, onToken) {
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let fullText = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      const payload = line.slice(6).trim();
-      if (payload === '[DONE]') continue;
-
-      try {
-        const parsed = JSON.parse(payload);
-        if (parsed.error) throw new Error(parsed.error);
-        const token = parsed.token || '';
-        if (token) {
-          fullText += token;
-          if (onToken) onToken(token, fullText);
-        }
-      } catch { /* skip malformed chunks */ }
-    }
-  }
-
-  return fullText;
-}
-
-// ── Core: call ai-orchestrator (JWT auth) ───────────────────────────────────
-async function callOrchestrator(action, payload, maxTokens = 512, { stream = false, onToken = null } = {}) {
   try {
-    let { data: { session }, error } = await supabase.auth.getSession();
-    if (!session || error) {
-      return { text: 'Please log in again to use AI features.', error: 'No active session' };
-    }
-
-    // Check if token expires within 60 seconds — refresh if so
-    const expiresAt = session.expires_at;
-    if (expiresAt && expiresAt - Math.floor(Date.now() / 1000) < 60) {
-      const { data: refreshed } = await supabase.auth.refreshSession();
-      if (refreshed?.session) {
-        session = refreshed.session;
-      }
-    }
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    const trace = traceId();
-
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/ai-orchestrator`, {
+    const res = await fetch(PROXY_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-        'X-Trace-Id': trace,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
       },
       body: JSON.stringify({
-        action,
-        payload: {
-          system: (payload.system || '').slice(0, MAX_PROMPT_CHARS),
-          user:   (payload.user   || '').slice(0, MAX_PROMPT_CHARS),
-        },
-        max_tokens: maxTokens,
-        stream,
+        system: (systemPrompt || '').slice(0, MAX_PROMPT_CHARS),
+        messages: [{ role: 'user', content: (userMessage || '').slice(0, MAX_PROMPT_CHARS) }],
+        maxTokens,
+        temperature: 0.7,
       }),
       signal: controller.signal,
     });
@@ -111,34 +46,22 @@ async function callOrchestrator(action, payload, maxTokens = 512, { stream = fal
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      const code = err.code || '';
-      if (code === 'rate_limited') return { text: null, error: 'You\'ve sent too many requests. Please wait a moment.' };
-      if (res.status === 401)      return { text: null, error: 'Session expired. Please refresh the page.' };
-      if (res.status === 404)      return { text: null, error: 'AI service is unavailable. Please try again later.' };
-      if (res.status === 429)      return { text: null, error: 'AI service is busy. Please wait a moment and try again.' };
+      if (res.status === 429) return { text: null, error: 'AI service is busy. Please wait a moment and try again.' };
+      if (res.status === 404) return { text: null, error: 'AI service is unavailable. Please try again later.' };
       if (res.status === 502 || res.status === 503) return { text: null, error: 'AI service is temporarily unavailable. Please try again in a few seconds.' };
       return { text: null, error: err.error || `AI service error (${res.status})` };
     }
 
-    // Streaming path
-    if (stream && res.headers.get('content-type')?.includes('text/event-stream')) {
-      const text = await readSSEStream(res, onToken);
-      return { text: text || '', error: null };
-    }
-
-    // Non-streaming path
     const data = await res.json();
-    return { text: data.data || data.text || '', error: null };
+    if (!data.text) return { text: null, error: 'No response generated. Please try again.' };
+
+    return { text: data.text, error: null };
 
   } catch (e) {
+    clearTimeout(timeout);
     if (e.name === 'AbortError') return { text: null, error: 'AI request timed out. Please try again.' };
-    return { text: null, error: e.message || 'Network error' };
+    return { text: null, error: 'Could not reach AI service. Check your connection.' };
   }
-}
-
-// ── Unified callAI — used by all 15 AI functions ────────────────────────────
-async function callAI(systemPrompt, userMessage, maxTokens = 512, opts = {}) {
-  return callOrchestrator('generic', { system: systemPrompt, user: userMessage }, maxTokens, opts);
 }
 
 // ── Shared JSON extraction helper ───────────────────────────────────────────

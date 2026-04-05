@@ -1,3 +1,8 @@
+// DEPRECATED: This edge function is no longer used by the frontend.
+// All AI calls now route through gemini-proxy.
+// Safe to delete after confirming production works without it.
+// Deprecated: 2026-04-05
+
 /**
  * ai-orchestrator — Production-grade AI routing edge function.
  *
