@@ -70,8 +70,19 @@ async function readSSEStream(response, onToken) {
 // ── Core: call ai-orchestrator (JWT auth) ───────────────────────────────────
 async function callOrchestrator(action, payload, maxTokens = 512, { stream = false, onToken = null } = {}) {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) return { text: null, error: 'Not authenticated' };
+    let { data: { session }, error } = await supabase.auth.getSession();
+    if (!session || error) {
+      return { text: 'Please log in again to use AI features.', error: 'No active session' };
+    }
+
+    // Check if token expires within 60 seconds — refresh if so
+    const expiresAt = session.expires_at;
+    if (expiresAt && expiresAt - Math.floor(Date.now() / 1000) < 60) {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      if (refreshed?.session) {
+        session = refreshed.session;
+      }
+    }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
