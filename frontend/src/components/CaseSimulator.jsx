@@ -39,7 +39,7 @@ export default function CaseSimulator({ addToast }) {
               onChange={e => setSpeciality(e.target.value)}
               style={{
                 width: '100%', padding: '9px 12px', border: '1.5px solid #E5E7EB',
-                borderRadius: 8, fontSize: 13, background: '#fff',
+                borderRadius: 8, fontSize: 13, background: 'var(--surf)',
                 color: '#111827', outline: 'none',
               }}
             >

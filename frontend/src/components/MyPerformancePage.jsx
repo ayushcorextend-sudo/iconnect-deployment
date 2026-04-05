@@ -21,7 +21,7 @@ function ActivityHeatmap({ data }) {
     <div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
         {DAY_LABELS.map((d, i) => (
-          <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 9, color: '#9CA3AF', fontWeight: 600 }}>{d}</div>
+          <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 9, color: 'var(--muted)', fontWeight: 600 }}>{d}</div>
         ))}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
@@ -37,9 +37,9 @@ function ActivityHeatmap({ data }) {
         })}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8, justifyContent: 'flex-end' }}>
-        <span style={{ fontSize: 9, color: '#9CA3AF' }}>Less</span>
+        <span style={{ fontSize: 9, color: 'var(--muted)' }}>Less</span>
         {COLORS.map((c, i) => <div key={i} style={{ width: 10, height: 10, background: c, borderRadius: 2 }} />)}
-        <span style={{ fontSize: 9, color: '#9CA3AF' }}>More</span>
+        <span style={{ fontSize: 9, color: 'var(--muted)' }}>More</span>
       </div>
     </div>
   );
@@ -244,7 +244,7 @@ export default function MyPerformancePage({ userId }) {
 
   if (loading) return (
     <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
-      <div style={{ textAlign: 'center', color: '#9CA3AF' }}>
+      <div style={{ textAlign: 'center', color: 'var(--muted)' }}>
         <div style={{ fontSize: 36, marginBottom: 10 }}>⏳</div>
         <div style={{ fontSize: 14, fontWeight: 500 }}>Loading your analytics…</div>
       </div>
@@ -369,35 +369,35 @@ export default function MyPerformancePage({ userId }) {
           </div>
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Quiz Points</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>Quiz Points</span>
               <span style={{ fontSize: 12, color: '#2563EB', fontWeight: 700 }}>{scores.quiz.toLocaleString()}</span>
             </div>
-            <div style={{ height: 10, background: '#F3F4F6', borderRadius: 99, overflow: 'hidden' }}>
+            <div style={{ height: 10, background: 'var(--light)', borderRadius: 99, overflow: 'hidden' }}>
               <div style={{ width: `${quizPct}%`, height: '100%', background: 'linear-gradient(90deg,#2563EB,#4F46E5)', borderRadius: 99, transition: 'width .6s' }} />
             </div>
           </div>
           <div style={{ marginBottom: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Reading Points</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>Reading Points</span>
               <span style={{ fontSize: 12, color: '#7C3AED', fontWeight: 700 }}>{scores.reading.toLocaleString()}</span>
             </div>
-            <div style={{ height: 10, background: '#F3F4F6', borderRadius: 99, overflow: 'hidden' }}>
+            <div style={{ height: 10, background: 'var(--light)', borderRadius: 99, overflow: 'hidden' }}>
               <div style={{ width: `${readPct}%`, height: '100%', background: 'linear-gradient(90deg,#7C3AED,#A855F7)', borderRadius: 99, transition: 'width .6s' }} />
             </div>
           </div>
-          <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '12px 14px' }}>
+          <div style={{ background: 'var(--surf)', borderRadius: 10, padding: '12px 14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 600 }}>Total Points</span>
-              <span style={{ fontSize: 18, fontWeight: 900, color: '#111827' }}>{scores.total.toLocaleString()}</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>Total Points</span>
+              <span style={{ fontSize: 18, fontWeight: 900, color: 'var(--text)' }}>{scores.total.toLocaleString()}</span>
             </div>
           </div>
           {avgQuizScore !== null && (
             <div style={{ marginTop: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Avg Quiz Score</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>Avg Quiz Score</span>
                 <span style={{ fontSize: 12, color: '#059669', fontWeight: 700 }}>{avgQuizScore}%</span>
               </div>
-              <div style={{ height: 10, background: '#F3F4F6', borderRadius: 99, overflow: 'hidden' }}>
+              <div style={{ height: 10, background: 'var(--light)', borderRadius: 99, overflow: 'hidden' }}>
                 <div style={{
                   width: `${avgQuizScore}%`, height: '100%',
                   background: avgQuizScore >= 70 ? 'linear-gradient(90deg,#059669,#10B981)' : avgQuizScore >= 50 ? 'linear-gradient(90deg,#D97706,#F59E0B)' : 'linear-gradient(90deg,#DC2626,#EF4444)',
@@ -414,7 +414,7 @@ export default function MyPerformancePage({ userId }) {
             <div className="ct">📅 Last 7 Days Activity</div>
           </div>
           {weeklyData.length === 0 ? (
-            <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '20px 0' }}>
+            <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '20px 0' }}>
               No activity data yet.
             </div>
           ) : (
@@ -450,7 +450,7 @@ export default function MyPerformancePage({ userId }) {
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: 12, fontSize: 12, color: '#6B7280', textAlign: 'center' }}>
+              <div style={{ marginTop: 12, fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
                 {weeklyData.reduce((acc, d) => acc + d.count, 0)} total actions this week
               </div>
             </>
@@ -463,7 +463,7 @@ export default function MyPerformancePage({ userId }) {
         <div className="card" style={{ marginBottom: 24 }}>
           <div className="ch" style={{ marginBottom: 16 }}>
             <div className="ct">📈 4-Week Activity Trend</div>
-            <span style={{ fontSize: 12, color: '#9CA3AF' }}>Weekly comparison</span>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>Weekly comparison</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
             {trendData.map((w, i) => {
@@ -483,7 +483,7 @@ export default function MyPerformancePage({ userId }) {
                       minHeight: 4,
                     }} />
                   </div>
-                  <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 4 }}>{Math.round(w.mins / 60 * 10) / 10}h</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>{Math.round(w.mins / 60 * 10) / 10}h</div>
                   {prevCount !== null && (
                     <div style={{ fontSize: 10, fontWeight: 700, color: trendColor(wowVariance(w.count, prevCount).direction), marginTop: 2 }}>
                       {trendBadge(wowVariance(w.count, prevCount))}
@@ -501,41 +501,41 @@ export default function MyPerformancePage({ userId }) {
         <div className="card" style={{ marginBottom: 24 }}>
           <div className="ch" style={{ marginBottom: 16 }}>
             <div className="ct">🔍 Analytics Insights</div>
-            <span style={{ fontSize: 12, color: '#9CA3AF' }}>Based on your activity patterns</span>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>Based on your activity patterns</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
             {wowCountInsight && (
-              <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '14px 16px' }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activity WoW</div>
+              <div style={{ background: 'var(--surf)', borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activity WoW</div>
                 <div style={{ fontSize: 24, fontWeight: 900, color: trendColor(wowCountInsight.direction), lineHeight: 1 }}>
                   {trendArrow(wowCountInsight.direction)} {wowCountInsight.direction !== 'flat' ? `${wowCountInsight.pct}%` : '—'}
                 </div>
-                <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>vs last week</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>vs last week</div>
               </div>
             )}
             {wowMinsInsight && (
-              <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '14px 16px' }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Study Time WoW</div>
+              <div style={{ background: 'var(--surf)', borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Study Time WoW</div>
                 <div style={{ fontSize: 24, fontWeight: 900, color: trendColor(wowMinsInsight.direction), lineHeight: 1 }}>
                   {trendArrow(wowMinsInsight.direction)} {wowMinsInsight.direction !== 'flat' ? `${wowMinsInsight.pct}%` : '—'}
                 </div>
-                <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>mins studied vs last week</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>mins studied vs last week</div>
               </div>
             )}
             {momCountInsight && (
-              <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '14px 16px' }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activity MoM</div>
+              <div style={{ background: 'var(--surf)', borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activity MoM</div>
                 <div style={{ fontSize: 24, fontWeight: 900, color: trendColor(momCountInsight.direction), lineHeight: 1 }}>
                   {trendArrow(momCountInsight.direction)} {momCountInsight.direction !== 'flat' ? `${momCountInsight.pct}%` : '—'}
                 </div>
-                <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>vs last 4 weeks</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>vs last 4 weeks</div>
               </div>
             )}
             {peakTime && (
               <div style={{ background: '#EFF6FF', borderRadius: 12, padding: '14px 16px' }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: '#1D4ED8', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Peak Focus</div>
                 <div style={{ fontSize: 24, fontWeight: 900, color: '#2563EB', lineHeight: 1 }}>{peakTime.label}</div>
-                <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>{peakTime.pct}% of activity</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{peakTime.pct}% of activity</div>
               </div>
             )}
           </div>
@@ -549,7 +549,7 @@ export default function MyPerformancePage({ userId }) {
             <div className="ct">📅 35-Day Activity Calendar</div>
           </div>
           <ActivityHeatmap data={heatmapData} />
-          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 10, textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 10, textAlign: 'center' }}>
             {heatmapData.reduce((a, v) => a + v, 0)} total activities in the last 35 days
           </div>
         </div>
@@ -558,17 +558,17 @@ export default function MyPerformancePage({ userId }) {
             <div className="ct">🎯 Weekly Learning Target</div>
           </div>
           <GoalRingShared mins={weeklyMins} userId={userId} />
-          <div style={{ marginTop: 16, padding: '10px 14px', background: '#F9FAFB', borderRadius: 10, width: '100%', boxSizing: 'border-box' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6 }}>This week</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#6B7280' }}>
+          <div style={{ marginTop: 16, padding: '10px 14px', background: 'var(--surf)', borderRadius: 10, width: '100%', boxSizing: 'border-box' }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>This week</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)' }}>
               <span>Studied</span>
               <span style={{ fontWeight: 700, color: '#2563EB' }}>{Math.round(weeklyMins / 60 * 10) / 10}h</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
               <span>Target</span>
               <span style={{ fontWeight: 700 }}>5.0h</span>
             </div>
-            <div style={{ height: 6, background: '#F3F4F6', borderRadius: 99, overflow: 'hidden', marginTop: 8 }}>
+            <div style={{ height: 6, background: 'var(--light)', borderRadius: 99, overflow: 'hidden', marginTop: 8 }}>
               <div style={{
                 width: `${Math.min(weeklyMins / 300 * 100, 100)}%`, height: '100%',
                 background: weeklyMins >= 300 ? 'linear-gradient(90deg,#059669,#10B981)' : 'linear-gradient(90deg,#2563EB,#4F46E5)',
@@ -583,11 +583,11 @@ export default function MyPerformancePage({ userId }) {
       <div className="card">
         <div className="ch" style={{ marginBottom: 16 }}>
           <div className="ct">🕐 Recent Activity</div>
-          <span style={{ fontSize: 12, color: '#9CA3AF' }}>Last {recentActivity.length} actions</span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>Last {recentActivity.length} actions</span>
         </div>
 
         {recentActivity.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 13, padding: '20px 0' }}>
+          <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: '20px 0' }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>📭</div>
             No activity recorded yet. Start reading or taking quizzes!
           </div>
@@ -639,7 +639,7 @@ export default function MyPerformancePage({ userId }) {
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: 11, color: '#9CA3AF' }}>{fmtDate(log.created_at)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{fmtDate(log.created_at)}</div>
                   </div>
                 </div>
               );

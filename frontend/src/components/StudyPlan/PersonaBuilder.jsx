@@ -115,7 +115,7 @@ export default function PersonaBuilder({ userId, addToast }) {
 
       {/* Learning style */}
       <div className="card" style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 10 }}>🧠 Learning Style</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>🧠 Learning Style</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {LEARNING_STYLES.map(s => (
             <button
@@ -138,7 +138,7 @@ export default function PersonaBuilder({ userId, addToast }) {
 
       {/* Peak hours */}
       <div className="card" style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 10 }}>⏰ Peak Study Hours</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>⏰ Peak Study Hours</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {PEAK_HOURS.map(h => (
             <button
@@ -163,7 +163,7 @@ export default function PersonaBuilder({ userId, addToast }) {
       <div className="card" style={{ marginBottom: 12 }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 140px' }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', display: 'block', marginBottom: 6 }}>
               🎯 Weekly Goal (hours)
             </label>
             <input
@@ -174,7 +174,7 @@ export default function PersonaBuilder({ userId, addToast }) {
             />
           </div>
           <div style={{ flex: '1 1 140px' }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>
+            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', display: 'block', marginBottom: 6 }}>
               📅 Exam Date (optional)
             </label>
             <input
@@ -189,8 +189,8 @@ export default function PersonaBuilder({ userId, addToast }) {
 
       {/* Subject tagging */}
       <div className="card" style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 4 }}>📚 Tag Your Subjects</div>
-        <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 10 }}>Click once = Weak Area (red) · Click again = Strong (green) · Click again = remove</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>📚 Tag Your Subjects</div>
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>Click once = Weak Area (red) · Click again = Strong (green) · Click again = remove</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {ALL_SUBJECTS.slice(0, 30).map(sub => {
             const isWeak = form.weak_subjects.includes(sub);

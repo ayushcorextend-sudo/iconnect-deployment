@@ -30,7 +30,7 @@ function LatestContentSection({ latestContent, contentStates, handleBookmarkTogg
                 onClick={() => setPage('ebooks')}
                 style={{
                   flexShrink: 0, width: 180,
-                  background: '#F9FAFB', borderRadius: 12,
+                  background: 'var(--surf)', borderRadius: 12,
                   padding: 14, cursor: 'pointer',
                   border: '1px solid #F3F4F6',
                   transition: 'transform .2s, box-shadow .2s',
@@ -69,7 +69,7 @@ function LatestContentSection({ latestContent, contentStates, handleBookmarkTogg
                     {isBookmarked ? '🔖' : '🏷'}
                   </button>
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', marginBottom: 4, lineHeight: 1.3 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 4, lineHeight: 1.3 }}>
                   {a.title.length > 40 ? a.title.substring(0, 40) + '…' : a.title}
                 </div>
                 <div style={{ fontSize: 11, color: '#6B7280', marginBottom: savedPage > 1 ? 4 : 8 }}>{a.subject}</div>

@@ -177,20 +177,20 @@ export default function LeaderboardPage({ setPage }) {
 
   const SkeletonRow = () => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 6, marginBottom: 4 }}>
-      <div style={{ width: 22, height: 16, background: '#F3F4F6', borderRadius: 4 }} />
-      <div style={{ width: 34, height: 34, background: '#F3F4F6', borderRadius: '50%' }} />
+      <div style={{ width: 22, height: 16, background: 'var(--light)', borderRadius: 4 }} />
+      <div style={{ width: 34, height: 34, background: 'var(--light)', borderRadius: '50%' }} />
       <div style={{ flex: 1 }}>
-        <div style={{ width: '60%', height: 13, background: '#F3F4F6', borderRadius: 4, marginBottom: 6 }} />
-        <div style={{ width: '40%', height: 11, background: '#F3F4F6', borderRadius: 4 }} />
+        <div style={{ width: '60%', height: 13, background: 'var(--light)', borderRadius: 4, marginBottom: 6 }} />
+        <div style={{ width: '40%', height: 11, background: 'var(--light)', borderRadius: 4 }} />
       </div>
-      <div style={{ width: 60, height: 15, background: '#F3F4F6', borderRadius: 4 }} />
+      <div style={{ width: 60, height: 15, background: 'var(--light)', borderRadius: 4 }} />
     </div>
   );
 
   return (
     <div className="page" style={{ paddingBottom: me ? 80 : 0 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div className="ps" style={{ color: '#9CA3AF' }}>Academic progress ranking — not just gamification</div>
+        <div className="ps" style={{ color: 'var(--muted)' }}>Academic progress ranking — not just gamification</div>
         <div className="tabs" style={{ margin: 0 }}>
           {['weekly', 'monthly', 'alltime'].map(p => (
             <button key={p} className={`tab ${period === p ? 'act' : ''}`} onClick={() => setPeriod(p)}>
@@ -255,7 +255,7 @@ export default function LeaderboardPage({ setPage }) {
           <div className="ct" style={{ margin: 0 }}>
             {tab === 'global' ? 'Full Rankings' : tab === 'speciality' ? `My Speciality: ${myProfile?.speciality || '—'}` : `My College: ${myProfile?.college || '—'}`}
             {!loading && displayedLeaderboard.length > 0 && (
-              <span style={{ fontSize: 12, fontWeight: 500, color: '#9CA3AF', marginLeft: 8 }}>({displayedLeaderboard.length} users)</span>
+              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--muted)', marginLeft: 8 }}>({displayedLeaderboard.length} users)</span>
             )}
           </div>
           {myRank && (
@@ -271,14 +271,14 @@ export default function LeaderboardPage({ setPage }) {
         {loading ? (
           [1, 2, 3, 4, 5].map(i => <SkeletonRow key={i} />)
         ) : displayedLeaderboard.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '32px 16px', color: '#6B7280' }}>
+          <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)' }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>🌱</div>
-            <div style={{ fontWeight: 700, fontSize: 15, color: '#374151', marginBottom: 8 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 8 }}>
               {tab === 'global'
                 ? "You're a pioneer here!"
                 : "You're the first from your group!"}
             </div>
-            <div style={{ fontSize: 13, lineHeight: 1.6, maxWidth: 320, margin: '0 auto', color: '#9CA3AF' }}>
+            <div style={{ fontSize: 13, lineHeight: 1.6, maxWidth: 320, margin: '0 auto', color: 'var(--muted)' }}>
               {tab === 'global'
                 ? "No scores yet — every point you earn right now puts you at #1. Start a quiz and claim the top spot before others show up."
                 : "None of your peers have scored yet. Be the first to represent your speciality / college — take a quiz or finish a book now."}

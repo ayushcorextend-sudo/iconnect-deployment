@@ -345,9 +345,11 @@ function MainApp() {
   useEffect(() => {
     if (!userId) return;
     subscribeToNotifications(userId);
-    // No cleanup here — channels persist across renders; unsubscribeAll() is
-    // called on logout to tear down all channels at once.
-  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // On tab focus: resubscribe if channel was abandoned after max retries
+    const onFocus = () => subscribeToNotifications(userId);
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [userId, subscribeToNotifications]);
 
   // ── Dark mode sync ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -688,6 +690,7 @@ function MainApp() {
 
   return (
     <>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <div
         className="shell"
         onClick={() => setNotifPanel(false)}
@@ -698,35 +701,39 @@ function MainApp() {
           isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)}
         />
         <div className="main" onClick={e => e.stopPropagation()}>
-          <TopBar
-            title={titles[page] || 'iConnect'}
-            role={role}
-            unreadCount={unreadCount}
-            setPage={setPage}
-            notifPanelOpen={notifPanel}
-            setNotifPanel={setNotifPanel}
-            notifications={notifications}
-            darkMode={darkMode}
-            setDarkMode={setDarkMode}
-            setSidebarOpen={setSidebarOpen}
-          />
-          <Suspense fallback={null}>
-            <OnboardingBanner role={role} currentPage={page} setPage={setPage} />
-          </Suspense>
-          {/* NAV-FIX: Triple-layer defense against stale page content:
-              1. pageKey (page::counter) on ErrorBoundary — forces full unmount,
-                 even for same-page re-navigations
-              2. pageKey on Suspense — prevents React from reusing lazy-resolved
-                 Fiber trees across page transitions
-              3. PageGuard — runtime check: renders null if Zustand page state
-                 doesn't match what renderPage() was called with */}
-          <PageErrorBoundary key={pageKey} resetKey={page}>
-            <Suspense key={pageKey} fallback={<PageLoader />}>
-              <PageGuard expectedPage={page}>
-                {renderPage()}
-              </PageGuard>
+          <header role="banner">
+            <TopBar
+              title={titles[page] || 'iConnect'}
+              role={role}
+              unreadCount={unreadCount}
+              setPage={setPage}
+              notifPanelOpen={notifPanel}
+              setNotifPanel={setNotifPanel}
+              notifications={notifications}
+              darkMode={darkMode}
+              setDarkMode={setDarkMode}
+              setSidebarOpen={setSidebarOpen}
+            />
+          </header>
+          <main id="main-content">
+            <Suspense fallback={null}>
+              <OnboardingBanner role={role} currentPage={page} setPage={setPage} />
             </Suspense>
-          </PageErrorBoundary>
+            {/* NAV-FIX: Triple-layer defense against stale page content:
+                1. pageKey (page::counter) on ErrorBoundary — forces full unmount,
+                   even for same-page re-navigations
+                2. pageKey on Suspense — prevents React from reusing lazy-resolved
+                   Fiber trees across page transitions
+                3. PageGuard — runtime check: renders null if Zustand page state
+                   doesn't match what renderPage() was called with */}
+            <PageErrorBoundary key={pageKey} resetKey={page}>
+              <Suspense key={pageKey} fallback={<PageLoader />}>
+                <PageGuard expectedPage={page}>
+                  {renderPage()}
+                </PageGuard>
+              </Suspense>
+            </PageErrorBoundary>
+          </main>
         </div>
         <Toasts toasts={toasts} />
         <Suspense fallback={null}>

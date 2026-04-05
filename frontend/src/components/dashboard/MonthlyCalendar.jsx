@@ -32,7 +32,7 @@ export default function MonthlyCalendar({ activityByDate = {}, onDateClick, sele
           onClick={() => setViewDate(new Date(year, month - 1, 1))}
           style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, width: 28, height: 28, cursor: 'pointer', fontSize: 13, color: '#6B7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >‹</button>
-        <div style={{ fontWeight: 700, fontSize: 13, color: '#111827' }}>{MONTH_NAMES[month]} {year}</div>
+        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{MONTH_NAMES[month]} {year}</div>
         <button
           onClick={() => setViewDate(new Date(year, month + 1, 1))}
           disabled={isThisMonth}
@@ -65,7 +65,7 @@ export default function MonthlyCalendar({ activityByDate = {}, onDateClick, sele
               style={{
                 aspectRatio: '1',
                 borderRadius: 5,
-                background: isSelected ? '#7C3AED' : isToday ? '#2563EB' : count > 0 ? COLORS[intensity] : '#F9FAFB',
+                background: isSelected ? '#7C3AED' : isToday ? '#2563EB' : count > 0 ? COLORS[intensity] : 'var(--light)',
                 border: isSelected ? '2px solid #6D28D9' : isToday ? '2px solid #1D4ED8' : count > 0 ? '1px solid rgba(37,99,235,0.15)' : '1px solid #F3F4F6',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 10, fontWeight: (isToday || isSelected) ? 800 : 500,

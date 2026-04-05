@@ -156,7 +156,7 @@ export default function ChatBot({ chatBotMode = null, setChatBotMode }) {
 
   return (
     <>
-      <button onClick={() => setOpen(o => !o)} className="chatbot-fab" title="iConnect AI Assistant">
+      <button onClick={() => setOpen(o => !o)} className="chatbot-fab" title="iConnect AI Assistant" aria-label={open ? 'Close AI Assistant' : 'Open AI Assistant'} aria-expanded={open}>
         {open ? <X size={20} /> : <Sparkles size={22} />}
       </button>
 
@@ -180,7 +180,7 @@ export default function ChatBot({ chatBotMode = null, setChatBotMode }) {
                 {notesDownloading ? <span style={{ fontSize: 11 }}>⏳</span> : <Download size={15} />}
               </button>
             )}
-            <button className="chatbot-close-btn" onClick={() => setOpen(false)}>
+            <button className="chatbot-close-btn" onClick={() => setOpen(false)} aria-label="Close assistant">
               <X size={18} />
             </button>
           </div>
@@ -189,7 +189,7 @@ export default function ChatBot({ chatBotMode = null, setChatBotMode }) {
         {/* Mode Tabs */}
         <div className="chatbot-tabs">
           {[['chat', '💬 Chat'], ['doubt', '🧠 Doubt Buster']].map(([k, l]) => (
-            <button key={k} onClick={() => setMode(k)} className={`chatbot-tab ${mode === k ? 'active' : ''}`}>
+            <button key={k} onClick={() => setMode(k)} className={`chatbot-tab ${mode === k ? 'active' : ''}`} aria-label={k === 'chat' ? 'Chat mode' : 'Doubt Buster mode'} aria-pressed={mode === k}>
               {l}
             </button>
           ))}

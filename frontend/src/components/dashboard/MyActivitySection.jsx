@@ -14,16 +14,16 @@ function MyActivitySection({
   if (dashLoading) {
     return (
       <div className="card animate-pulse" style={{ marginBottom: 20 }}>
-        <div style={{ height: 18, background: '#E5E7EB', borderRadius: 6, width: '35%', marginBottom: 20 }} />
+        <div style={{ height: 18, background: 'var(--border)', borderRadius: 6, width: '35%', marginBottom: 20 }} />
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
           {[1,2,3,4].map(i => (
-            <div key={i} style={{ flex: '1 1 120px', height: 62, background: '#F3F4F6', borderRadius: 10 }} />
+            <div key={i} style={{ flex: '1 1 120px', height: 62, background: 'var(--light)', borderRadius: 10 }} />
           ))}
         </div>
-        <div style={{ height: 8, background: '#F3F4F6', borderRadius: 99, marginBottom: 16 }} />
+        <div style={{ height: 8, background: 'var(--light)', borderRadius: 99, marginBottom: 16 }} />
         <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 40 }}>
           {[32,48,24,40,56,20,44].map((h, i) => (
-            <div key={i} style={{ flex: 1, height: h, background: '#F3F4F6', borderRadius: 4 }} />
+            <div key={i} style={{ flex: 1, height: h, background: 'var(--light)', borderRadius: 4 }} />
           ))}
         </div>
       </div>
@@ -68,7 +68,7 @@ function MyActivitySection({
             <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>Score Breakdown</span>
             <span style={{ fontSize: 12, color: '#6B7280' }}>{myScore.toLocaleString()} pts total</span>
           </div>
-          <div style={{ height: 8, background: '#F3F4F6', borderRadius: 99, overflow: 'hidden', display: 'flex' }}>
+          <div style={{ height: 8, background: 'var(--light)', borderRadius: 99, overflow: 'hidden', display: 'flex' }}>
             <div style={{ width: `${quizPct}%`, background: '#2563EB', transition: 'width .5s' }} />
             <div style={{ width: `${readPct}%`, background: '#7C3AED', transition: 'width .5s' }} />
           </div>

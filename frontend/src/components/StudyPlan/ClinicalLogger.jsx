@@ -108,7 +108,7 @@ export default function ClinicalLogger({ userId, addToast }) {
               style={{ resize: 'vertical', fontFamily: 'inherit' }}
             />
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 600 }}>Difficulty:</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>Difficulty:</span>
               {DIFFICULTIES.map(d => (
                 <button
                   key={d}
@@ -151,7 +151,7 @@ export default function ClinicalLogger({ userId, addToast }) {
             ))}
           </div>
         ) : logs.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '24px 0', color: '#9CA3AF', fontSize: 13 }}>
+          <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--muted)', fontSize: 13 }}>
             No cases logged yet. Start building your clinical log above!
           </div>
         ) : (
@@ -175,10 +175,10 @@ export default function ClinicalLogger({ userId, addToast }) {
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {log.case_title}
                     </div>
-                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                       {log.speciality && <span style={{ marginRight: 8 }}>🏥 {log.speciality}</span>}
                       {relTime(log.created_at)}
                     </div>
@@ -194,8 +194,8 @@ export default function ClinicalLogger({ userId, addToast }) {
                 </div>
                 {expanded === log.id && (
                   <div style={{ padding: '10px 12px', borderTop: '1px solid #F3F4F6', background: '#FAFAFA' }}>
-                    <p style={{ fontSize: 12, color: '#374151', margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                      {log.key_learnings || <em style={{ color: '#9CA3AF' }}>No learnings noted.</em>}
+                    <p style={{ fontSize: 12, color: 'var(--text)', margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                      {log.key_learnings || <em style={{ color: 'var(--muted)' }}>No learnings noted.</em>}
                     </p>
                     <button
                       onClick={() => handleDelete(log.id)}

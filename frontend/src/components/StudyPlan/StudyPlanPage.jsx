@@ -35,7 +35,7 @@ export default function StudyPlanPage({ userId, addToast }) {
       {/* Tabs */}
       <div style={{
         display: 'flex', gap: 6, marginBottom: 20,
-        background: '#F3F4F6', borderRadius: 12, padding: 4,
+        background: 'var(--light)', borderRadius: 12, padding: 4,
       }}>
         {TABS.map(t => (
           <button
@@ -59,7 +59,7 @@ export default function StudyPlanPage({ userId, addToast }) {
       </div>
 
       {/* Tab descriptions */}
-      <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 16, textAlign: 'center' }}>
+      <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16, textAlign: 'center' }}>
         {TABS.find(t => t.key === tab)?.desc}
       </div>
 
@@ -72,7 +72,7 @@ export default function StudyPlanPage({ userId, addToast }) {
           {tab === 'flashcards' && <SpacedRepetition userId={uid} addToast={addToast} />}
         </>
       ) : (
-        <div className="card" style={{ textAlign: 'center', padding: '40px 20px', color: '#9CA3AF' }}>
+        <div className="card" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)' }}>
           Loading…
         </div>
       )}

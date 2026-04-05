@@ -13,7 +13,7 @@ export const Z = {
   diary:         500,
   confirmModal:  600,
   userMgmtMenu:  900,
-  toast:         999,
+  toast:         1003,
   chatOverlay:      1000,
   chatBtn:          1001,
   chatPanel:        1002,

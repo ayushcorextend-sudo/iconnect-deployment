@@ -168,7 +168,7 @@ export default function ExamPage({ addToast }) {
   // ── Subject grid ────────────────────────────────────────────
   if (!selected) return (
     <div className="page">
-      <div className="ps" style={{ marginBottom: 12, color: '#9CA3AF' }}>Practice MCQs organised by subject — track your score and improve</div>
+      <div className="ps" style={{ marginBottom: 12, color: 'var(--muted)' }}>Practice MCQs organised by subject — track your score and improve</div>
       {subjectsLoading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #E5E7EB', borderTopColor: '#4F46E5', animation: 'spin 0.8s linear infinite' }} />
@@ -196,8 +196,8 @@ export default function ExamPage({ addToast }) {
             key={s.id}
             onClick={() => startExam(s)}
             style={{
-              background: '#fff', borderRadius: 16, padding: '24px 20px', textAlign: 'center',
-              border: '1px solid #E5E7EB', cursor: 'pointer',
+              background: 'var(--surf)', borderRadius: 16, padding: '24px 20px', textAlign: 'center',
+              border: '1px solid var(--border)', cursor: 'pointer',
               boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
               transition: 'box-shadow .15s, transform .15s',
             }}
@@ -205,8 +205,8 @@ export default function ExamPage({ addToast }) {
             onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)'; e.currentTarget.style.transform = ''; }}
           >
             <div style={{ fontSize: 40, marginBottom: 10 }}>{s.icon}</div>
-            <div style={{ fontWeight: 700, fontSize: 13, color: '#111827', marginBottom: 4 }}>{s.name}</div>
-            <div style={{ fontSize: 11, color: '#9CA3AF' }}>{s.question_count || '—'} questions</div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 4 }}>{s.name}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{s.question_count || '—'} questions</div>
           </div>
         ))}
       </div>
@@ -267,20 +267,20 @@ export default function ExamPage({ addToast }) {
           </div>
         </div>
 
-        <div style={{ fontWeight: 700, fontSize: 14, color: '#374151', marginBottom: 12 }}>Review Answers</div>
+        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 12 }}>Review Answers</div>
         {questions.map((rq, idx) => {
           const ua = answers[rq.id];
           const correct = ua === rq.correct;
           const rOpts = [{ k: 'A', v: rq.option_a }, { k: 'B', v: rq.option_b }, { k: 'C', v: rq.option_c }, { k: 'D', v: rq.option_d }];
           return (
-            <div key={rq.id} style={{ background: '#fff', borderRadius: 12, padding: 18, marginBottom: 12, border: `1px solid ${correct ? '#BBF7D0' : '#FECACA'}` }}>
-              <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 6 }}>Q{idx + 1} · {rq.difficulty?.toUpperCase()}</div>
-              <div style={{ fontWeight: 600, fontSize: 14, color: '#111827', marginBottom: 10 }}>{rq.question}</div>
+            <div key={rq.id} style={{ background: 'var(--surf)', borderRadius: 12, padding: 18, marginBottom: 12, border: `1px solid ${correct ? '#BBF7D0' : '#FECACA'}` }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>Q{idx + 1} · {rq.difficulty?.toUpperCase()}</div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 10 }}>{rq.question}</div>
               {rOpts.map(o => (
                 <div key={o.k} style={{
                   padding: '6px 10px', borderRadius: 8, marginBottom: 4, fontSize: 13,
                   background: o.k === rq.correct ? '#DCFCE7'
-                    : o.k === ua && !correct ? '#FEE2E2' : '#F9FAFB',
+                    : o.k === ua && !correct ? '#FEE2E2' : 'var(--light)',
                   color: o.k === rq.correct ? '#15803D'
                     : o.k === ua && !correct ? '#DC2626' : '#374151',
                   fontWeight: o.k === rq.correct ? 600 : 400,
@@ -334,23 +334,23 @@ export default function ExamPage({ addToast }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <button className="btn btn-s btn-sm" onClick={() => setSelected(null)}>← Exit</button>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 4 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
             {selected.icon} {selected.name} — Q{current + 1} of {questions.length}
           </div>
-          <div style={{ height: 6, background: '#E5E7EB', borderRadius: 99, overflow: 'hidden' }}>
+          <div style={{ height: 6, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg,#4F46E5,#7C3AED)', borderRadius: 99, transition: 'width .3s' }} />
           </div>
         </div>
-        <div style={{ fontSize: 12, color: '#9CA3AF', minWidth: 40, textAlign: 'right' }}>{pct}%</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)', minWidth: 40, textAlign: 'right' }}>{pct}%</div>
       </div>
 
       <div style={{ maxWidth: 680 }}>
-        <div style={{ background: '#fff', borderRadius: 16, padding: '24px 28px', marginBottom: 16, border: '1px solid #E5E7EB' }}>
+        <div style={{ background: 'var(--surf)', borderRadius: 16, padding: '24px 28px', marginBottom: 16, border: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
             <span style={{ background: '#EFF6FF', color: '#1D4ED8', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{q.source || 'NEET-PG'}</span>
-            <span style={{ background: '#F3F4F6', color: '#6B7280', borderRadius: 6, padding: '2px 8px', fontSize: 11 }}>{q.difficulty?.toUpperCase()}</span>
+            <span style={{ background: 'var(--light)', color: 'var(--muted)', borderRadius: 6, padding: '2px 8px', fontSize: 11 }}>{q.difficulty?.toUpperCase()}</span>
           </div>
-          <div style={{ fontWeight: 600, fontSize: 15, color: '#111827', lineHeight: 1.6 }}>{q.question}</div>
+          <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--text)', lineHeight: 1.6 }}>{q.question}</div>
         </div>
 
         {opts.map(o => {
@@ -376,7 +376,7 @@ export default function ExamPage({ addToast }) {
               }}>
                 {o.k}
               </div>
-              <span style={{ fontSize: 14, color: '#111827', fontWeight: picked ? 600 : 400 }}>{o.v}</span>
+              <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: picked ? 600 : 400 }}>{o.v}</span>
             </div>
           );
         })}
@@ -396,7 +396,7 @@ export default function ExamPage({ addToast }) {
             </button>
           )}
         </div>
-        <div style={{ textAlign: 'center', fontSize: 12, color: '#9CA3AF', marginTop: 10 }}>
+        <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)', marginTop: 10 }}>
           {Object.keys(answers).length} of {questions.length} answered
         </div>
       </div>

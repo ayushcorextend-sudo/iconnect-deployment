@@ -138,7 +138,7 @@ export default function ContentAdminDashboard({ userId, userName, role, setPage,
                   display: 'flex', alignItems: 'center', gap: 10,
                   width: '100%', padding: '11px 16px', border: 'none', cursor: 'pointer',
                   background: activeTab === t.key ? '#EFF6FF' : 'transparent',
-                  color: activeTab === t.key ? '#1D4ED8' : '#374151',
+                  color: activeTab === t.key ? '#1D4ED8' : 'var(--text)',
                   fontWeight: activeTab === t.key ? 700 : 400,
                   fontSize: 14, borderRadius: 0,
                   borderLeft: activeTab === t.key ? '3px solid #2563EB' : '3px solid transparent',
@@ -196,14 +196,14 @@ export default function ContentAdminDashboard({ userId, userName, role, setPage,
                     const sc = statusCfg[a.status] || { label: a.status, bg: '#F3F4F6', color: '#6B7280' };
                     return (
                       <div key={a.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 14 }}>
-                        <div style={{ width: 48, height: 62, borderRadius: 6, overflow: 'hidden', background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 22, border: '1px solid #E5E7EB' }}>
+                        <div style={{ width: 48, height: 62, borderRadius: 6, overflow: 'hidden', background: 'var(--light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 22, border: '1px solid var(--border)' }}>
                           {a.thumbnail_url
                             ? <SignedImg src={a.thumbnail_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} fallback={<span>{a.emoji || '📄'}</span>} />
                             : (a.emoji || '📄')}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, fontSize: 14 }}>{a.title}</div>
-                          <div style={{ fontSize: 12, color: '#6B7280' }}>{a.subject || '—'} · {a.size || '—'}</div>
+                          <div style={{ fontSize: 12, color: 'var(--muted)' }}>{a.subject || '—'} · {a.size || '—'}</div>
                           {a.status === 'rejected' && a.rejection_reason && (
                             <div style={{ marginTop: 4, padding: '4px 8px', borderRadius: 6, background: '#FEF2F2', fontSize: 12, color: '#DC2626' }}>
                               <strong>Rejected:</strong> {a.rejection_reason}

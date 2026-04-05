@@ -100,10 +100,10 @@ export default function SpacedRepetition({ userId, addToast }) {
   if (done || cards.length === 0) return (
     <div style={{ textAlign: 'center', padding: '40px 20px' }}>
       <div style={{ fontSize: 56, marginBottom: 12 }}>{cards.length === 0 ? '🎉' : '✅'}</div>
-      <div style={{ fontSize: 18, fontWeight: 800, color: '#111827', marginBottom: 6 }}>
+      <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', marginBottom: 6 }}>
         {cards.length === 0 ? 'No cards due today!' : `Session complete — ${reviewed} cards reviewed`}
       </div>
-      <div style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 24 }}>
+      <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 24 }}>
         {cards.length === 0
           ? 'Complete exam subjects to build your review queue. Cards from wrong answers appear here.'
           : 'Great work! Come back tomorrow for your next review session.'}
@@ -124,10 +124,10 @@ export default function SpacedRepetition({ userId, addToast }) {
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
       {/* Progress bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-        <div style={{ flex: 1, height: 8, background: '#E5E7EB', borderRadius: 99, overflow: 'hidden' }}>
+        <div style={{ flex: 1, height: 8, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
           <div style={{ width: `${progress}%`, height: '100%', background: 'linear-gradient(90deg,#4F46E5,#7C3AED)', borderRadius: 99, transition: 'width .4s' }} />
         </div>
-        <div style={{ fontSize: 12, color: '#6B7280', minWidth: 60, textAlign: 'right' }}>
+        <div style={{ fontSize: 12, color: 'var(--muted)', minWidth: 60, textAlign: 'right' }}>
           {idx} / {totalDue} done
         </div>
       </div>
@@ -136,7 +136,7 @@ export default function SpacedRepetition({ userId, addToast }) {
       <div
         onClick={() => !flipped && setFlipped(true)}
         style={{
-          background: '#fff', border: '1px solid #E5E7EB', borderRadius: 20,
+          background: 'var(--surf)', border: '1px solid #E5E7EB', borderRadius: 20,
           padding: '36px 28px', textAlign: 'center', cursor: flipped ? 'default' : 'pointer',
           boxShadow: '0 4px 20px rgba(0,0,0,0.06)', marginBottom: 16, minHeight: 180,
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -157,17 +157,17 @@ export default function SpacedRepetition({ userId, addToast }) {
         {!flipped ? (
           <>
             <div style={{ fontSize: 28, marginBottom: 12 }}>🧠</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', lineHeight: 1.5, marginBottom: 16 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', lineHeight: 1.5, marginBottom: 16 }}>
               {card.front}
             </div>
-            <div style={{ fontSize: 12, color: '#9CA3AF', background: '#F9FAFB', borderRadius: 8, padding: '6px 14px' }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--surf)', borderRadius: 8, padding: '6px 14px' }}>
               Tap to reveal answer
             </div>
           </>
         ) : (
           <>
-            <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 10, fontWeight: 600 }}>Answer</div>
-            <div style={{ fontSize: 14, color: '#111827', lineHeight: 1.6, fontWeight: 500 }}>
+            <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 10, fontWeight: 600 }}>Answer</div>
+            <div style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.6, fontWeight: 500 }}>
               {card.back}
             </div>
           </>
@@ -177,7 +177,7 @@ export default function SpacedRepetition({ userId, addToast }) {
       {/* Rating buttons — only visible after flip */}
       {flipped && (
         <div>
-          <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', marginBottom: 10 }}>
+          <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginBottom: 10 }}>
             How well did you recall this?
           </div>
           <div style={{ display: 'flex', gap: 8 }}>

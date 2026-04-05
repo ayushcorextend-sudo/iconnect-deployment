@@ -205,7 +205,7 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
   return (
     <div className="page">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <div className="ps" style={{ color: '#9CA3AF' }}>
+        <div className="ps" style={{ color: 'var(--muted)' }}>
           {filteredArtifacts.length} of {localArtifacts.length} document{localArtifacts.length !== 1 ? 's' : ''}
           {activeFilterCount > 0 && <span style={{ color: '#7C3AED', fontWeight: 600 }}> · {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active</span>}
         </div>
@@ -269,18 +269,18 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
                   {role === 'superadmin' && a.uploadedBy && a.uploadedBy !== 'Unknown' && (
                     <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 5 }}>
                       <div style={{ width: 3, height: 13, borderRadius: 99, background: '#818CF8', flexShrink: 0 }} />
-                      <span style={{ fontSize: 10, color: '#6B7280' }}>
+                      <span style={{ fontSize: 10, color: 'var(--muted)' }}>
                         Uploaded by <strong style={{ color: '#4F46E5', fontWeight: 700 }}>{a.uploadedBy}</strong>
                       </span>
                     </div>
                   )}
                   {a.status === 'approved' && a.pages > 1 && savedPage > 1 && (
                     <div style={{ marginTop: 6 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#9CA3AF', marginBottom: 3 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--muted)', marginBottom: 3 }}>
                         <span>p.{savedPage} / {a.pages}</span>
                         <span>{Math.round((savedPage / a.pages) * 100)}%</span>
                       </div>
-                      <div style={{ background: '#E5E7EB', borderRadius: 99, height: 4, overflow: 'hidden' }}>
+                      <div style={{ background: 'var(--border)', borderRadius: 99, height: 4, overflow: 'hidden' }}>
                         <div style={{ background: 'linear-gradient(90deg,#4F46E5,#7C3AED)', height: '100%', width: `${Math.min(100, Math.round((savedPage / a.pages) * 100))}%`, transition: 'width .3s' }} />
                       </div>
                     </div>
@@ -290,7 +290,7 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
                   </div>
                 </div>
                 <div className="ec-foot">
-                  <span style={{ fontSize: 11, color: '#6B7280' }}>⬇️ {a.downloads.toLocaleString()}</span>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>⬇️ {a.downloads.toLocaleString()}</span>
                   {role === 'superadmin' && a.status === 'pending' ? (
                     <div style={{ display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
                       <button aria-label="Approve" className="btn btn-p btn-sm" onClick={() => { onApprove(a.id); addToast('success', 'Approved!'); }}>✅</button>
@@ -303,7 +303,7 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
                       </button>
                     </div>
                   ) : (
-                    <span style={{ fontSize: 11, color: '#6B7280' }}>Locked</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>Locked</span>
                   )}
                 </div>
               </div>
@@ -344,13 +344,13 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
                               <div style={{ width: 3, height: 12, borderRadius: 99, background: '#818CF8', flexShrink: 0 }} />
                               <span style={{ fontSize: 12, color: '#4F46E5', fontWeight: 600 }}>{a.uploadedBy}</span>
                             </div>
-                          ) : <span style={{ fontSize: 11, color: '#9CA3AF' }}>—</span>}
+                          ) : <span style={{ fontSize: 11, color: 'var(--muted)' }}>—</span>}
                         </td>
                       )}
                       <td>
                         {a.status === 'approved' && savedPage > 1
                           ? <span style={{ fontSize: 11, color: '#2563EB', fontWeight: 600 }}>p.{savedPage}/{a.pages || '?'}</span>
-                          : <span style={{ fontSize: 11, color: '#9CA3AF' }}>—</span>}
+                          : <span style={{ fontSize: 11, color: 'var(--muted)' }}>—</span>}
                       </td>
                       <td>
                         {a.status === 'approved'
@@ -360,7 +360,7 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
                                 <button aria-label="Approve" className="btn btn-p btn-sm" onClick={() => { onApprove(a.id); addToast('success', 'Approved!'); }}>✅</button>
                                 <button aria-label="Reject" className="btn btn-d btn-sm" onClick={() => { onReject(a.id); addToast('error', 'Rejected'); }}>✗</button>
                               </div>
-                            : <span style={{ fontSize: 11, color: '#6B7280' }}>Pending Verification</span>}
+                            : <span style={{ fontSize: 11, color: 'var(--muted)' }}>Pending Verification</span>}
                       </td>
                     </tr>
                   );
@@ -376,13 +376,13 @@ export default function EBooksPage({ artifacts = [], role, onApprove, onReject, 
         <div className="eg">
           {[1,2,3,4,5,6].map(i => (
             <div key={i} className="ec animate-pulse" style={{ cursor: 'default' }}>
-              <div className="ec-cover" style={{ background: '#F3F4F6' }} />
+              <div className="ec-cover" style={{ background: 'var(--light)' }} />
               <div className="ec-body">
-                <div style={{ height: 14, background: '#E5E7EB', borderRadius: 4, marginBottom: 8, width: '80%' }} />
-                <div style={{ height: 11, background: '#F3F4F6', borderRadius: 4, width: '55%' }} />
+                <div style={{ height: 14, background: 'var(--border)', borderRadius: 4, marginBottom: 8, width: '80%' }} />
+                <div style={{ height: 11, background: 'var(--light)', borderRadius: 4, width: '55%' }} />
               </div>
               <div className="ec-foot" style={{ justifyContent: 'flex-end' }}>
-                <div style={{ height: 24, width: 60, background: '#F3F4F6', borderRadius: 6 }} />
+                <div style={{ height: 24, width: 60, background: 'var(--light)', borderRadius: 6 }} />
               </div>
             </div>
           ))}

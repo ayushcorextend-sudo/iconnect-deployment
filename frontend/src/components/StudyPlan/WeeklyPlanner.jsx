@@ -99,9 +99,9 @@ export default function WeeklyPlanner({ userId, addToast }) {
       {/* Header controls */}
       <div className="card" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>🗓 Your 7-Day AI Study Plan</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>🗓 Your 7-Day AI Study Plan</div>
           {persona ? (
-            <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
               Personalised for {persona.peak_hours} study · {persona.weekly_goal_hours}h/week goal
             </div>
           ) : (
@@ -128,7 +128,7 @@ export default function WeeklyPlanner({ userId, addToast }) {
       {loading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[1, 2, 3, 4].map(i => <div key={i} className="skeleton" style={{ height: 80, borderRadius: 12 }} />)}
-          <div style={{ textAlign: 'center', fontSize: 12, color: '#9CA3AF' }}>✨ AI is building your personalised plan…</div>
+          <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)' }}>✨ AI is building your personalised plan…</div>
         </div>
       )}
 
@@ -164,15 +164,15 @@ export default function WeeklyPlanner({ userId, addToast }) {
                   }}>
                     {DAY_SHORT[day] || day.slice(0, 3).toUpperCase()}
                   </span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#111827', flex: 1 }}>{day}</span>
-                  <span style={{ fontSize: 11, color: '#9CA3AF' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', flex: 1 }}>{day}</span>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                     {dayChecked}/{dayData.tasks?.length || 0}
                     {allDone && ' 🎉'}
                   </span>
                 </div>
 
                 {/* Tasks */}
-                <div style={{ background: '#fff', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ background: 'var(--surf)', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {(dayData.tasks || []).length === 0 ? (
                     <div style={{ fontSize: 12, color: '#D1D5DB', fontStyle: 'italic', padding: '4px 0' }}>Rest day — take a break!</div>
                   ) : (
@@ -203,7 +203,7 @@ export default function WeeklyPlanner({ userId, addToast }) {
                             <div style={{ fontSize: 12, fontWeight: 600, color: isDone ? '#6B7280' : '#111827', textDecoration: isDone ? 'line-through' : 'none' }}>
                               {task.subject}
                             </div>
-                            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>
+                            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>
                               {task.activity}{task.duration_mins ? ` · ${task.duration_mins} min` : ''}
                             </div>
                           </div>
@@ -226,7 +226,7 @@ export default function WeeklyPlanner({ userId, addToast }) {
         }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🗓</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#4F46E5', marginBottom: 6 }}>No plan yet</div>
-          <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
             {persona
               ? 'Click Generate Plan to create your AI-powered weekly schedule.'
               : 'Complete your Persona first, then generate a personalised plan.'}

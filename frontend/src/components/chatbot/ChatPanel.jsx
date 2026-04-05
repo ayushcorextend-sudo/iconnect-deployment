@@ -80,6 +80,7 @@ export default function ChatPanel({ messages, loading, error, input, setInput, o
           onClick={() => onSend()}
           disabled={loading || !input.trim() || remaining <= 0}
           className="chatbot-send-btn"
+          aria-label="Send message"
         >
           <Send size={16} />
         </button>

@@ -3,9 +3,11 @@ import { supabase } from '../lib/supabase';
 
 // Page name → URL path mapping
 const toPath = (page) => '/' + (page === 'dashboard' ? '' : page);
+// URL aliases: maps legacy/alternate URL segments to canonical page keys
+const URL_ALIASES = { 'interest-groups': 'groups' };
 const fromPath = (pathname) => {
   const seg = pathname.replace(/^\//, '');
-  return seg || 'dashboard';
+  return URL_ALIASES[seg] || seg || 'dashboard';
 };
 
 // BUG-A: Whitelist of all valid page identifiers — setPage rejects anything unknown.
@@ -20,6 +22,11 @@ const VALID_PAGES = new Set([
 
 // Active Supabase realtime channels (module-level, survive re-renders)
 const _channels = new Map();
+
+// Retry tracking for notification channel backoff
+const _retryCount = new Map();   // key → attempt number (0-based)
+const _retryTimers = new Map();  // key → setTimeout id
+const MAX_RETRIES = 5;
 
 // BUG-O: Navigator function lives outside Zustand state — functions are not
 // serializable and break Zustand DevTools + any persist middleware.
@@ -122,8 +129,10 @@ export const useAppStore = create((set, get) => ({
     const key = `notifs-${userId}`;
     if (_channels.has(key)) return; // already subscribed
 
+    const attempt = _retryCount.get(key) ?? 0;
+
     const channel = supabase
-      .channel(key)
+      .channel(`${key}-${attempt}`) // unique name per attempt prevents Supabase dedup
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'notifications',
         filter: `user_id=eq.${userId}`,
@@ -137,16 +146,28 @@ export const useAppStore = create((set, get) => ({
         });
       })
       .subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR') {
-          console.warn('[Realtime] Channel error for notifications — removing to prevent infinite retry:', err?.message);
-          supabase.removeChannel(channel);
-          _channels.delete(key);
+        if (status !== 'CHANNEL_ERROR' && status !== 'TIMED_OUT') return;
+
+        // Tear down current channel immediately to stop burst callbacks
+        supabase.removeChannel(channel);
+        _channels.delete(key);
+
+        const nextAttempt = (_retryCount.get(key) ?? 0) + 1;
+        _retryCount.set(key, nextAttempt);
+
+        if (nextAttempt > MAX_RETRIES) {
+          console.warn(`[Realtime] Notification channel abandoned after ${MAX_RETRIES} retries.`);
+          return;
         }
-        if (status === 'TIMED_OUT') {
-          console.warn('[Realtime] Channel timed out — removing to prevent infinite retry');
-          supabase.removeChannel(channel);
-          _channels.delete(key);
-        }
+
+        const delay = Math.min(1000 * Math.pow(2, nextAttempt - 1), 30_000);
+        console.warn(`[Realtime] Channel ${status} — retry ${nextAttempt}/${MAX_RETRIES} in ${delay}ms`);
+
+        const timer = setTimeout(() => {
+          _retryTimers.delete(key);
+          get().subscribeToNotifications(userId);
+        }, delay);
+        _retryTimers.set(key, timer);
       });
 
     _channels.set(key, channel);
@@ -158,6 +179,10 @@ export const useAppStore = create((set, get) => ({
       supabase.removeChannel(channel);
     }
     _channels.clear();
+    // Cancel any pending retry timers and reset counters
+    for (const [, timer] of _retryTimers) clearTimeout(timer);
+    _retryTimers.clear();
+    _retryCount.clear();
   },
 
   // Artifact helpers

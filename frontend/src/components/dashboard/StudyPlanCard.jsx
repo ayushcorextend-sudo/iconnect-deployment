@@ -29,7 +29,7 @@ function StudyPlanCard({ dashLoading, studyPlan, setStudyPlan, mySpeciality, boo
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ height: 8, background: '#E5E7EB', borderRadius: 99, overflow: 'hidden' }}>
+            <div style={{ height: 8, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
               <div style={{
                 height: 8, borderRadius: 99,
                 background: 'linear-gradient(90deg,#4F46E5,#7C3AED)',
@@ -43,7 +43,7 @@ function StudyPlanCard({ dashLoading, studyPlan, setStudyPlan, mySpeciality, boo
           </div>
         </div>
         {nextTask ? (
-          <div style={{ fontSize: 12, color: '#6B7280', background: '#F9FAFB', borderRadius: 8, padding: '8px 12px' }}>
+          <div style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--surf)', borderRadius: 8, padding: '8px 12px' }}>
             <span style={{ fontWeight: 700, color: '#374151' }}>Next: </span>
             {nextTask.task.subject} — {nextTask.task.activity}
             <span style={{ color: '#9CA3AF', marginLeft: 6 }}>({nextTask.day})</span>
@@ -81,8 +81,8 @@ function StudyPlanCard({ dashLoading, studyPlan, setStudyPlan, mySpeciality, boo
       {!studyPlan.loading && !studyPlan.text && !studyPlan.error && (
         <div style={{ textAlign: 'center', padding: '24px 16px' }}>
           <div style={{ fontSize: 40, marginBottom: 8 }}>📋</div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: '#111827', marginBottom: 4 }}>No active study plan</div>
-          <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 14 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>No active study plan</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 14 }}>
             Create a personalised study plan to track your weekly progress
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>

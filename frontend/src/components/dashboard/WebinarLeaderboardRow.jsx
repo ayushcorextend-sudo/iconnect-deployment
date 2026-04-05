@@ -63,7 +63,7 @@ function WebinarLeaderboardRow({
         </div>
         {nextWebinar ? (
           <div>
-            <div style={{ fontWeight: 700, fontSize: 15, color: '#111827', marginBottom: 6 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 6 }}>
               {nextWebinar.title}
             </div>
             {nextWebinar.speaker && (
@@ -130,7 +130,7 @@ function WebinarLeaderboardRow({
             </div>
             {reminderPopover && (
               <div style={{
-                marginTop: 12, background: '#F9FAFB', borderRadius: 10,
+                marginTop: 12, background: 'var(--surf)', borderRadius: 10,
                 border: '1px solid #E5E7EB', padding: '12px 14px',
               }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
@@ -270,7 +270,7 @@ function WebinarLeaderboardRow({
         </div>
 
         {/* Mini top-3 leaderboard */}
-        <div style={{ background: '#fff', padding: '12px 14px' }}>
+        <div style={{ background: 'var(--surf)', padding: '12px 14px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: '#9CA3AF', letterSpacing: '0.5px', marginBottom: 8 }}>TOP PERFORMERS</div>
           {miniLB.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '8px 0', color: '#9CA3AF', fontSize: 13 }}>

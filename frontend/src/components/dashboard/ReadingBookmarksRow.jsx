@@ -27,13 +27,13 @@ function ReadingBookmarksRow({ recentlyRead, bookmarked, contentStates, setPage 
                 <div
                   key={a.id}
                   onClick={() => setPage('ebooks')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: '#F9FAFB', cursor: 'pointer', border: '1px solid #F3F4F6', transition: 'background .15s' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'var(--surf)', cursor: 'pointer', border: '1px solid #F3F4F6', transition: 'background .15s' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#EFF6FF'}
                   onMouseLeave={e => e.currentTarget.style.background = '#F9FAFB'}
                 >
                   <div style={{ fontSize: 24, flexShrink: 0 }}>{a.emoji || '📗'}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</div>
                     <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{a.subject}</div>
                   </div>
                   <span style={{ fontSize: 10, fontWeight: 600, color: '#2563EB', background: '#EFF6FF', borderRadius: 99, padding: '2px 8px', flexShrink: 0 }}>
@@ -66,13 +66,13 @@ function ReadingBookmarksRow({ recentlyRead, bookmarked, contentStates, setPage 
               <div
                 key={a.id}
                 onClick={() => setPage('ebooks')}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: '#F9FAFB', cursor: 'pointer', border: '1px solid #F3F4F6', transition: 'background .15s' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'var(--surf)', cursor: 'pointer', border: '1px solid #F3F4F6', transition: 'background .15s' }}
                 onMouseEnter={e => e.currentTarget.style.background = '#FFF7ED'}
                 onMouseLeave={e => e.currentTarget.style.background = '#F9FAFB'}
               >
                 <div style={{ fontSize: 24, flexShrink: 0 }}>{a.emoji || '📗'}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</div>
                   <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>{a.subject}</div>
                 </div>
                 <span style={{ fontSize: 14, flexShrink: 0 }}>🔖</span>
