@@ -6,6 +6,46 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
+2026-04-07 — Groq AI provider added, BUG-NAV-002 fixed, PWA install rebuilt.
+
+---
+
+## 2026-04-07 — Groq AI provider + BUG-NAV-002 + PWA install overhaul
+
+### Groq Provider (gemini-proxy rewrite)
+**File changed:** `supabase/functions/gemini-proxy/index.ts`
+- Rewritten to be a **multi-provider AI proxy** with automatic fallback
+- Provider chain: **Groq (primary)** → **Gemini (fallback)**
+- Groq uses OpenAI-compatible API (`api.groq.com`), model `llama-3.3-70b-versatile`
+- If `GROQ_API_KEY` is set → uses Groq first; on failure falls back to Gemini
+- If only `GEMINI_API_KEY` is set → uses Gemini only (backwards compatible)
+- If neither key is set → returns 503 with clear error
+- Streaming SSE works for both providers (Groq uses OpenAI delta format, Gemini uses candidates format)
+- **No frontend changes needed** — response shape `{ text, provider }` is backward compatible
+- **Zero changes to aiService.js or ChatBot.jsx** — both send `{ system, messages }` and read `data.text`
+
+**To activate Groq:**
+```bash
+npx supabase secrets set GROQ_API_KEY=<YOUR_GROQ_KEY>
+npx supabase functions deploy gemini-proxy --no-verify-jwt
+```
+
+**To test:** Open any AI feature (ChatBot, Doubt Buster, Study Plan, etc.) — should respond much faster than Gemini since Groq has ~10x lower latency.
+
+### BUG-NAV-002 FIXED — Deep-linking now works after login
+- **Root cause:** `login()` callback in App.jsx hardcoded `setPage('dashboard')` + set `authBootedRef.current = true` which blocked the URL-aware auth effect
+- **Fix:** Changed to `setPage(window.location.pathname.replace(/^\//, '') || 'dashboard')` — reads deep-link from URL bar
+- **File:** `frontend/src/App.jsx` (login callback only)
+
+### PWA Install System Rebuilt (BUG-V)
+- **New:** `frontend/src/lib/pwaInstallManager.js` — global singleton captures `beforeinstallprompt` at module-load time
+- **Rewritten:** `frontend/src/hooks/usePWAInstall.js` — backed by singleton, exposes iOS support
+- **New:** `frontend/src/components/ui/PWAInstallBanner.jsx` — bottom-sheet with iOS guide
+- **Modified:** TopBar.jsx (install button on both desktop + mobile), main.jsx (early import), App.jsx (banner wired), index.css (banner styles)
+
+---
+
+## Last Updated (previous)
 2026-04-06 — ENTERPRISE-PWA: App Shell Model, BottomNav, offline, push/biometric scaffolds.
 
 ---
