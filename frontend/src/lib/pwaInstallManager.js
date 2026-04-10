@@ -10,7 +10,7 @@
  *   - A module-level listener guarantees capture regardless of React lifecycle.
  */
 
-let deferredPrompt = null
+let deferredPrompt = window.__PWA_PROMPT__ || null
 let isInstalled = false
 const listeners = new Set()
 
@@ -49,33 +49,86 @@ function notify() {
 
 // ── Public API ───────────────────────────────────────────────
 
+// Detect iOS device (iPhone, iPad, iPod)
+function checkIsIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream
+}
+
+// Detect Chrome on iOS — uses CriOS in UA instead of Safari
+// Chrome on iOS cannot install PWAs; user must switch to Safari.
+function checkIsChromeiOS() {
+  return checkIsIOS() && /CriOS/.test(navigator.userAgent)
+}
+
 /** Current snapshot of install state */
 function getState() {
+  const isIOS = checkIsIOS()
+  const isChromeiOS = checkIsChromeiOS()
+  const canPrompt = !!deferredPrompt && !isInstalled
+  // Desktop fallback: not iOS, not installed, no native prompt available.
+  // We still show an install button with manual instructions because
+  // beforeinstallprompt is unreliable across browsers/sessions.
+  const showFallbackInstall = !isInstalled && !isIOS && !canPrompt
   return {
     /** true when the browser supports install AND user hasn't installed yet */
-    canPrompt: !!deferredPrompt && !isInstalled,
+    canPrompt,
     /** true when running as installed PWA */
     isInstalled,
-    /** true on iOS Safari (no beforeinstallprompt — needs manual A2HS) */
-    isIOS: /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream,
-    /** true on iOS Safari that hasn't installed yet */
-    showIOSGuide: /iPad|iPhone|iPod/.test(navigator.userAgent)
-      && !window.MSStream
-      && !isInstalled
-      && !navigator.standalone,
+    /** true on any iOS device */
+    isIOS,
+    /** true on Chrome for iOS — cannot install PWA, must use Safari */
+    isChromeiOS,
+    /** true on iOS Safari that hasn't installed yet (and NOT Chrome) */
+    showIOSGuide: isIOS && !isChromeiOS && !isInstalled && !navigator.standalone,
+    /** true on Chrome for iOS that hasn't installed yet — show "switch to Safari" */
+    showChromeiOSGuide: isChromeiOS && !isInstalled,
+    /** true on desktop/Android browsers where the native event hasn't fired yet */
+    showFallbackInstall,
   }
 }
 
-/** Trigger the browser install prompt */
+/** Trigger the browser install prompt.
+ *  Returns one of:
+ *    'accepted' | 'dismissed' — native Chrome/Edge prompt fired
+ *    'shared'                 — iOS Safari share sheet opened
+ *    'ios-safari'             — iOS Safari without share API → caller shows popover
+ *    'ios-chrome'             — Chrome on iPhone → caller shows "open in Safari"
+ *    'no-prompt'              — desktop without beforeinstallprompt → caller shows tooltip
+ */
 async function promptInstall() {
-  if (!deferredPrompt) return 'no-prompt'
-  deferredPrompt.prompt()
-  const { outcome } = await deferredPrompt.userChoice
-  if (outcome === 'accepted') {
-    deferredPrompt = null
-    notify()
+  // 1) Native install prompt (Chrome/Edge/Brave when event fired) — ONE CLICK
+  if (deferredPrompt) {
+    try {
+      deferredPrompt.prompt()
+      const { outcome } = await deferredPrompt.userChoice
+      if (outcome === 'accepted') {
+        deferredPrompt = null
+        notify()
+      }
+      return outcome
+    } catch (_) { /* fall through */ }
   }
-  return outcome // 'accepted' | 'dismissed'
+
+  // 2) iOS Safari — open native share sheet (Add to Home Screen lives there)
+  if (checkIsIOS() && !checkIsChromeiOS()) {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Install iConnect',
+          text: 'Add iConnect to your Home Screen',
+          url: window.location.href,
+        })
+        return 'shared'
+      } catch (_) { /* user cancelled — fall through to in-app popover */ }
+    }
+    return 'ios-safari'
+  }
+
+  // 3) Chrome on iOS — must use Safari (caller shows in-app popover)
+  if (checkIsChromeiOS()) return 'ios-chrome'
+
+  // 4) Desktop / Android browsers without the event (caller shows inline tooltip)
+  return 'no-prompt'
 }
 
 /** Subscribe to state changes. Returns unsubscribe fn. */

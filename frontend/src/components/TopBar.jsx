@@ -6,7 +6,7 @@ import { useTenantStore } from '../stores/useTenantStore'
 import { useAuth } from '../context/AuthContext'
 import {
   Search, Moon, Sun, Bell, Menu, Download, ShieldCheck,
-  X, ChevronRight, Lock
+  X, ChevronRight, Lock, Share, PlusSquare, ExternalLink
 } from 'lucide-react'
 
 export default function TopBar({
@@ -22,7 +22,24 @@ export default function TopBar({
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   const searchRef = useRef(null)
   const bellRef = useRef(null)
-  const { isInstallable, showIOSGuide, promptInstall } = usePWAInstall()
+  const { isInstalled, isInstallable, isIOS, promptInstall } = usePWAInstall()
+  // Install button popover state — only used as fallback when promptInstall can't do it directly
+  const [installHint, setInstallHint] = useState(null) // null | 'ios-safari' | 'ios-chrome' | 'no-prompt'
+  const installHintRef = useRef(null)
+
+  async function handleInstallClick() {
+    const result = await promptInstall()
+    if (result === 'accepted' || result === 'dismissed' || result === 'shared') {
+      setInstallHint(null)
+      return
+    }
+    // Could not install in one click — show the appropriate inline hint
+    setInstallHint(result)
+    // Auto-dismiss the desktop tooltip after 6s
+    if (result === 'no-prompt') {
+      setTimeout(() => setInstallHint(h => (h === 'no-prompt' ? null : h)), 6000)
+    }
+  }
 
   const recent = notifications.slice(0, 5)
   const r = ROLES[role]
@@ -103,6 +120,17 @@ export default function TopBar({
   }, [])
 
   useEffect(() => {
+    if (!installHint) return
+    const handleClick = (e) => {
+      if (installHintRef.current && !installHintRef.current.contains(e.target)) {
+        setInstallHint(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [installHint])
+
+  useEffect(() => {
     if (!notifPanelOpen) return
     const handleClick = (e) => {
       if (bellRef.current && !bellRef.current.contains(e.target)) {
@@ -117,96 +145,193 @@ export default function TopBar({
 
   return (
     <div className="topbar-v2">
-      <div className="topbar-left-v2">
-        <button
-          className="topbar-menu-btn"
-          onClick={() => setSidebarOpen && setSidebarOpen(true)}
-          aria-label="Open menu"
-        >
-          <Menu size={20} />
-        </button>
-        <div className="topbar-breadcrumb">
-          {tenant?.logo_url && (
-            <img src={tenant.logo_url} alt="" style={{ width: 22, height: 22, borderRadius: 5, objectFit: 'cover', marginRight: 6, verticalAlign: 'middle' }} />
-          )}
-          <span className="topbar-title-v2">{title}</span>
-        </div>
-      </div>
-
-      <div className="topbar-center-v2">
-        <div className="secure-session-badge">
-          <Lock size={12} />
-          <span>Secure Session</span>
-        </div>
-      </div>
-
-      <div className="topbar-right-v2">
-        {/* Search */}
-        <div ref={searchRef} style={{ position: 'relative' }}>
+      {/* ── Mobile search overlay — full-width bar replaces topbar on mobile ── */}
+      {searchOpen && isMobile && (
+        <div className="topbar-search-overlay" ref={searchRef}>
+          <Search size={16} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+          <input
+            autoFocus
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search pages..."
+            style={{
+              flex: 1, border: 'none', outline: 'none', fontSize: 14,
+              background: 'transparent', color: 'var(--text)', fontFamily: 'inherit',
+            }}
+          />
           <button
-            className="topbar-icon-btn"
-            onClick={() => { setSearchOpen(s => !s); setSearchQuery('') }}
-            title="Search"
+            onClick={() => { setSearchOpen(false); setSearchQuery('') }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'var(--muted)', display: 'flex' }}
           >
-            <Search size={18} />
+            <X size={18} />
           </button>
-          {searchOpen && (
-            <div className="topbar-dropdown search-dropdown">
-              <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
-                <input
-                  autoFocus
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Search pages..."
-                  style={{
-                    width: '100%', border: 'none', outline: 'none',
-                    fontSize: 13, background: 'transparent',
-                    color: 'var(--text)', fontFamily: 'inherit'
-                  }}
-                />
-              </div>
+          {/* Results dropdown */}
+          {(searchQuery || !searchQuery) && (
+            <div className="topbar-search-overlay-results">
               {!searchQuery && (
-                <div style={{ padding: '16px 14px', color: 'var(--muted)', fontSize: 13, textAlign: 'center' }}>
-                  Start typing to search...
+                <div style={{ padding: '18px 16px', color: 'var(--muted)', fontSize: 13, textAlign: 'center' }}>
+                  Start typing to search…
                 </div>
               )}
               {searchQuery && searchResults.length === 0 && (
-                <div style={{ padding: '16px 14px', color: 'var(--muted)', fontSize: 13, textAlign: 'center' }}>
+                <div style={{ padding: '18px 16px', color: 'var(--muted)', fontSize: 13, textAlign: 'center' }}>
                   No results for &quot;{searchQuery}&quot;
                 </div>
               )}
-              {searchResults.map(r => (
+              {searchResults.map(res => (
                 <div
-                  key={r.key}
+                  key={res.key}
                   className="search-result-item"
-                  onClick={() => { setPage(r.key); setSearchOpen(false); setSearchQuery('') }}
+                  onClick={() => { setPage(res.key); setSearchOpen(false); setSearchQuery('') }}
                 >
-                  <span style={{ fontSize: 16, width: 24 }}>{r.icon}</span>
-                  <span>{r.label}</span>
+                  <span style={{ fontSize: 16, width: 24 }}>{res.icon}</span>
+                  <span>{res.label}</span>
                   <ChevronRight size={14} style={{ marginLeft: 'auto', opacity: 0.4 }} />
                 </div>
               ))}
             </div>
           )}
         </div>
+      )}
 
-        {/* Dark mode toggle */}
-        <button
-          className="topbar-icon-btn"
-          onClick={() => setDarkMode && setDarkMode(!darkMode)}
-          title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-        </button>
+      {/* ── Normal topbar content (hidden on mobile when search open) ── */}
+      {(!searchOpen || !isMobile) && (
+        <>
+          <div className="topbar-left-v2">
+            <button
+              className="topbar-menu-btn"
+              onClick={() => setSidebarOpen && setSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              <Menu size={20} />
+            </button>
+            <div className="topbar-breadcrumb">
+              {tenant?.logo_url && (
+                <img src={tenant.logo_url} alt="" style={{ width: 22, height: 22, borderRadius: 5, objectFit: 'cover', marginRight: 6, verticalAlign: 'middle' }} />
+              )}
+              <span className="topbar-title-v2">{title}</span>
+            </div>
+          </div>
 
-        {/* PWA install — shown on both mobile and desktop */}
-        {isInstallable && (
-          <button className="topbar-icon-btn install-mobile" onClick={promptInstall} title="Install iConnect App">
-            <Download size={16} />
-          </button>
-        )}
+          <div className="topbar-center-v2">
+            <div className="secure-session-badge">
+              <Lock size={12} />
+              <span>Secure Session</span>
+            </div>
+          </div>
 
-        {/* Notification bell */}
+          <div className="topbar-right-v2">
+            {/* Search — desktop gets dropdown, mobile opens full overlay */}
+            <div ref={searchRef} style={{ position: 'relative' }}>
+              <button
+                className="topbar-icon-btn"
+                onClick={() => { setSearchOpen(s => !s); setSearchQuery('') }}
+                title="Search"
+              >
+                <Search size={18} />
+              </button>
+              {searchOpen && !isMobile && (
+                <div className="topbar-dropdown search-dropdown">
+                  <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Search size={14} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+                    <input
+                      autoFocus
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      placeholder="Search pages..."
+                      style={{
+                        flex: 1, border: 'none', outline: 'none',
+                        fontSize: 13, background: 'transparent',
+                        color: 'var(--text)', fontFamily: 'inherit'
+                      }}
+                    />
+                  </div>
+                  {!searchQuery && (
+                    <div style={{ padding: '16px 14px', color: 'var(--muted)', fontSize: 13, textAlign: 'center' }}>
+                      Start typing to search...
+                    </div>
+                  )}
+                  {searchQuery && searchResults.length === 0 && (
+                    <div style={{ padding: '16px 14px', color: 'var(--muted)', fontSize: 13, textAlign: 'center' }}>
+                      No results for &quot;{searchQuery}&quot;
+                    </div>
+                  )}
+                  {searchResults.map(res => (
+                    <div
+                      key={res.key}
+                      className="search-result-item"
+                      onClick={() => { setPage(res.key); setSearchOpen(false); setSearchQuery('') }}
+                    >
+                      <span style={{ fontSize: 16, width: 24 }}>{res.icon}</span>
+                      <span>{res.label}</span>
+                      <ChevronRight size={14} style={{ marginLeft: 'auto', opacity: 0.4 }} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Dark mode toggle */}
+            <button
+              className="topbar-icon-btn"
+              onClick={() => setDarkMode && setDarkMode(!darkMode)}
+              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+
+            {/* PWA install — single direct button on every device. Hidden on desktop if prompt is unavailable to avoid annoying tooltip. */}
+            {!isInstalled && (isInstallable || isIOS) && (
+              <div ref={installHintRef} style={{ position: 'relative' }}>
+                <button
+                  className="topbar-install-btn"
+                  onClick={handleInstallClick}
+                  title="Install iConnect App"
+                >
+                  <Download size={14} />
+                  <span>Install</span>
+                </button>
+
+                {/* Fallback popovers — only shown when 1-click install couldn't fire */}
+                {installHint === 'ios-safari' && (
+                  <div className="topbar-dropdown" style={{ width: 260, right: 0, padding: '14px 16px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: 'var(--text)' }}>📲 Install iConnect</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--text)' }}>
+                        <div style={{ width: 28, height: 28, borderRadius: 8, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <Share size={14} style={{ color: '#2563EB' }} />
+                        </div>
+                        <span>Tap the <strong>Share</strong> button in Safari</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--text)' }}>
+                        <div style={{ width: 28, height: 28, borderRadius: 8, background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <PlusSquare size={14} style={{ color: '#16A34A' }} />
+                        </div>
+                        <span>Scroll down → tap <strong>Add to Home Screen</strong></span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {installHint === 'ios-chrome' && (
+                  <div className="topbar-dropdown" style={{ width: 260, right: 0, padding: '14px 16px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: 'var(--text)' }}>📲 Install iConnect</div>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: 'var(--text)', lineHeight: 1.45 }}>
+                      <ExternalLink size={15} style={{ color: '#4F46E5', marginTop: 1, flexShrink: 0 }} />
+                      <span>Chrome can't install apps on iPhone. Open this page in <strong>Safari</strong>, then tap Install — it'll work in one tap.</span>
+                    </div>
+                  </div>
+                )}
+
+                {installHint === 'no-prompt' && (
+                  <div className="topbar-install-tooltip">
+                    Click the <strong>install icon (⊕)</strong> in your address bar to install iConnect.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Notification bell */}
         <div ref={bellRef} style={{ position: 'relative' }}>
           <button
             className="topbar-icon-btn"
@@ -277,15 +402,17 @@ export default function TopBar({
           )}
         </div>
 
-        {/* Verified badge */}
-        <div className="verified-badge-v2">
-          <ShieldCheck size={14} />
-          <span>Verified</span>
-        </div>
+            {/* Verified badge */}
+            <div className="verified-badge-v2">
+              <ShieldCheck size={14} />
+              <span>Verified</span>
+            </div>
 
-        {/* Role label */}
-        <div className="role-badge-v2">{r?.label}</div>
-      </div>
+            {/* Role label */}
+            <div className="role-badge-v2">{r?.label}</div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
