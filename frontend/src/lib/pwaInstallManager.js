@@ -99,14 +99,17 @@ async function promptInstall() {
   // 1) Native install prompt (Chrome/Edge/Brave when event fired) — ONE CLICK
   if (deferredPrompt) {
     try {
-      deferredPrompt.prompt()
-      const { outcome } = await deferredPrompt.userChoice
-      if (outcome === 'accepted') {
-        deferredPrompt = null
-        notify()
-      }
-      return outcome
-    } catch (_) { /* fall through */ }
+      const promptEvent = deferredPrompt;
+      deferredPrompt = null; // Consume the event immediately (can only be used once)
+      notify();
+      
+      promptEvent.prompt();
+      const { outcome } = await promptEvent.userChoice;
+      return outcome;
+    } catch (e) {
+      console.error('PWA Prompt Error:', e);
+      // fall through
+    }
   }
 
   // 2) iOS Safari — open native share sheet (Add to Home Screen lives there)

@@ -322,12 +322,6 @@ export default function TopBar({
                     </div>
                   </div>
                 )}
-
-                {installHint === 'no-prompt' && (
-                  <div className="topbar-install-tooltip">
-                    Click the <strong>install icon (⊕)</strong> in your address bar to install iConnect.
-                  </div>
-                )}
               </div>
             )}
 
