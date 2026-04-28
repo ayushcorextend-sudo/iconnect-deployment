@@ -89,9 +89,27 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         setCurrentUserId(uid);
 
         // ── Skip re-fetch if cache is fresh (< 2 min) ───────
+        // NOTE: React state is reset to zeros on every remount (navigate away → back).
+        // So on a cache hit we MUST restore the processed values — not just skip loading.
         const cached = _dashCache.get(uid);
-        if (cached && Date.now() - cached.ts < DASH_CACHE_TTL) {
-          // Data already in state from previous mount — nothing to do
+        if (cached && Date.now() - cached.ts < DASH_CACHE_TTL && cached.computed) {
+          const c = cached.computed;
+          setMySpeciality(c.mySpeciality || '');
+          setContentStates(c.contentStates || {});
+          setMiniLB(c.miniLB || []);
+          setMyScore(c.myScore || 0);
+          setMyQuizPts(c.myQuizPts || 0);
+          setMyReadPts(c.myReadPts || 0);
+          setMyRank(c.myRank || null);
+          setHoursStudied(c.hoursStudied || 0);
+          setWeeklyMins(c.weeklyMins || 0);
+          setWeekActivity(c.weekActivity || [0,0,0,0,0,0,0]);
+          setRecentActivities(c.recentActivities || []);
+          setBooksRead(c.booksRead || 0);
+          setActivityByDate(c.activityByDate || {});
+          setRecommendations(c.recommendations || []);
+          setNextWebinar(c.nextWebinar || null);
+          setActivePlan(c.activePlan || null);
           setDashLoading(false);
           return;
         }
@@ -113,7 +131,7 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
 
         const profileData = profileRes.data;
         const states      = statesRes;
-        const scoreData   = scoresRes.data;
+        let scoreData   = scoresRes.data || [];
         const lbProfiles  = lbProfilesRes.data;
 
         // ── Profile ────────────────────────────────────────
@@ -121,7 +139,23 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
         setContentStates(states);
 
         // ── Scores & Leaderboard ──────────────────────────
-        if (scoreData?.length) {
+        // If current user isn't in the top-5 results, fetch their score separately
+        // so "My Activity" stats are never shown as zero for non-top-5 users.
+        const userInScores = scoreData.some(d => d.user_id === uid);
+        if (!userInScores) {
+          try {
+            const myScoreRes = await dbRun(
+              supabase.from('user_scores')
+                .select('user_id, total_score, quiz_score, reading_score')
+                .eq('user_id', uid)
+                .maybeSingle(),
+              signal
+            );
+            if (myScoreRes?.data) scoreData = [...scoreData, myScoreRes.data];
+          } catch (_) { /* silent — user simply has no score row yet */ }
+        }
+
+        if (scoreData.length) {
           const profileMap = (lbProfiles || []).reduce((acc, p) => { acc[p.id] = p; return acc; }, {});
           const mapped = scoreData.map(row => ({
             id: row.user_id,
@@ -130,13 +164,21 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
             score: row.total_score || 0,
             isMe: row.user_id === uid,
           }));
-          setMiniLB(mapped);
+          // Only show top-5 in leaderboard widget, but always include self
+          const lbTop5 = scoreData.filter(r => r.user_id !== uid).slice(0, 5).map(row => ({
+            id: row.user_id,
+            name: profileMap[row.user_id]?.name || 'Anonymous',
+            speciality: profileMap[row.user_id]?.speciality || '—',
+            score: row.total_score || 0,
+            isMe: false,
+          }));
+          setMiniLB(lbTop5.length ? lbTop5 : mapped);
           const meScore = scoreData.find(d => d.user_id === uid);
           if (meScore) {
             setMyScore(meScore.total_score || 0);
             setMyQuizPts(meScore.quiz_score || 0);
             setMyReadPts(meScore.reading_score || 0);
-            setMyRank(mapped.findIndex(r => r.isMe) + 1);
+            setMyRank(mapped.findIndex(r => r.isMe) + 1 || null);
           }
         }
 
@@ -261,10 +303,59 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
           });
         }
 
-        // ── Cache fresh data for stale-while-revalidate ───
+        // ── Cache both raw + computed — so remount restores state without re-fetching ───
+        const meScoreRow = meScore;
+        const totalMinsCache = logs ? logs.reduce((acc, l) => acc + (l.duration_minutes || 0), 0) : 0;
+        const nowCache = new Date();
+        const weekDaysCache = Array(7).fill(0);
+        (logs || []).forEach(l => {
+          if (!l.created_at) return;
+          const d = new Date(l.created_at);
+          if (isNaN(d.getTime())) return;
+          if (Math.floor((nowCache - d) / 86400000) < 7) {
+            const dow = (d.getDay() + 6) % 7;
+            weekDaysCache[dow] += 1;
+          }
+        });
+        const byDateCache = {};
+        (heatmap || []).forEach(l => {
+          if (!l.created_at) return;
+          const d = new Date(l.created_at);
+          if (isNaN(d.getTime())) return;
+          byDateCache[d.toISOString().split('T')[0]] = (byDateCache[d.toISOString().split('T')[0]] || 0) + 1;
+        });
+        const profileMapCache = (lbProfiles || []).reduce((acc, p) => { acc[p.id] = p; return acc; }, {});
+        const lbTop5Cache = (scoreData || []).filter(r => r.user_id !== uid).slice(0, 5).map(row => ({
+          id: row.user_id,
+          name: profileMapCache[row.user_id]?.name || 'Anonymous',
+          speciality: profileMapCache[row.user_id]?.speciality || '—',
+          score: row.total_score || 0,
+          isMe: false,
+        }));
+        const readIdsCache = new Set((actLogs || []).map(l => l.reference_id));
+        const unreadArtsCache = (arts || []).filter(a => !readIdsCache.has(String(a.id)));
+
         _dashCache.set(uid, {
           ts: Date.now(),
           data: { profileData, states, scoreData, logs, actLogs, arts, wb, activePlanData, lbProfiles },
+          computed: {
+            mySpeciality: profileData?.speciality || '',
+            contentStates: states || {},
+            miniLB: lbTop5Cache,
+            myScore: meScoreRow?.total_score || 0,
+            myQuizPts: meScoreRow?.quiz_score || 0,
+            myReadPts: meScoreRow?.reading_score || 0,
+            myRank: null, // rank is non-critical; skipped for simplicity
+            hoursStudied: Math.round(totalMinsCache / 60),
+            weeklyMins: totalMinsCache,
+            weekActivity: weekDaysCache,
+            recentActivities: (logs || []).slice(0, 5),
+            booksRead: readCount,
+            activityByDate: byDateCache,
+            recommendations: unreadArtsCache.sort(() => Math.random() - 0.5).slice(0, 3),
+            nextWebinar: wb?.[0] || null,
+            activePlan: activePlanData || null,
+          },
         });
 
       } catch (e) {

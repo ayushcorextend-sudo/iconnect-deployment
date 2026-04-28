@@ -119,9 +119,10 @@ function MyActivitySection({
             ))}
           </div>
         )}
-        <div style={{ display: 'flex', gap: 10, marginTop: 14, paddingTop: 14, borderTop: '1px solid #F3F4F6' }}>
-          <button className="btn btn-s btn-sm" style={{ flex: 1 }} onClick={() => setPage('leaderboard')}>🏆 Leaderboard →</button>
-          <button className="btn btn-s btn-sm" style={{ flex: 1 }} onClick={() => setPage('activity')}>📊 Activity History →</button>
+        <div style={{ display: 'flex', gap: 10, marginTop: 14, paddingTop: 14, borderTop: '1px solid #F3F4F6', flexWrap: 'wrap' }}>
+          <button className="btn btn-p btn-sm" style={{ flex: '1 1 120px' }} onClick={() => setPage('ebooks')}>📖 Continue Reading →</button>
+          <button className="btn btn-s btn-sm" style={{ flex: '1 1 120px' }} onClick={() => setPage('leaderboard')}>🏆 Leaderboard →</button>
+          <button className="btn btn-s btn-sm" style={{ flex: '1 1 120px' }} onClick={() => setPage('activity')}>📊 Activity History →</button>
         </div>
       </div>
     </>
