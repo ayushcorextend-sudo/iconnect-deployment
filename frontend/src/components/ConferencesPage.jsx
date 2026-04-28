@@ -204,9 +204,18 @@ export default function ConferencesPage({ role, addToast }) {
         <select
           value={filterSpec}
           onChange={e => setFilterSpec(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, background: '#fff' }}
+          style={{
+            padding: '8px 14px', borderRadius: 10,
+            border: filterSpec !== 'All' ? '1.5px solid #4F46E5' : '1.5px solid var(--border)',
+            fontSize: 13, fontWeight: 600,
+            background: filterSpec !== 'All' ? '#EEF2FF' : 'var(--white)',
+            color: filterSpec !== 'All' ? '#4F46E5' : 'var(--text)',
+            cursor: 'pointer', outline: 'none',
+            appearance: 'auto', minWidth: 140,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+          }}
         >
-          {SPECIALITIES.map(s => <option key={s}>{s}</option>)}
+          {SPECIALITIES.map(s => <option key={s} value={s} style={{ color: '#111', background: '#fff' }}>{s === 'All' ? '🏷 All Specialities' : s}</option>)}
         </select>
       </div>
 

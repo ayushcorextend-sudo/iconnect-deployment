@@ -9,26 +9,33 @@ export default defineConfig({
     baseURL: process.env.BASE_URL || 'http://localhost:5173',
     headless: true,
     screenshot: 'only-on-failure',
-    video: 'off',
+    video: 'retain-on-failure',
+    trace: 'retain-on-failure',
     actionTimeout: 8000,
     navigationTimeout: 10000,
   },
   projects: [
     {
-      name: 'smoke',
-      testDir: './e2e/smoke',
-      use: { ...devices['Desktop Chrome'] },
+      name: 'Desktop Chrome 1080p',
+      use: { 
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1920, height: 1080 }
+      },
     },
     {
-      name: 'smoke-mobile',
-      testDir: './e2e/smoke',
-      use: { ...devices['Pixel 5'] },
+      name: 'Desktop Chrome 4K',
+      use: { 
+        ...devices['Desktop Chrome'],
+        viewport: { width: 3840, height: 2160 }
+      },
     },
     {
-      name: 'chromium',
-      testDir: './e2e',
-      testIgnore: '**/smoke/**',
-      use: { ...devices['Desktop Chrome'] },
+      name: 'iPhone 15 Pro',
+      use: { ...devices['iPhone 15 Pro'] },
+    },
+    {
+      name: 'iPad Air',
+      use: { ...devices['iPad Air'] },
     },
   ],
 });
