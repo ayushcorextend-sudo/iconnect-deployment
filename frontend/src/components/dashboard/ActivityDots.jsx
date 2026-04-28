@@ -1,12 +1,26 @@
 export const ACTIVITY_ICON = {
-  quiz_attempted: '📝', quiz_passed: '🏆', article_read: '📖',
-  note_viewed: '📋', document_downloaded: '📥', webinar_attended: '🎥', daily_login: '👋',
+  quiz_attempted:       '📝', quiz_passed:         '🏆', quiz_complete:      '✅',
+  article_read:         '📖', note_viewed:          '📋', document_downloaded:'📥',
+  webinar_attended:     '🎥', daily_login:          '👋', clinical_case_logged:'🏥',
+  study_plan_completed: '🗓', spaced_rep_reviewed:  '🧠', exam_set_completed:  '📝',
+  doubt_asked:          '❓', diary_entry:          '📒', reading_progress:    '📘',
 };
 export const ACTIVITY_LABEL = {
-  quiz_attempted: 'Attempted a quiz', quiz_passed: 'Passed a quiz',
-  article_read: 'Read an article', note_viewed: 'Viewed notes',
-  document_downloaded: 'Downloaded a document', webinar_attended: 'Attended a webinar',
-  daily_login: 'Logged in',
+  quiz_attempted:       'Attempted a quiz',
+  quiz_passed:          'Passed a quiz',
+  quiz_complete:        'Completed a reading quiz',
+  article_read:         'Read an article',
+  note_viewed:          'Viewed study notes',
+  document_downloaded:  'Downloaded a document',
+  webinar_attended:     'Attended a webinar',
+  daily_login:          'Daily login',
+  clinical_case_logged: 'Logged a clinical case',
+  study_plan_completed: 'Completed a study task',
+  spaced_rep_reviewed:  'Reviewed flashcards',
+  exam_set_completed:   'Completed an exam set',
+  doubt_asked:          'Asked a doubt',
+  diary_entry:          'Added a diary entry',
+  reading_progress:     'Reading progress saved',
 };
 
 export function relTime(ts) {

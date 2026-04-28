@@ -258,22 +258,30 @@ export default function ActivityPage({ addToast }) {
         ))}
       </div>
 
-      {/* Heatmap + weekly progress */}
-      <div className="grid2">
-        <div className="card">
-          <div className="ct" style={{ marginBottom: 4 }}>🔥 90-Day Activity</div>
-          <div className="cs" style={{ marginBottom: 14, color: streak > 0 ? '#15803D' : '#9CA3AF' }}>
-            {streak > 0 ? `${streak}-day streak — keep it up!` : 'Click any date to add a diary entry'}
-          </div>
-          <ActivityHeatmapClickable
-            data={activityByDate}
-            diaryDates={diaryDates}
-            selectedDate={selectedDate}
-            onSelectDate={setSelectedDate}
-          />
+      {/* ── 90-Day Heatmap — full width ─────────────────── */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, flexWrap: 'wrap', gap: 8 }}>
+          <div className="ct">🔥 90-Day Activity</div>
+          {streak > 0 && (
+            <span style={{
+              fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
+              background: '#DCFCE7', color: '#15803D',
+            }}>🔥 {streak}-day streak — keep it up!</span>
+          )}
         </div>
+        {streak === 0 && (
+          <div className="cs" style={{ marginBottom: 12, color: '#9CA3AF' }}>Click any date to add a diary entry</div>
+        )}
+        <ActivityHeatmapClickable
+          data={activityByDate}
+          diaryDates={diaryDates}
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+        />
+      </div>
 
-        <div className="card">
+      {/* ── Weekly progress + learning targets ──────────── */}
+      <div className="card" style={{ marginBottom: 16 }}>
           <div className="ch" style={{ marginBottom: 14 }}>
             <div className="ct">📊 Weekly Progress</div>
             {wowInsight && wowInsight.direction !== 'flat' && (
@@ -334,7 +342,6 @@ export default function ActivityPage({ addToast }) {
           ))}
           <button className="btn btn-p btn-sm" onClick={saveTargets} style={{ width: '100%', justifyContent: 'center' }}>💾 Save Targets</button>
         </div>
-      </div>
 
       {/* Daily productivity summary */}
       {todayFeed.length > 0 && (
