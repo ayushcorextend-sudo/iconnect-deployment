@@ -13,6 +13,7 @@ export const ACTIVITY_LABEL = {
   note_viewed:          'Viewed study notes',
   document_downloaded:  'Downloaded a document',
   webinar_attended:     'Attended a webinar',
+  webinar_interested:   'Interested in a webinar',
   daily_login:          'Daily login',
   clinical_case_logged: 'Logged a clinical case',
   study_plan_completed: 'Completed a study task',
@@ -21,6 +22,8 @@ export const ACTIVITY_LABEL = {
   doubt_asked:          'Asked a doubt',
   diary_entry:          'Added a diary entry',
   reading_progress:     'Reading progress saved',
+  profile_complete:     'Completed profile',
+  verification_complete: 'Verification completed',
 };
 
 export function relTime(ts) {

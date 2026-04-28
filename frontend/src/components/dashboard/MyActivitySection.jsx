@@ -112,7 +112,7 @@ function MyActivitySection({
                   {ACTIVITY_ICON[a.activity_type] || '📋'}
                 </span>
                 <div style={{ flex: 1, fontSize: 12, fontWeight: 500, color: '#374151' }}>
-                  {ACTIVITY_LABEL[a.activity_type] || (a.activity_type?.replace(/_/g, ' ') ?? 'Unknown activity')}
+                  {ACTIVITY_LABEL[a.activity_type] || a.activity_type?.replace(/_/g, ' ') || 'Activity'}
                 </div>
                 <div style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }}>{relTime(a.created_at)}</div>
               </div>

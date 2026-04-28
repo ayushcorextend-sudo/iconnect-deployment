@@ -99,17 +99,27 @@ export default function App() {
   );
 }
 
-// ─── One-time cleanup: remove stale Supabase auth tokens from other projects ──
-(function pruneStaleAuthTokens() {
+// ─── One-time cleanup: stale auth tokens + old daily-login keys ───────────────
+(function pruneStaleLocalStorage() {
   try {
     const url = import.meta.env.VITE_SUPABASE_URL || '';
     const match = url.match(/\/\/([a-z0-9]+)\.supabase/);
-    if (!match) return;
-    const currentRef = match[1];
+    const currentRef = match?.[1];
+    const fourteenDaysAgo = Date.now() - 14 * 86400000;
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
-      if (key && key.startsWith('sb-') && key.endsWith('-auth-token') && !key.includes(currentRef)) {
+      if (!key) continue;
+      // Remove auth tokens from other Supabase projects
+      if (currentRef && key.startsWith('sb-') && key.endsWith('-auth-token') && !key.includes(currentRef)) {
         localStorage.removeItem(key);
+      }
+      // Prune daily_login keys older than 14 days
+      if (key.startsWith('iconnect_daily_login_')) {
+        const dateStr = key.split('_').slice(-4).join(' '); // "Mon Apr 07 2026" etc.
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime()) && d.getTime() < fourteenDaysAgo) {
+          localStorage.removeItem(key);
+        }
       }
     }
   } catch { /* noop */ }

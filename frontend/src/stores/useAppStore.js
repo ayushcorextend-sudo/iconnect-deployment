@@ -156,12 +156,12 @@ export const useAppStore = create((set, get) => ({
         _retryCount.set(key, nextAttempt);
 
         if (nextAttempt > MAX_RETRIES) {
-          console.warn(`[Realtime] Notification channel abandoned after ${MAX_RETRIES} retries.`);
+          if (import.meta.env.DEV) console.debug(`[Realtime] Notification channel abandoned after ${MAX_RETRIES} retries.`);
           return;
         }
 
         const delay = Math.min(1000 * Math.pow(2, nextAttempt - 1), 30_000);
-        console.warn(`[Realtime] Channel ${status} — retry ${nextAttempt}/${MAX_RETRIES} in ${delay}ms`);
+        if (import.meta.env.DEV) console.debug(`[Realtime] Channel ${status} — retry ${nextAttempt}/${MAX_RETRIES} in ${delay}ms`);
 
         const timer = setTimeout(() => {
           _retryTimers.delete(key);
