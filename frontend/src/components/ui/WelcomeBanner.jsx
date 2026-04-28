@@ -127,6 +127,26 @@ export default function WelcomeBanner({ onDismiss }) {
               display: 'block',
             }}
           />
+
+          {/* Clickable overlay on the "Start Learning" button area in the image */}
+          <button
+            type="button"
+            onClick={handleDismiss}
+            style={{
+              position: 'absolute',
+              bottom: '11.5%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: '55%',
+              height: '5.5%',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              zIndex: 10,
+              borderRadius: '50px',
+            }}
+            aria-label="Start Learning"
+          />
         </div>
       </div>
     </>
