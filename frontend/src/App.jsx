@@ -188,6 +188,46 @@ function MainApp() {
   const unsubscribeAll   = useAppStore(s => s.unsubscribeAll);
   const resetAppState    = useAppStore(s => s.reset);
 
+  // ── Screen privacy: blur content when app loses focus (deters screenshots/recordings) ──
+  useEffect(() => {
+    let shield = null;
+    const showShield = () => {
+      if (shield) return;
+      shield = document.createElement('div');
+      Object.assign(shield.style, {
+        position: 'fixed', inset: '0', zIndex: '99999',
+        backdropFilter: 'blur(28px)', WebkitBackdropFilter: 'blur(28px)',
+        background: 'rgba(10,15,40,0.85)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexDirection: 'column', gap: '12px',
+        transition: 'opacity 0.15s',
+      });
+      shield.innerHTML = `
+        <div style="font-size:42px">🔒</div>
+        <div style="color:#fff;font-size:16px;font-weight:700;letter-spacing:1px">Content Protected</div>
+        <div style="color:rgba(255,255,255,0.6);font-size:13px">Return to the app to continue</div>
+      `;
+      shield.id = 'privacy-shield';
+      document.body.appendChild(shield);
+    };
+    const hideShield = () => {
+      if (!shield) return;
+      shield.remove();
+      shield = null;
+    };
+    document.addEventListener('visibilitychange', () => {
+      document.hidden ? showShield() : hideShield();
+    });
+    window.addEventListener('blur', showShield);
+    window.addEventListener('focus', hideShield);
+    return () => {
+      document.removeEventListener('visibilitychange', showShield);
+      window.removeEventListener('blur', showShield);
+      window.removeEventListener('focus', hideShield);
+      hideShield();
+    };
+  }, []);
+
   // Chat store — granular
   const chatBotMode    = useChatStore(s => s.chatBotMode);
   const setChatBotMode = useChatStore(s => s.setChatBotMode);
