@@ -6,7 +6,151 @@
 # ════════════════════════════════════════════════════════════════
 
 ## Last Updated
-2026-04-07 — Groq AI provider added, BUG-NAV-002 fixed, PWA install rebuilt.
+2026-04-28 (v2) — WelcomeBanner upgraded with real ICON LIFE SCIENCES PNG assets (brain + doctor figures + 3 PNG icons in bubbles).
+
+---
+
+## 2026-04-28 (v2) — WelcomeBanner: real artwork swap
+
+### What changed since v1
+The v1 image-free build (CSS sphere + Lucide icons) didn't match the polished mockup. User dropped the 6 brand PNGs into `frontend/src/assets/welcome/` and we rebuilt.
+
+**Files:**
+
+1. **`frontend/src/assets/welcome/`** (NEW directory)
+   - `Connected_Brain_Visual.png` — 34 KB (centerpiece, animated glow pulse)
+   - `Doctor_Male_Profile.png` — 23 KB (left silhouette)
+   - `Doctor_Female_Profile.png` — 24 KB (right silhouette)
+   - `Microscope.png` — 22 KB (top-left bubble — Psychiatry)
+   - `Knowledge_Book.png` — 25 KB (top-right bubble — Neurology)
+   - `Tablet_Dashboard.png` — 30 KB (bottom-left bubble — Neurosurgery)
+   - Note: a stray `Hero.jsx` got copied into this folder; harmless (nothing imports it) but couldn't `rm` from sandbox due to mount perms — user can delete manually if desired.
+
+2. **`frontend/src/components/ui/WelcomeBanner.jsx`** (REWRITE)
+   - Now mirrors the user-provided Hero.jsx structure exactly: orbit rings + brain `<img>` + doctor `<img>`s + 3 bubbles with PNG `<img>` icons + label pills.
+   - Modal overlay wrapper retained (overlay backdrop, close X, Escape dismiss, body scroll lock).
+   - localStorage gate retained (`iconnect_welcome_seen_v1`).
+   - Animations: kept pure CSS keyframes — added `wb-brain-glow` (4.5s drop-shadow pulse on the brain) alongside `wb-bubble-float` and the entry transitions.
+   - Description card uses the short mockup copy. The longer marketing copy from earlier was dropped to match the mockup faithfully.
+   - Footer reverted to emoji icons (🎓 🌱 📊) per the mockup.
+
+### Build status
+- ✅ esbuild parse-check passes (151/151 braces)
+- ✅ All 6 PNG paths confirmed present at `frontend/src/assets/welcome/*.png`
+- ⚠️ Full Vite build not run in sandbox per the standing ARM64 rollup constraint — user runs `cd frontend && npm run build` locally
+
+### Deploy
+```bash
+cd frontend && npm run dev   # to see it locally first
+# or
+cd frontend && npm run build && git add -A && git commit -m "feat(welcome): real ICON LIFE PNG assets" && git push
+```
+
+### Reset for re-test
+To see the banner again after dismissing it:
+```js
+// in browser DevTools console
+localStorage.removeItem('iconnect_welcome_seen_v1'); location.reload();
+```
+
+---
+
+## 2026-04-28 — Post-Login Welcome Banner
+
+### What shipped
+First-login welcome modal that mirrors the ICON LIFE SCIENCES "Welcome to iCONNECT" splash. Shown once per device after a successful login (gated by localStorage), dismissed via "Start Learning" → routes to dashboard via the existing login flow.
+
+**Files changed:**
+
+1. **`frontend/src/components/ui/WelcomeBanner.jsx`** (NEW)
+   - Self-contained welcome modal — overlay + card, dark navy gradient, orange iCONNECT wordmark.
+   - Centerpiece is a CSS-radial-gradient "neural sphere" with pulsing animation + 7 synapse dots — image-free so it ships immediately. Real PNG asset can be swapped in later by replacing the `<div className="wb-sphere">` block.
+   - 3 floating specialty bubbles use Lucide icons (Microscope=Psychiatry, BookOpen=Neurology, Stethoscope=Neurosurgery) with orange label pills.
+   - Marketing copy from the user is woven into the description card + 3 mission rows beneath the scene (HeartPulse / Bell / GraduationCap headers).
+   - Footer uses GraduationCap / Sprout / BarChart3 for Learn | Grow | Excel.
+   - Animations are pure CSS keyframes (`wb-overlay-in`, `wb-card-in`, `wb-sphere-pulse`, `wb-bubble-float`, `wb-synapse`) injected via inline `<style>` — same pattern as PWAInstallBanner.
+   - localStorage gate: `iconnect_welcome_seen_v1` (bumping the v# resets it for everyone).
+   - Z-index uses `Z.loginBanner` (9999) from the existing zIndex scale.
+   - Escape key + backdrop click both dismiss; body scroll locked while open.
+
+2. **`frontend/src/App.jsx`**
+   - +import `WelcomeBanner` (next to `PWAInstallBanner` at line ~34)
+   - +`<WelcomeBanner />` mounted in the authed shell next to `<PWAInstallBanner />` at line ~759
+   - No login callback changes — banner self-gates on localStorage so it Just Works after any successful auth flow (OTP, password, OAuth).
+
+### Why no framer-motion
+The README/handoff said "Framer Motion 12" is in the stack but it's NOT in `frontend/package.json`. PWAInstallBanner avoids it intentionally for the same reason. This banner follows that pattern — pure CSS keyframes, zero new dependencies.
+
+### Build status
+- ✅ `esbuild --loader:.jsx=jsx` parses both WelcomeBanner.jsx and App.jsx cleanly
+- ✅ Brace balance 178/178 in WelcomeBanner.jsx
+- ✅ All Lucide icons used (Microscope, BookOpen, Stethoscope, GraduationCap, Sprout, BarChart3, Bell, HeartPulse, X) exist in lucide-react@0.575.0
+- ⚠️ Full Vite build not run in sandbox per the standing ARM64 rollup constraint — user should `cd frontend && npm run build` locally
+
+### Deploy
+```bash
+cd frontend && npm run build && git add -A && git commit -m "feat: first-login WelcomeBanner — ICON LIFE SCIENCES splash" && git push
+```
+
+### To swap in real PNG assets later
+The Hero.jsx the user uploaded references 6 PNGs (Microscope.png, Tablet_Dashboard.png, Doctor_Female_Profile.png, Doctor_Male_Profile.png, Connected_Brain_Visual.png, Knowledge_Book.png). To use them:
+1. Drop them into `frontend/src/assets/welcome/`
+2. In WelcomeBanner.jsx, replace the `<div className="wb-sphere">` block with `<img src={BrainVisual} ... />` (~line 360 area)
+3. Optional: swap the Microscope/BookOpen/Stethoscope icon bubbles for `<img>` tags using the corresponding PNGs
+
+### DO NOT TOUCH
+- `iconnect_welcome_seen_v1` localStorage key — bump to `_v2` if/when the banner content changes meaningfully and you want existing users to see it again.
+
+---
+
+## 2026-04-17 — Registration/Profile Setup Flow Redesign
+
+### What changed
+User provided detailed spec for redesigning the Professional Details step of ProfileSetupPage.jsx with conditional field logic based on Program Type (MBBS/MD/MS), cascading super-specialization dropdowns, and academic timeline auto-calculation.
+
+**Files changed:**
+
+1. **`frontend/src/data/constants.js`**
+   - Added `MBBS` to `SPECIALITIES` (empty array — no speciality for MBBS)
+   - Removed `DM`, `MCh`, `DNB` from `SPECIALITIES` (moved to super-spec)
+   - **NEW:** `SUPER_SPEC_OPTIONS` — maps MD → [DM, Fellowship], MS → [MCh, DNB]
+   - **NEW:** `SUPER_SPECIALITIES` — speciality lists for DM, MCh, DNB
+   - Updated `PROG_YEARS` — added MBBS: 5
+
+2. **`frontend/src/components/ProfileSetupPage.jsx`** (FULL REWRITE)
+   - **5-step flow:** Basic Info → Personal → Professional → Academic Timeline → Verification
+   - **Step 1 (Basic Info):** Password setup only
+   - **Step 2 (Personal):** Name, phone, DOB (optional), state, district, hometown, zone
+   - **Step 3 (Professional):** Program Type dropdown (MBBS default)
+     - MBBS: only college + place fields
+     - MD/MS: speciality dropdown + college + place + optional super-spec toggle
+     - Super-spec: DM/Fellowship (after MD) or MCh/DNB (after MS)
+     - Fellowship: name, institution, duration
+     - DM/MCh/DNB: speciality, college, place, year
+   - **Step 4 (Timeline):** Year of joining → auto-calculated current year, passout year, access expiry. Profile summary card.
+   - **Step 5 (Verification):** MCI/NMC, NEET rank, certificate upload, final summary
+
+3. **`frontend/src/lib/supabase.js`** — `createProfileForOAuthUser` now persists:
+   - `dob`, `super_spec_type`, `super_speciality`, `super_college`, `super_place`, `super_year`
+   - `fellowship_name`, `fellowship_institution`, `fellowship_duration`
+   - (DB columns already exist from migration `20260324000000_registration_professional_fields.sql`)
+
+4. **`frontend/src/components/RegistrationPage.jsx`** — Fixed broken imports:
+   - `DM_SPECIALITIES`, `MCH_SPECIALITIES`, `DNB_SPECIALITIES` now read from `SUPER_SPECIALITIES` instead of `SPECIALITIES` (since DM/MCh/DNB moved)
+
+### Build status
+- ✅ All exports verified (node ESM import test)
+- ✅ Brace matching verified on all changed files
+- ⚠️ Full Vite build cannot run in sandbox (ARM64 rollup mismatch) — user must build locally
+
+### Deploy needed
+```bash
+cd frontend && npm run build && git add -A && git commit -m "feat: 5-step registration flow with conditional fields + super-spec cascading" && git push
+```
+
+### DO NOT TOUCH
+- Migration `20260324000000_registration_professional_fields.sql` — already applied, columns exist
+- `RegistrationPage.jsx` beyond the import fix — it has its own separate flow logic
 
 ---
 

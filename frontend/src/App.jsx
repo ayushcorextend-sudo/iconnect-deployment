@@ -32,6 +32,7 @@ const ChatBot = lazy(() => import('./components/ChatBot'));
 import ProfileSetupPage from './components/ProfileSetupPage';
 import OfflineIndicator from './components/ui/OfflineIndicator';
 import PWAInstallBanner from './components/ui/PWAInstallBanner';
+import WelcomeBanner from './components/ui/WelcomeBanner';
 // PageTransition removed — key={page} on Suspense handles page remount
 import PageErrorBoundary from './components/ui/PageErrorBoundary';
 import { clearAllCaches } from './lib/dbService';
@@ -757,6 +758,8 @@ function MainApp() {
       </div>
       <OfflineIndicator />
       <PWAInstallBanner />
+      {/* First-login welcome splash — gated by localStorage, shown once per device */}
+      <WelcomeBanner />
     </>
   );
 }
