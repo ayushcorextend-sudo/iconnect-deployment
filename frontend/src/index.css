@@ -363,6 +363,48 @@ h1, h2, h3, h4, h5 { font-family: 'Inter', -apple-system, sans-serif; letter-spa
 }
 .topbar-icon-btn:hover { background: var(--surf); color: var(--text); border-color: var(--light); }
 
+/* Install button — pill, always visible until installed */
+.topbar-install-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 38px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid #4F46E5;
+  background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+  color: #fff; font-weight: 600; font-size: 13px; font-family: inherit;
+  cursor: pointer; white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(79, 70, 229, 0.25);
+  transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+}
+.topbar-install-btn:hover { filter: brightness(1.08); box-shadow: 0 4px 10px rgba(79, 70, 229, 0.35); transform: translateY(-1px); }
+.topbar-install-btn:active { transform: translateY(0); }
+@media (max-width: 640px) {
+  .topbar-install-btn span { display: none; }
+  .topbar-install-btn { padding: 0; width: 38px; justify-content: center; }
+}
+[data-theme="dark"] .topbar-install-btn {
+  border-color: #6366F1;
+  box-shadow: 0 1px 2px rgba(99, 102, 241, 0.4);
+}
+
+/* Tiny inline tooltip shown when 1-click install isn't available on desktop */
+.topbar-install-tooltip {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  width: 240px; padding: 10px 12px; border-radius: 10px;
+  background: var(--white); color: var(--text);
+  border: 1px solid var(--border); font-size: 12px; line-height: 1.45;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  z-index: 1000;
+  animation: fadeInTip 0.18s ease-out;
+}
+.topbar-install-tooltip::before {
+  content: ''; position: absolute; top: -6px; right: 18px;
+  width: 10px; height: 10px; background: var(--white);
+  border-left: 1px solid var(--border); border-top: 1px solid var(--border);
+  transform: rotate(45deg);
+}
+@keyframes fadeInTip { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+[data-theme="dark"] .topbar-install-tooltip { background: #1f2937; border-color: #374151; }
+[data-theme="dark"] .topbar-install-tooltip::before { background: #1f2937; border-color: #374151; }
+
 /* Legacy icon-btn */
 .icon-btn { width: 36px; height: 36px; border-radius: 6px; border: 1px solid var(--border); background: var(--white); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s; font-size: 16px; position: relative; }
 .icon-btn:hover { background: var(--surf); }
@@ -401,6 +443,22 @@ h1, h2, h3, h4, h5 { font-family: 'Inter', -apple-system, sans-serif; letter-spa
 }
 .search-dropdown { width: 320px; }
 .notif-dropdown { width: 380px; }
+
+/* Mobile full-width search overlay (replaces topbar when open) */
+.topbar-search-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; padding: 0 16px; gap: 10px;
+  background: var(--white); z-index: 10;
+  border-bottom: 1px solid var(--border);
+}
+.topbar-search-overlay-results {
+  position: fixed; top: var(--topbar-h); left: 0; right: 0;
+  background: var(--white); border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-xl); z-index: 999;
+  max-height: 60vh; overflow-y: auto;
+}
+[data-theme="dark"] .topbar-search-overlay { background: #1E293B; border-color: #334155; }
+[data-theme="dark"] .topbar-search-overlay-results { background: #1E293B; border-color: #334155; }
 
 .search-result-item {
   display: flex; align-items: center; gap: 10px;
@@ -831,3 +889,38 @@ tbody tr:last-child td { border-bottom: none; }
   .sidebar-close { display: none !important; }
   .topbar-menu-btn { display: none !important; }
 }
+
+/* --- VISIONARY GLASSMORPHISM UTILITIES --- */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+}
+
+[data-theme='dark'] .glass-panel {
+  background: rgba(17, 24, 39, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+.glass-card {
+  padding: 16px;
+  border-radius: 12px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.15);
+}
+[data-theme='dark'] .glass-card:hover {
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4);
+}
+
+.glass-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+

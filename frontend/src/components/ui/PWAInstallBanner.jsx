@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Download, X, Share, PlusSquare } from 'lucide-react'
+import { Download, X, Share, PlusSquare, ExternalLink } from 'lucide-react'
 import usePWAInstall from '../../hooks/usePWAInstall'
 
 const DISMISSED_KEY = 'pwa-banner-dismissed'
@@ -22,7 +22,7 @@ function wasDismissedRecently() {
  * Already installed / dismissed recently: hidden.
  */
 export default function PWAInstallBanner() {
-  const { isInstallable, showIOSGuide, isInstalled, promptInstall } = usePWAInstall()
+  const { isInstallable, showIOSGuide, showChromeiOSGuide, isInstalled, promptInstall } = usePWAInstall()
   const [visible, setVisible] = useState(false)
   const [iosExpanded, setIosExpanded] = useState(false)
 
@@ -30,12 +30,12 @@ export default function PWAInstallBanner() {
     // Don't show if installed, dismissed recently, or nothing to show
     if (isInstalled) return
     if (wasDismissedRecently()) return
-    if (!isInstallable && !showIOSGuide) return
+    if (!isInstallable && !showIOSGuide && !showChromeiOSGuide) return
 
     // Delay appearance so user isn't hit immediately on load
     const timer = setTimeout(() => setVisible(true), 3000)
     return () => clearTimeout(timer)
-  }, [isInstallable, showIOSGuide, isInstalled])
+  }, [isInstallable, showIOSGuide, showChromeiOSGuide, isInstalled])
 
   const dismiss = () => {
     setVisible(false)
@@ -70,6 +70,22 @@ export default function PWAInstallBanner() {
           <button className="pwa-banner-action" onClick={handleInstall}>
             Install
           </button>
+        </div>
+      )}
+
+      {/* ── Chrome on iOS — cannot install, must switch to Safari ── */}
+      {showChromeiOSGuide && (
+        <div className="pwa-banner-content pwa-banner-ios">
+          <div className="pwa-banner-icon">
+            <ExternalLink size={22} />
+          </div>
+          <div className="pwa-banner-text">
+            <strong>Install iConnect</strong>
+            <span>
+              Chrome can't install apps on iPhone.{' '}
+              <strong>Open this page in Safari</strong>, then tap Share → Add to Home Screen.
+            </span>
+          </div>
         </div>
       )}
 

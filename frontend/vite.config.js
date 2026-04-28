@@ -18,7 +18,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icons/*.png', 'offline.html'],
+      includeAssets: ['apple-touch-icon.png', 'icons/*.png', 'offline.html'],
       manifest: {
         name: 'iConnect — Medical Education Platform',
         short_name: 'iConnect',

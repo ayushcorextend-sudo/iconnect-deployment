@@ -29,7 +29,10 @@ export default function usePWAInstall() {
   return {
     isInstallable: state.canPrompt,
     isIOS: state.isIOS,
+    isChromeiOS: state.isChromeiOS,
     showIOSGuide: state.showIOSGuide,
+    showChromeiOSGuide: state.showChromeiOSGuide,
+    showFallbackInstall: state.showFallbackInstall,
     isInstalled: state.isInstalled,
     promptInstall: handlePrompt,
   }
