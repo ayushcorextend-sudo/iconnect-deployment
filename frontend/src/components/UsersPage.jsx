@@ -250,51 +250,38 @@ export default function UsersPage({ addToast, role, userId }) {
                 No users found{debouncedSearch ? ` for "${debouncedSearch}"` : ''}.
               </div>
             ) : (
-              <div className="tw">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>MCI/NMC</th>
-                      <th>Location</th>
-                      <th>Role</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pageData.map(u => (
-                      <tr key={u.id}>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Avatar name={u.name} size={30} />
-                            <div>
-                              <div style={{ fontWeight: 500, fontSize: 13 }}>{u.name}</div>
-                              <div style={{ fontSize: 11, color: '#6B7280' }}>{u.email}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{ fontSize: 13 }}>{u.mci}</td>
-                        <td>
-                          <div style={{ fontSize: 13 }}>{u.hometown}</div>
-                          <div style={{ fontSize: 11, color: '#6B7280' }}>{u.state} · {u.district}</div>
-                        </td>
-                        <td>
-                          <span className={`bdg ${u.role === 'Content Admin' ? 'bg-s' : 'bg-v'}`}>{u.role}</span>
-                        </td>
-                        <td>
-                          {u.status === 'pending'
-                            ? <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#92400E' }}><span>⏰</span>Pending</div>
-                            : <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#166534' }}><span>👤</span>Active</div>
-                          }
-                        </td>
-                        <td>
-                          <button className="btn btn-s btn-sm" aria-label="View doctor profile" onClick={() => setSel(u)}>👁</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="glass-grid">
+                {pageData.map(u => (
+                  <div key={u.id} className="glass-panel glass-card">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <Avatar name={u.name} size={40} />
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '15px' }}>{u.name}</div>
+                          <div style={{ fontSize: '12px', color: '#6B7280' }}>{u.email}</div>
+                        </div>
+                      </div>
+                      <button className="btn btn-s btn-sm" aria-label="View doctor profile" onClick={() => setSel(u)} style={{ borderRadius: '50%', width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>👁</button>
+                    </div>
+                    <div style={{ padding: '12px', background: 'rgba(255,255,255,0.3)', borderRadius: '8px', marginBottom: '12px' }}>
+                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
+                         <span style={{ color: '#6B7280' }}>MCI/NMC:</span>
+                         <span style={{ fontWeight: 500 }}>{u.mci}</span>
+                       </div>
+                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                         <span style={{ color: '#6B7280' }}>Location:</span>
+                         <span style={{ fontWeight: 500, textAlign: 'right' }}>{u.state} · {u.district}</span>
+                       </div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                      <span className={`bdg ${u.role === 'Content Admin' ? 'bg-s' : 'bg-v'}`}>{u.role}</span>
+                      {u.status === 'pending'
+                        ? <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', color: '#92400E' }}><span>⏰</span>Pending</div>
+                        : <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', color: '#166534' }}><span>👤</span>Active</div>
+                      }
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
