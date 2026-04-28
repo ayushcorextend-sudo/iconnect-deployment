@@ -76,14 +76,25 @@ export const ZONE_CONFIG = {
 };
 
 export const SPECIALITIES = {
+  MBBS: [],  // MBBS has no speciality — just college + place + year
   MD: ['Internal Medicine', 'Paediatrics', 'Psychiatry', 'Radiology', 'Dermatology', 'Pathology', 'Microbiology', 'Biochemistry', 'Physiology', 'Anatomy', 'Pharmacology', 'Community Medicine', 'Anaesthesiology', 'Emergency Medicine'],
   MS: ['General Surgery', 'Orthopaedics', 'Ophthalmology', 'ENT', 'Obstetrics & Gynaecology', 'Urology'],
-  DM: ['Cardiology', 'Neurology', 'Nephrology', 'Gastroenterology', 'Endocrinology', 'Pulmonology', 'Rheumatology', 'Medical Oncology'],
-  MCh: ['Cardiothoracic Surgery', 'Neurosurgery', 'Plastic Surgery', 'Paediatric Surgery', 'Vascular Surgery'],
-  DNB: ['General Medicine', 'Family Medicine', 'Hospital Administration'],
 };
 
-export const PROG_YEARS = { MD: 3, MS: 3, DM: 3, MCh: 3, DNB: 3 };
+// Super-specialization options available after MD or MS
+export const SUPER_SPEC_OPTIONS = {
+  MD: ['DM', 'Fellowship'],      // MD can lead to DM or Fellowship
+  MS: ['MCh', 'DNB'],             // MS can lead to MCh or DNB
+};
+
+// Specialities for each super-specialization type
+export const SUPER_SPECIALITIES = {
+  DM: ['Cardiology', 'Neurology', 'Nephrology', 'Gastroenterology', 'Endocrinology', 'Pulmonology', 'Rheumatology', 'Medical Oncology', 'Neonatology', 'Clinical Haematology', 'Hepatology'],
+  MCh: ['Cardiothoracic Surgery', 'Neurosurgery', 'Plastic Surgery', 'Paediatric Surgery', 'Vascular Surgery', 'Surgical Oncology', 'Urology (Super-spec)'],
+  DNB: ['General Medicine', 'Family Medicine', 'Hospital Administration', 'Orthopaedics (DNB)', 'ENT (DNB)'],
+};
+
+export const PROG_YEARS = { MBBS: 5, MD: 3, MS: 3, DM: 3, MCh: 3, DNB: 3 };
 
 
 export const ab = n => {

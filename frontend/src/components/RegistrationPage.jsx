@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { STATES, DISTRICTS_BY_STATE, SPECIALITIES, PROG_YEARS, getZone, ZONE_CONFIG } from '../data/constants';
+import { STATES, DISTRICTS_BY_STATE, SPECIALITIES, PROG_YEARS, getZone, ZONE_CONFIG, SUPER_SPECIALITIES } from '../data/constants';
 import { registerUser, uploadVerificationCertificate } from '../lib/supabase';
 import ProfileCompletionPage from './ProfileCompletionPage';
 import { useSubmit } from '../hooks/useSubmit';
@@ -11,9 +11,9 @@ const MAX_CERT_MB = 10;
 
 const MD_SPECIALITIES = ['General Medicine', 'Pediatrics', 'Psychiatry', 'Radiology', 'Dermatology', 'Pathology', 'Microbiology', 'Biochemistry', 'Pharmacology', 'Community Medicine', 'Anaesthesiology', 'Emergency Medicine', 'Others'];
 const MS_SPECIALITIES = ['General Surgery', 'Orthopaedics', 'ENT', 'Ophthalmology', 'Obstetrics & Gynaecology', 'Urology', 'Others'];
-const DM_SPECIALITIES = SPECIALITIES.DM || [];
-const MCH_SPECIALITIES = SPECIALITIES.MCh || [];
-const DNB_SPECIALITIES = SPECIALITIES.DNB || [];
+const DM_SPECIALITIES = SUPER_SPECIALITIES.DM || [];
+const MCH_SPECIALITIES = SUPER_SPECIALITIES.MCh || [];
+const DNB_SPECIALITIES = SUPER_SPECIALITIES.DNB || [];
 
 const YEAR_OPTIONS = Array.from({ length: 15 }, (_, i) => 2018 + i);
 
