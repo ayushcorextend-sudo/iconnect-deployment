@@ -2,3 +2,4 @@
 frontend/dist_test/
 frontend/playwright-report/
 .env*.local
+frontend/test-results/
