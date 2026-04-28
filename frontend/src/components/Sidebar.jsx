@@ -186,7 +186,7 @@ export default function Sidebar({
           <div>
             <div className="sb-logo-text-v2">{tenant?.name || 'iConnect'}</div>
             <div className="sb-role-label">
-              {role === 'superadmin' ? 'Super Admin' : role === 'contentadmin' ? 'Content Admin' : 'Icon Lifescience'}
+              {role === 'superadmin' ? 'Super Admin' : role === 'contentadmin' ? 'Content Admin' : 'ICON LIFE SCIENCES'}
             </div>
           </div>
         </div>

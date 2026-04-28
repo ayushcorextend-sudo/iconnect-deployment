@@ -248,7 +248,7 @@ export default function ProfileSetupPage({ userId, email, onComplete, addToast }
         <div className="login-logo-wrap">
           <div className="logo-icon">🛡️</div>
           <div className="logo-text">iConnect</div>
-          <div className="logo-sub">Icon Lifescience Medical Education Platform</div>
+          <div className="logo-sub">ICON LIFE SCIENCES Medical Education Platform</div>
         </div>
 
         <div className="login-card">

@@ -247,7 +247,7 @@ export default function Login({ onLogin, onRegister, pendingMessage, onDismissPe
           <div className="logo-sub">
             {tenant?.name && tenant.name !== 'iConnect'
               ? `Powered by iConnect · Medical Education Platform`
-              : 'Icon Lifescience Medical Education Platform'}
+              : 'ICON LIFE SCIENCES Medical Education Platform'}
           </div>
         </div>
 

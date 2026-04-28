@@ -180,7 +180,7 @@ export default function SADashboard({ artifacts = [], setPage, addToast, onAppro
 
       <div className="ph">
         <div className="pt">Admin Dashboard</div>
-        <div className="ps">Icon Lifescience — iConnect Management</div>
+        <div className="ps">ICON LIFE SCIENCES — iConnect Management</div>
       </div>
       <div className="sg4">
         {[

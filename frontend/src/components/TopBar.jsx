@@ -22,7 +22,7 @@ export default function TopBar({
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   const searchRef = useRef(null)
   const bellRef = useRef(null)
-  const { isInstalled, isInstallable, isIOS, promptInstall } = usePWAInstall()
+  const { isInstalled, isInstallable, isIOS, showFallbackInstall, promptInstall } = usePWAInstall()
   // Install button popover state — only used as fallback when promptInstall can't do it directly
   const [installHint, setInstallHint] = useState(null) // null | 'ios-safari' | 'ios-chrome' | 'no-prompt'
   const installHintRef = useRef(null)
@@ -281,7 +281,7 @@ export default function TopBar({
             </button>
 
             {/* PWA install — single direct button on every device. Hidden on desktop if prompt is unavailable to avoid annoying tooltip. */}
-            {!isInstalled && (isInstallable || isIOS) && (
+            {!isInstalled && (isInstallable || isIOS || showFallbackInstall) && (
               <div ref={installHintRef} style={{ position: 'relative' }}>
                 <button
                   className="topbar-install-btn"
@@ -319,6 +319,15 @@ export default function TopBar({
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: 'var(--text)', lineHeight: 1.45 }}>
                       <ExternalLink size={15} style={{ color: '#4F46E5', marginTop: 1, flexShrink: 0 }} />
                       <span>Chrome can't install apps on iPhone. Open this page in <strong>Safari</strong>, then tap Install — it'll work in one tap.</span>
+                    </div>
+                  </div>
+                )}
+
+                {installHint === 'no-prompt' && (
+                  <div className="topbar-dropdown" style={{ width: 260, right: 0, padding: '14px 16px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8, color: 'var(--text)' }}>📲 Install iConnect</div>
+                    <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+                      Click the <strong>install icon</strong> in your browser's address bar (or use browser menu &rarr; "Install app") to add iConnect to your device.
                     </div>
                   </div>
                 )}

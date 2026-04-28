@@ -233,8 +233,8 @@ export default function DoctorDashboard({ artifacts = [], notifications = [], se
           setRecentActivities([]);
         }
 
-        // booksRead from unbounded article_read query (all-time accurate count)
-        setBooksRead((actLogs || []).length);
+        // booksRead — unique articles read (deduplicated by reference_id)
+        setBooksRead(new Set((actLogs || []).map(l => l.reference_id).filter(Boolean)).size);
 
         // ── 90-day heatmap from lightweight query ─────────
         const byDate = {};

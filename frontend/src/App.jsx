@@ -99,6 +99,22 @@ export default function App() {
   );
 }
 
+// ─── One-time cleanup: remove stale Supabase auth tokens from other projects ──
+(function pruneStaleAuthTokens() {
+  try {
+    const url = import.meta.env.VITE_SUPABASE_URL || '';
+    const match = url.match(/\/\/([a-z0-9]+)\.supabase/);
+    if (!match) return;
+    const currentRef = match[1];
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('sb-') && key.endsWith('-auth-token') && !key.includes(currentRef)) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch { /* noop */ }
+})();
+
 // ─── Inner application ────────────────────────────────────────────────────────
 function MainApp() {
   const { isAuthLoading, session, setAuthRole } = useAuth();

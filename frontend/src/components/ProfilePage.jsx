@@ -202,8 +202,8 @@ export default function ProfilePage({ addToast }) {
             </>
           ) : (
             <>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,.5)', marginTop: 2 }}>{form.speciality || '—'} · {form.program} · {curYrLabel}</div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,.5)' }}>{form.college || '—'}</div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,.5)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{form.speciality || '—'} · {form.program} · {curYrLabel}</div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{form.college || '—'}</div>
               <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                 {form.verified
                   ? <div className="prof-badge">✅ Verified Doctor</div>

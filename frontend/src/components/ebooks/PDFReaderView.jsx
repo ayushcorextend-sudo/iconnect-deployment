@@ -113,7 +113,7 @@ export default function PDFReaderView({
                 opacity: 0.08, transform: 'rotate(-30deg)', fontSize: 13, fontWeight: 700,
                 color: '#1E1B4B', padding: '28px 16px', whiteSpace: 'nowrap', userSelect: 'none',
               }}>
-                {wmName} · {today} · iConnect — Icon Lifesciences
+                {wmName} · {today} · iConnect — ICON LIFE SCIENCES
               </div>
             ))}
           </div>
