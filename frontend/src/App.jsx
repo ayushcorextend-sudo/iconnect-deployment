@@ -825,7 +825,7 @@ function MainApp() {
       <OfflineIndicator />
       <PWAInstallBanner />
       {/* First-login welcome splash — gated by localStorage, shown once per device */}
-      <WelcomeBanner />
+      <WelcomeBanner onNavigate={setPage} />
     </>
   );
 }
